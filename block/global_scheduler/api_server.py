@@ -50,7 +50,7 @@ def print_instance_errors():
         error_ratios.extend(instance.predicted_error_ratio)
 
     global selected_instance_real_ranking
-    predict_accuracy = (1.0 * len([r for r in selected_instance_real_ranking if r == 1])
+    predict_accuracy = (1.0 * sum(1 for r in selected_instance_real_ranking if r == 1)
                         / len(selected_instance_real_ranking))
     if error_ratios and selected_instance_real_ranking:  #
         mean_error_ratio = np.mean(error_ratios)
@@ -191,7 +191,7 @@ async def generate_benchmark(request: Request) -> Response:
                 target_metric = min(target_metrics)
             else:
                 target_metric = max(target_metrics)
-            candidates_indexes = [i for i, value in enumerate(target_metrics) if value == target_metric]
+            candidates_indexes = (i for i, value in enumerate(target_metrics) if value == target_metric)
             metric_selected_index = random.choice(candidates_indexes)
             selected_instance_id = (predict_results[metric_selected_index])['instance_id']
             selected_index = \

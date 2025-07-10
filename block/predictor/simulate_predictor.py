@@ -25,24 +25,24 @@ logging.basicConfig(level=logging.INFO,
 NUM_FIELD_PER_REQUEST = 7
 
 
-def get_predicted_metrics(replica_scheduler, response_data, predicted_target_request,
+def get_predicted_metrics(replica_scheduler, requests, predicted_target_request,
                           target_metric: TargetMetric, request_timeline_predictor):
     from vidur.request_timeline_predictor.base_request_timeline_predictor import get_target_metric_value
+    request_timeline_predictor.set_requests(requests)
     metric = get_target_metric_value(target_metric, replica_scheduler, predicted_target_request,
                                      request_timeline_predictor)
 
     return metric
 
 
-def convert_list_to_request_infos(raw: list) -> list:
+def convert_list_to_request_infos(raw: list):
     """
     Convert the raw list of request information into a dictionary with keys
     "request_id", "arrival_time", "seq_prompts_length", "seq_total_output_length",
     "seq_computed_length", "is_prefill", and "seq_expected_decoded_length".
     """
-    request_infos = []
     for i in range(0, len(raw), NUM_FIELD_PER_REQUEST):
-        request_infos.append({
+        yield {
             "request_id": raw[i],
             "arrival_time": raw[i + 1],
             "seq_total_output_length": raw[i + 2],
@@ -54,10 +54,9 @@ def convert_list_to_request_infos(raw: list) -> list:
             # response will end soon
             "seq_expected_decoded_length": raw[i + 6] if raw[i + 6] + raw[i + 3] > raw[i + 2] else
             (raw[i + 2] - raw[i + 3]) + 10
-        })
+        }
         if not (raw[i + 5] == 1 or raw[i + 5] == 0):
             raise ValueError(f"Invalid value for is_prefill: {raw[i + 5]}")
-    return request_infos
 
 
 class SimulatePredictor(Predictor):
@@ -75,7 +74,9 @@ class SimulatePredictor(Predictor):
             write_metrics=False,
             create_output_dir=False
         )
-        self._simulation_config = SimulationRequestTimelinePredictorConfig()
+        self._simulation_config = SimulationRequestTimelinePredictorConfig(
+            enable_fast_cloning=config.enable_fast_cloning
+        )
         self._replica = Replica(config.replica_config, self._generate_config)
         self._execution_time_predictor = ExecutionTimePredictorRegistry.get(
             config.execution_time_predictor_config.get_type(),
@@ -91,9 +92,7 @@ class SimulatePredictor(Predictor):
             self._need_to_predict = True
         else:
             self._need_to_predict = False
-        from vidur.request_timeline_predictor.simulate_request_timeline_predictor import \
-            SimulateRequestTimelinePredictor
-        self._request_timeline_predictor = SimulateRequestTimelinePredictor()
+        from vidur.request_timeline_predictor.simulate_request_timeline_predictor import             SimulateRequestTimelinePredictor        self._request_timeline_predictor = SimulateRequestTimelinePredictor(            timeline_predictor_config=self._simulation_config        )
         self._request_timeline_predictor.attach_execution_time_predictor(self._execution_time_predictor)
         self._request_timeline_predictor.disable_copy_of_base_replica_scheduler()
         self._request_timeline_predictor.use_estimated_time = config.enable_batch_time_estimation
@@ -134,11 +133,12 @@ class SimulatePredictor(Predictor):
             if len(response_data) > 0:
                 replica_scheduler = self.get_replica_scheduler_with_backend_response(response_data)
                 loop = asyncio.get_event_loop()
+                requests = list(replica_scheduler._request_queue) + list(replica_scheduler._preempted_requests)
                 target_metric = await loop.run_in_executor(
                     self._executor,
                     get_predicted_metrics,
                     replica_scheduler,
-                    response_data,
+                    requests,
                     target_request,
                     self._target_metric,
                     self._request_timeline_predictor
@@ -219,9 +219,9 @@ class SimulatePredictor(Predictor):
             num_stages=self._replica.num_pipeline_stages,
             execution_time_predictor=self._execution_time_predictor,
         )
-        waiting_request_length = convert_list_to_request_infos(response["waiting"])
-        running_request_length = convert_list_to_request_infos(response["running"])
-        swap_request_length = convert_list_to_request_infos(response["swap"])
+        waiting_request_length = list(convert_list_to_request_infos(response["waiting"]))
+        running_request_length = list(convert_list_to_request_infos(response["running"]))
+        swap_request_length = list(convert_list_to_request_infos(response["swap"]))
 
         for requests_info in running_request_length:
             request = self.__generate_requests_from_backend(requests_info, 'running')

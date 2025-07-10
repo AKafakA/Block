@@ -56,7 +56,7 @@ async def init_app(
     global predictor
     config_path = args.config_path
     config_dict = json.load(open(config_path))
-    config: PredictorConfig = PredictorConfig.create_from_dict(config_dict, args.enable_chunked_prefill)
+    config: PredictorConfig = PredictorConfig.create_from_dict(config_dict, args.enable_chunked_prefill, args.enable_fast_cloning)
     if args.metric_type:
         config.target_metric = args.metric_type
     config.replica_scheduler_config.batch_size_cap = args.batch_size_cap
@@ -126,6 +126,7 @@ if __name__ == "__main__":
                              "And >0 means enable time estimation only when batch size > this")
     parser.add_argument("--predictor_timeout", type=int, default=10)
     parser.add_argument("--predictor_index", type=int, default=1)
+    parser.add_argument("--enable_fast_cloning", action='store_true')
     logging.log(logging.INFO, "Starting server with args: %s", str(parser.parse_args()))
     args = parser.parse_args()
     resource.setrlimit(resource.RLIMIT_NOFILE, (65536, 65536))

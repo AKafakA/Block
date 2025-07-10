@@ -114,7 +114,7 @@ class Simulator:
 
     def _add_events(self, events: List[BaseEvent]) -> None:
         for event in events:
-            self._add_event(event)
+            heapq.heappush(self._event_queue, (event._priority_number, event))
 
     def _init_event_queue(self) -> None:
         requests = self._request_generator.generate()

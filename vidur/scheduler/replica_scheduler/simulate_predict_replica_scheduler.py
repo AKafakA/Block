@@ -21,42 +21,73 @@ class SimulatePredictReplicaScheduler:
                  start_time=0,
                  threshold_batch_size_for_time_estimation=36,
                  running_until_target_finished=True,
-                 batch_execution_time_caching_map=None) -> None:
+                 batch_execution_time_caching_map=None,
+                 base_cloned_instance=None) -> None:
         self._replica_id = replica_scheduler.replica_id
         self._raw_replica_scheduler = replica_scheduler
-        if copy_replica_scheduler:
-            self._replica_scheduler = copy.deepcopy(replica_scheduler)
+        if base_cloned_instance:
+            self._replica_scheduler = copy.deepcopy(base_cloned_instance._replica_scheduler)
             self._target_request = copy.deepcopy(request)
             self._target_request._num_decode_tokens = request.num_predicted_decode_tokens
+            self._scheduled_batch_heap = copy.deepcopy(base_cloned_instance._scheduled_batch_heap)
+            self._scheduled_batch_id = base_cloned_instance._scheduled_batch_id
+            self._all_request_batch_info = copy.deepcopy(base_cloned_instance._all_request_batch_info)
+            self._request_ids = copy.deepcopy(base_cloned_instance._request_ids)
         else:
-            self._replica_scheduler = replica_scheduler
-            self._target_request = request
-            self._target_request._num_decode_tokens = request.num_predicted_decode_tokens
+            if copy_replica_scheduler:
+                self._replica_scheduler = copy.deepcopy(replica_scheduler)
+                self._target_request = copy.deepcopy(request)
+                self._target_request._num_decode_tokens = request.num_predicted_decode_tokens
+            else:
+                self._replica_scheduler = replica_scheduler
+                self._target_request = request
+                self._target_request._num_decode_tokens = request.num_predicted_decode_tokens
+            self._all_request_batch_info = []
+            self._scheduled_batch_heap = []
+            self._scheduled_batch_id = 0
+            self._request_ids = set()
         self._copy_needed = copy_replica_scheduler
         self._execution_time_predictor = execution_time_predictor
-        self._all_request_batch_info = []
-        self._scheduled_batch_heap = []
-        self._scheduled_batch_id = 0
         self._estimate_execution_time = use_estimated_execution_time
         self._default_execution_time = 0.02
         self._threshold_batch_size_for_time_estimation = threshold_batch_size_for_time_estimation
         self._start_time = start_time
-        self._request_ids = set()
         self._running_until_target_finished = running_until_target_finished
         self._batch_execution_time_caching_map = batch_execution_time_caching_map
 
-    def simulate(self):
+    def clone(self, request: Request):
+        return SimulatePredictReplicaScheduler(
+            replica_scheduler=self._raw_replica_scheduler,
+            request=request,
+            execution_time_predictor=self._execution_time_predictor,
+            use_estimated_execution_time=self._estimate_execution_time,
+            copy_replica_scheduler=self._copy_needed,
+            start_time=self._start_time,
+            threshold_batch_size_for_time_estimation=self._threshold_batch_size_for_time_estimation,
+            running_until_target_finished=self._running_until_target_finished,
+            batch_execution_time_caching_map=self._batch_execution_time_caching_map,
+            base_cloned_instance=self
+        )
+
+    def simulate(self, from_cloned=False):
         assert self._target_request is not None
-        self._replica_scheduler.add_request(self._target_request)
-        existing_batches = self._replica_scheduler.running_batches
-        self._replica_scheduler.running_batches = []
-        for batch in existing_batches:
-            self.__push_batch(copy.copy(batch), self._start_time)
-        new_batches = self._replica_scheduler.on_schedule()
-        # so the initialized batch == the number of stages then only be pushed after pop so that the batch number
-        # is limited by the number of stages
-        for new_batch in new_batches:
-            self.__push_batch(new_batch, self._start_time)
+        if not from_cloned:
+            self._replica_scheduler.add_request(self._target_request)
+            existing_batches = self._replica_scheduler.running_batches
+            self._replica_scheduler.running_batches = []
+            for batch in existing_batches:
+                self.__push_batch(copy.copy(batch), self._start_time)
+            new_batches = self._replica_scheduler.on_schedule()
+            # so the initialized batch == the number of stages then only be pushed after pop so that the batch number
+            # is limited by the number of stages
+            for new_batch in new_batches:
+                self.__push_batch(new_batch, self._start_time)
+        else:
+            self._replica_scheduler.add_request(self._target_request)
+            new_batches = self._replica_scheduler.on_schedule()
+            for new_batch in new_batches:
+                self.__push_batch(new_batch, self._start_time)
+
         while self._scheduled_batch_heap:
             (batch_id, batch_execution_time, schedule_time, batch, num_allocated_blocks) = self.__pop_batch()
             for request_id in batch.request_ids:

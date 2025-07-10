@@ -494,6 +494,11 @@ class BaseRequestTimelinePredictorConfig(BasePolyConfig):
 
 @dataclass
 class SimulationRequestTimelinePredictorConfig(BaseRequestTimelinePredictorConfig):
+    enable_fast_cloning: bool = field(
+        default=False,
+        metadata={"help": "Enable fast cloning for the simulator."},
+    )
+
     @staticmethod
     def get_type():
         return RequestTimelinePredictorType.SIMULATE

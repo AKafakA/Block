@@ -14,5 +14,6 @@
 		"num_blocks": 7289
 	},
 	"target_metric": "min_new_request_latency",
-	"disable_batch_time_estimation": false
+	"disable_batch_time_estimation": false,
+	"enable_fast_cloning": false
 }
