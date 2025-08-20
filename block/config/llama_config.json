@@ -1,0 +1,18 @@
+{
+	"replica_config": {
+		"model_name": "meta-llama/Llama-2-7b-hf",
+		"memory_margin_fraction": 0.1,
+		"num_pipeline_stages": 1,
+		"tensor_parallel_size": 1,
+		"device": "a30",
+		"network_device": "a30_single_gpu"
+	},
+	"replica_scheduler_config": {
+		"max_tokens_in_batch": 4096,
+		"batch_size_cap": 48,
+		"chunk_size": 512,
+		"num_blocks": 1052
+	},
+	"target_metric": "min_new_request_latency",
+	"enable_batch_time_estimation": true
+}

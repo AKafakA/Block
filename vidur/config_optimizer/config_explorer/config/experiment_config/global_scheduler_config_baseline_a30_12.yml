@@ -1,0 +1,62 @@
+clusters:
+  - device: a30
+    num_gpus: 12
+    gpus_per_node: 1
+
+load_balancers:
+  - name: round_robin
+    type: round_robin
+  - name: least_of_requests
+    type: lor
+  - name: random
+    type: random
+  - name: min_memory
+    type: min_memory
+  - name: optimal
+    type: opt
+    target_metric: "min_latency"
+  - name: optimal
+    type: opt
+    target_metric: "min_gpu_blocks"
+  - name: infaas
+    type: lodt
+
+schedulers:
+  - scheduler: vllm
+
+traces:
+  - name: arxiv
+    trace_file: "./data/processed_traces/arxiv_summarization_stats_llama2_tokenizer_filtered_v2.csv"
+    max_seq_len: 4096
+    num_requests: 16000
+    start_qps: 10.00
+    generate_type: "synthetic"
+  - name: sharegpt
+    trace_file: "./data/processed_traces/sharegpt-val-10k-predicted-len.csv"
+    max_seq_len: 4096
+    num_requests: 10000
+    start_qps: 10.00
+    generate_type: "synthetic"
+  - name: code
+    trace_file: "./data/processed_traces/splitwise_code_len.csv"
+    max_seq_len: 4096
+    num_requests: 8000
+    start_qps: 10.00
+    generate_type: "synthetic"
+
+batch_sizes: [48]
+tp_dimensions: [1]
+pp_dimensions: [1]
+
+models:
+  - name: llama-2-7b-hf
+    identifier: meta-llama/Llama-2-7b-hf
+  # - name: internlm-20b
+  #   identifier: internlm/internlm-20b
+  #   exclude_tp_dims: [1]
+  # - name: llama-2-70b-hf
+  #   identifier: meta-llama/Llama-2-70b-hf
+  #   exclude_tp_dims: [1]
+  # - name: qwen-72b
+  #   identifier: Qwen/Qwen-72B
+  #   exclude_tp_dims: [1]
