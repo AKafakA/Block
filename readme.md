@@ -207,7 +207,7 @@ The script configures Sarathi as the replica scheduler, uses RoBERTa-predicted d
 #### Remote Suites (automation)
 
 - Use `scripts/remote_run_suite.sh` to run the offline suites remotely without blocking your terminal.
-  - Setup once (repo/venv/deps/branch): `bash scripts/remote_run_suite.sh setup qps32` or `setup large`
+  - Setup once (repo/deps/branch): `bash scripts/remote_run_suite.sh setup qps32` or `setup large`
   - One-click setup+run: `bash scripts/remote_run_suite.sh one_click_qps32` or `one_click_large` (or `one_click_both`)
   - Launch detached (prints remote log path): `bash scripts/remote_run_suite.sh run_qps32` or `run_large`
   - Tail latest: `bash scripts/remote_run_suite.sh tail_qps32` or `tail_large`

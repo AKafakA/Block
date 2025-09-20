@@ -11,7 +11,6 @@
 #   LARGE_SCALE_SIMULATION_HOST  (default: wd312@caelum-105)
 # Optional overrides:
 #   REMOTE_ROOT       (default: ~/Block)
-#   VENV_DIR          (default: $REMOTE_ROOT/venv)
 #   PYTHON_BIN        (default: python3)
 #   REPO_URL          (default: current repo origin)
 #   REMOTE_BRANCH     (default: simulator)
@@ -45,10 +44,9 @@ if [[ $# -lt 1 ]]; then
 fi
 
 NORMAL_SCALE_SIMULATION_HOST=${NORMAL_SCALE_SIMULATION_HOST:-wd312@caelum-104}
-LARGE_SCALE_SIMULATION_HOST=${LARGE_SCALE_SIMULATION_HOST:-wd312@caelum-214}
+LARGE_SCALE_SIMULATION_HOST=${LARGE_SCALE_SIMULATION_HOST:-wd312@caelum-208}
 
 REMOTE_ROOT=${REMOTE_ROOT:-~/Block}
-VENV_DIR=${VENV_DIR:-$REMOTE_ROOT/venv}
 PYTHON_BIN=${PYTHON_BIN:-python3}
 REPO_URL=${REPO_URL:-$(git config --get remote.origin.url)}
 REMOTE_EXTRA_ARGS=${REMOTE_EXTRA_ARGS:-}
@@ -90,10 +88,7 @@ remote_setup() {
       git checkout -b ${REMOTE_BRANCH} origin/${REMOTE_BRANCH} || git checkout ${REMOTE_BRANCH}; \
     fi; \
     git pull --ff-only origin ${REMOTE_BRANCH} || true; \
-    if [[ ! -d ${VENV_DIR} ]]; then ${PYTHON_BIN} -m venv ${VENV_DIR}; fi; \
-    source ${VENV_DIR}/bin/activate; \
-    pip install --upgrade pip >/dev/null; \
-    pip install -r requirements.txt >/dev/null"
+    ${PYTHON_BIN} -m pip install --user -r requirements.txt >/dev/null || pip3 install --user -r requirements.txt >/dev/null || true"
 }
 
 remote_run_detached() {
@@ -108,7 +103,7 @@ remote_run_detached() {
   ssh "$HOST" "set -euo pipefail; \
     mkdir -p ${log_dir}; \
     cd ${REMOTE_ROOT}; \
-    nohup bash -lc 'source ${VENV_DIR}/bin/activate; export PYTHONPATH=${REMOTE_ROOT}; ${REMOTE_SUITE}' \
+    nohup bash -lc 'export PYTHONPATH=${REMOTE_ROOT}; ${REMOTE_SUITE}' \
       > ${log_file} 2>&1 & echo \$! > ${log_dir}/last.pid; echo ${log_file}"
 }
 

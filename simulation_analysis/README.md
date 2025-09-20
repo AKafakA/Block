@@ -31,7 +31,7 @@ artifacts that back the paper appendix draft.
 - `run_qps32_suite.sh`, `run_large_scale_suite.sh`: wrappers for the 12-replica QPS=32 and 120-replica QPS=320 suites respectively. Append additional `run_experiment_suite.py` flags via environment variable `REMOTE_EXTRA_ARGS` or direct CLI arguments when launching locally.
 - Remote automation scripts under `scripts/`:
   - `remote_run_suite.sh`: split into setup and run steps, runs detached, supports log collection.
-    - Setup (repo/venv/deps/branch): `bash scripts/remote_run_suite.sh setup qps32` or `setup large`
+    - Setup (repo/deps/branch): `bash scripts/remote_run_suite.sh setup qps32` or `setup large`
     - One-click setup+run: `bash scripts/remote_run_suite.sh one_click_qps32` or `one_click_large` (or `one_click_both`)
     - Run (detached; prints remote log path): `bash scripts/remote_run_suite.sh run_qps32` or `run_large`
     - Tail latest log: `bash scripts/remote_run_suite.sh tail_qps32` or `tail_large`
