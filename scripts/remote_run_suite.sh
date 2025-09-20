@@ -87,10 +87,10 @@ remote_setup() {
       git checkout -b ${REMOTE_BRANCH} origin/${REMOTE_BRANCH} || git checkout ${REMOTE_BRANCH}; \
     fi; \
     git pull --ff-only origin ${REMOTE_BRANCH} || true; \
+    mkdir -p ${REMOTE_ROOT}/.pyuser; \
+    export PYTHONUSERBASE=${REMOTE_ROOT}/.pyuser; \
     ${PYTHON_BIN} -m pip install --user --upgrade pip setuptools wheel >/dev/null 2>&1 || true; \
-    if ! ${PYTHON_BIN} -m pip install --user -r requirements-sim.txt >/dev/null 2>&1; then \
-      echo '[remote_setup] requirements install failed; relaxing numpy pin' >&2; \
-    fi"
+    ${PYTHON_BIN} -m pip install --user -r requirements-sim.txt >/dev/null 2>&1 || pip3 install --user -r requirements-sim.txt >/dev/null 2>&1 || true"
 }
 
 remote_run_detached() {
