@@ -88,7 +88,7 @@ remote_setup() {
     fi; \
     git pull --ff-only origin ${REMOTE_BRANCH} || true; \
     ${PYTHON_BIN} -m pip install --user --upgrade pip setuptools wheel >/dev/null 2>&1 || true; \
-    if ! ${PYTHON_BIN} -m pip install --user -r requirements.txt >/dev/null 2>&1; then \
+    if ! ${PYTHON_BIN} -m pip install --user -r requirements-sim.txt >/dev/null 2>&1; then \
       echo '[remote_setup] requirements install failed; relaxing numpy pin' >&2; \
     fi"
 }
