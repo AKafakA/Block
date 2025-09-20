@@ -544,6 +544,10 @@ class MetricsStore:
         self._request_metrics_time_distributions[
             RequestMetricsTimeDistributions.REQUEST_SCHEDULING_DELAY
         ].put(request.id, request.scheduling_delay)
+        # Also expose waiting time as an alias (arrival -> first schedule)
+        self._request_metrics_time_distributions[
+            RequestMetricsTimeDistributions.REQUEST_WAITING_TIME
+        ].put(request.id, request.scheduling_delay)
         self._request_metrics_time_distributions[
             RequestMetricsTimeDistributions.REQUEST_EXECUTION_PLUS_PREEMPTION_TIME
         ].put(request.id, request.execution_time + request.preempted_time)

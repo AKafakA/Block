@@ -760,6 +760,14 @@ class SklearnExecutionTimePredictor(BaseExecutionTimePredictor):
             // self._config.kv_cache_prediction_granularity
         ) * self._config.kv_cache_prediction_granularity
 
+        # Clamp to the trained prediction domain to avoid key misses when
+        # sequences exceed the profiled context length.
+        try:
+            max_tokens = int(self._config.prediction_max_tokens_per_request)
+        except Exception:
+            max_tokens = 4096
+        decode_avg_kv_cache_size = min(decode_avg_kv_cache_size, max_tokens)
+
         batch._decode_params = (decode_batch_size, decode_avg_kv_cache_size)
 
         return batch._decode_params

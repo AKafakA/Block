@@ -4,6 +4,7 @@ import json
 import time
 from typing import List
 
+from math import ceil
 from vidur.config import SimulationConfig
 from vidur.entities import Cluster
 from vidur.events import BaseEvent, RequestArrivalEvent
@@ -15,6 +16,9 @@ from vidur.scheduler import BaseGlobalScheduler, GlobalSchedulerRegistry
 from pyinstrument import Profiler
 
 logger = init_logger(__name__)
+
+DEFAULT_PROGRESS_LOG_INTERVAL = 500
+DEFAULT_PROGRESS_LOG_TIME_SECS = 300  # 5 minutes
 
 
 class Simulator:
@@ -48,6 +52,13 @@ class Simulator:
             self._cluster.replicas,
         )
 
+        self._total_requests = 0
+        self._progress_log_interval = DEFAULT_PROGRESS_LOG_INTERVAL
+        self._next_progress_log = DEFAULT_PROGRESS_LOG_INTERVAL
+        self._last_progress_log = 0
+        self._progress_log_time_secs = DEFAULT_PROGRESS_LOG_TIME_SECS
+        self._last_progress_time = 0.0
+
         self._init_event_queue()
         atexit.register(self._write_output)
 
@@ -68,6 +79,7 @@ class Simulator:
         profiler.start()
         # code you want to profile
         start_time = time.time()
+        self._last_progress_time = start_time
 
         while self._event_queue and not self._terminate:
             _, event = heapq.heappop(self._event_queue)
@@ -75,9 +87,48 @@ class Simulator:
             new_events = event.handle_event(self._scheduler, self._metric_store)
             for event in new_events:
                 if isinstance(event, GlobalScheduleEvent):
-                    if self._scheduler.num_scheduled_requests % 1000 == 0:
-                        logger.info(f"Processed {self._scheduler.num_scheduled_requests} requests")
+                    scheduled = self._scheduler.num_scheduled_requests
+                    if scheduled and scheduled >= self._next_progress_log:
+                        if self._total_requests:
+                            pct = (scheduled / self._total_requests) * 100
+                            logger.info(
+                                "Processed %d/%d requests (%.1f%%) after %.1fs",
+                                scheduled,
+                                self._total_requests,
+                                pct,
+                                time.time() - start_time,
+                            )
+                        else:
+                            logger.info(
+                                "Processed %d requests after %.1fs",
+                                scheduled,
+                                time.time() - start_time,
+                            )
+                        self._last_progress_log = scheduled
+                        while scheduled >= self._next_progress_log:
+                            self._next_progress_log += self._progress_log_interval
             self._add_events(new_events)
+
+            # Time-based progress logging every N seconds
+            now = time.time()
+            if now - self._last_progress_time >= self._progress_log_time_secs:
+                scheduled = self._scheduler.num_scheduled_requests
+                if self._total_requests:
+                    pct = (scheduled / self._total_requests) * 100 if self._total_requests else 0.0
+                    logger.info(
+                        "Processed %d/%d requests (%.1f%%) after %.1fs",
+                        scheduled,
+                        self._total_requests,
+                        pct,
+                        now - start_time,
+                    )
+                else:
+                    logger.info(
+                        "Processed %d requests after %.1fs",
+                        scheduled,
+                        now - start_time,
+                    )
+                self._last_progress_time = now
 
             if self._config.metrics_config.write_json_trace:
                 self._event_trace.append(event.to_dict())
@@ -89,6 +140,23 @@ class Simulator:
 
         assert self._scheduler.is_empty() or self._terminate
         end_time = time.time()
+        final_count = self._scheduler.num_scheduled_requests
+        if final_count and final_count != self._last_progress_log:
+            if self._total_requests:
+                pct = (final_count / self._total_requests) * 100
+                logger.info(
+                    "Processed %d/%d requests (%.1f%%) after %.1fs",
+                    final_count,
+                    self._total_requests,
+                    pct,
+                    end_time - start_time,
+                )
+            else:
+                logger.info(
+                    "Processed %d requests after %.1fs",
+                    final_count,
+                    end_time - start_time,
+                )
         logger.info(f"Simulation took: {end_time - start_time}s")
 
         logger.info(f"Simulation ended at: {self._time}s")
@@ -118,6 +186,17 @@ class Simulator:
 
     def _init_event_queue(self) -> None:
         requests = self._request_generator.generate()
+
+        self._total_requests = len(requests)
+        if self._total_requests:
+            # Use dynamic progress step: every 10% for small runs; 1000 for large runs
+            if self._total_requests >= 1000:
+                self._progress_log_interval = 1000
+            else:
+                self._progress_log_interval = max(10, ceil(self._total_requests / 10))
+            self._next_progress_log = min(self._progress_log_interval, self._total_requests)
+        else:
+            self._next_progress_log = self._progress_log_interval
 
         for request in requests:
             self._add_event(RequestArrivalEvent(request.arrived_at, request))

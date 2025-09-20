@@ -1,4 +1,9 @@
-from vidur.request_timeline_predictor.simulate_request_timeline_predictor import SimulateRequestTimelinePredictor
+from vidur.request_timeline_predictor.simulate_request_timeline_predictor import (
+    SimulateRequestTimelinePredictor,
+)
+from vidur.request_timeline_predictor.noisy_simulate_request_timeline_predictor import (
+    NoisySimulateRequestTimelinePredictor,
+)
 from vidur.types.request_timeline_predictor_type import RequestTimelinePredictorType
 from vidur.utils.base_registry import BaseRegistry
 
@@ -10,3 +15,7 @@ class RequestTimelinePredictorRegistry(BaseRegistry):
 
 
 RequestTimelinePredictorRegistry.register(RequestTimelinePredictorType.SIMULATE, SimulateRequestTimelinePredictor)
+RequestTimelinePredictorRegistry.register(
+    RequestTimelinePredictorType.NOISY_SIMULATE,
+    NoisySimulateRequestTimelinePredictor,
+)

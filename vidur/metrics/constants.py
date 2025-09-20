@@ -39,6 +39,9 @@ class RequestMetricsTimeDistributions(enum.Enum):
     REQUEST_MODEL_EXECUTION_TIME_NORMALIZED = "request_model_execution_time_normalized"
     REQUEST_PREEMPTION_TIME = "request_preemption_time"
     REQUEST_SCHEDULING_DELAY = "request_scheduling_delay"
+    # Alias to avoid confusion with paper terminology: this is the waiting time
+    # from arrival until first batch is scheduled (part of TTFT in paper).
+    REQUEST_WAITING_TIME = "request_waiting_time"
     REQUEST_EXECUTION_PLUS_PREEMPTION_TIME = "request_execution_plus_preemption_time"
     REQUEST_EXECUTION_PLUS_PREEMPTION_TIME_NORMALIZED = (
         "request_execution_plus_preemption_time_normalized"

@@ -8,6 +8,7 @@ class RoundRobinGlobalScheduler(BaseGlobalScheduler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._request_counter = 0
+        self._replica_ids = list(self._replica_schedulers.keys())
 
     def schedule(self) -> List[Tuple[int, Request]]:
         self.sort_requests()
@@ -15,7 +16,9 @@ class RoundRobinGlobalScheduler(BaseGlobalScheduler):
         request_mapping = []
         while self._request_queue:
             request = self._request_queue.pop(0)
-            replica_id = self._request_counter % self._num_replicas
+            replica_id = self._replica_ids[
+                self._request_counter % len(self._replica_ids)
+            ]
             self._request_counter += 1
             request_mapping.append((replica_id, request))
 

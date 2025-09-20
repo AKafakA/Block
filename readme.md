@@ -150,6 +150,72 @@ python block/benchmark/benchmark_serving.py
 
 ---
 
+## 7. Offline Large-Scale Simulation
+
+Use the Vidur simulator to replay tagged traces with Block’s predictive policy (and baselines) at scales that are impractical to run physically.
+
+- `block_offline` mirrors the paper’s policy with ground-truth decode lengths; `block_star_offline` replays Block* using the dataset’s estimated lengths. Use `--block-noise` to tune the injected noise percentage (default 10) and `--block-target-metric` to pick the scheduling metric (`min_latency` by default).
+
+Fast predictor mode: Offline Block/Block* (experimental)
+- The offline Block schedulers support an experimental fast predictor path that snapshots/replicates the replica scheduler instead of deep-copying it per what‑if simulation, substantially reducing CPU overhead.
+- Configurable via CLI: `--fast-predict on|off` (default: `off` to preserve parity). You can also toggle via `fast_predict` in `BlockOfflineGlobalSchedulerConfig` and `BlockStarOfflineGlobalSchedulerConfig`.
+- Keep it off for result parity; turn on only after validating on your workload.
+- `infass_pp`, `llumnix_minus`, `random`, and `round_robin` provide baseline heuristics consistent with the online evaluation.
+- Prefer the intuitive `--qps` flag to target an arrival rate directly (e.g., `--qps 32` to match the paper’s QPS-32 runs). The script infers the necessary time scaling automatically; fall back to `--time-scale-factor` only for advanced tuning.
+- Example 160-replica, 10× QPS sweep (first 200 requests for speed):
+  ```
+  PYTHONPATH=. python scripts/run_offline_simulations.py \
+    --num-replicas 160 \
+    --schedulers block_offline infass_pp llumnix_minus random round_robin \
+    --trace-file data/trace_data/sharegpt/sharegpt_val_10k_llama2.csv \
+    --predicted-trace-file data/trace_data/sharegpt/generate/llama/sharegpt-llama-7b-val-10k-predicted.json \
+    --qps 320 \
+    --max-requests 200
+  ```
+- Results are written under `simulation_analysis/offline/<scenario>/<scheduler>/<timestamp>/` with `config.json` and `request_metrics.csv`. Adjust `--max-requests` upward for full-trace fidelity (larger values take longer because each request performs a per-replica simulation).
+- Plots are disabled by default to avoid Kaleido sandbox issues; flip `store_plots` to `True` in `scripts/run_offline_simulations.py` once Kaleido is available on your system.
+
+The script configures Sarathi as the replica scheduler, uses RoBERTa-predicted decode lengths from the tagged ShareGPT trace, and instantiates the Vidur execution-time predictor (linear regression by default for faster sweeps).
+
+### Faster Offline Block (Parallel Backends)
+
+- Flags (simplified):
+  - `--fast-predict on|off`: snapshot/restore instead of deep‑copying the replica scheduler (large speedup, parity‑preserving).
+  - `--block-parallel-enable on|off`: process-based per‑replica what‑ifs in parallel (single toggle; thread backend removed).
+  - `--deterministic-noise on|off`: required when using parallelism with noise > 0 to keep results stable.
+
+- Recommended presets:
+  - Fast and identical (no noise):
+    ```bash
+    PYTHONPATH=. python scripts/run_offline_simulations.py \
+      --schedulers block_offline block_star_offline \
+      --num-replicas 12 --qps 32 --max-requests 200 \
+      --fast-predict on --block-parallel-enable on --block-noise 0
+    ```
+  - With noise and deterministic parallelism:
+    ```bash
+    PYTHONPATH=. python scripts/run_offline_simulations.py \
+      --schedulers block_offline \
+      --num-replicas 12 --qps 32 --max-requests 200 \
+      --fast-predict on --block-parallel-enable on \
+      --block-noise 10 --deterministic-noise on
+    ```
+
+- Process backend (design):
+  - A `process` backend runs per‑replica what‑ifs in separate processes (closer to the paper’s distributed predictor). It preserves parity using a deterministic noise schedule and fast‑predict snapshots. See AGENTS.md → “Process Backend (Distributed Predictor Simulation)” for the implementation plan and acceptance tests.
+
+### Validation Plan
+
+- Parity on 12×120 (recommended):
+  - Sequential slow vs fast: compare `--fast-predict off` vs `on` with `--block-parallel-enable off` and `--num-replicas 12 --max-requests 120 --qps 32 --block-noise 0`.
+  - Parallel process: `--fast-predict on --block-parallel-enable on --block-noise 0` and compare CSVs.
+  - With noise: rerun the above with `--block-noise 10 --deterministic-noise on` and assert equality.
+
+- Large‑scale 10×: 
+  - `--num-replicas 120 --qps 320 --max-requests 10000` with `--fast-predict on` and `--block-parallel-enable on` (process backend). Report wall‑clock speedups.
+
+---
+
 ## 7. Requirements
 
 It was tested with this set of packages

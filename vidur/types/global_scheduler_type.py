@@ -9,3 +9,7 @@ class GlobalSchedulerType(BaseIntEnum):
     # opt global scheduler name
     OPT = 5
     MIN_MEMORY = 6
+    BLOCK_OFFLINE = 7
+    BLOCK_STAR_OFFLINE = 8
+    INFAAS_PLUS_PLUS = 9
+    LLUMNIX_MINUS = 10

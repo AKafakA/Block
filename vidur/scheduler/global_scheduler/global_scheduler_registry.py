@@ -1,3 +1,12 @@
+from vidur.scheduler.global_scheduler.block_offline_global_scheduler import (
+    BlockOfflineGlobalScheduler,
+)
+from vidur.scheduler.global_scheduler.infass_pp_global_scheduler import (
+    InfassPlusPlusGlobalScheduler,
+)
+from vidur.scheduler.global_scheduler.llumnix_minus_global_scheduler import (
+    LlumnixMinusGlobalScheduler,
+)
 from vidur.scheduler.global_scheduler.lor_global_scheduler import LORGlobalScheduler
 from vidur.scheduler.global_scheduler.min_memory_scheduler import MinMemoryScheduler
 from vidur.scheduler.global_scheduler.random_global_scheduler import (
@@ -27,4 +36,15 @@ GlobalSchedulerRegistry.register(GlobalSchedulerType.MIN_MEMORY, MinMemorySchedu
 GlobalSchedulerRegistry.register(GlobalSchedulerType.LODT, LODTScheduler)
 
 GlobalSchedulerRegistry.register(GlobalSchedulerType.OPT, LengthAwareOptimalScheduler)
-
+GlobalSchedulerRegistry.register(
+    GlobalSchedulerType.BLOCK_OFFLINE, BlockOfflineGlobalScheduler
+)
+GlobalSchedulerRegistry.register(
+    GlobalSchedulerType.BLOCK_STAR_OFFLINE, BlockOfflineGlobalScheduler
+)
+GlobalSchedulerRegistry.register(
+    GlobalSchedulerType.INFAAS_PLUS_PLUS, InfassPlusPlusGlobalScheduler
+)
+GlobalSchedulerRegistry.register(
+    GlobalSchedulerType.LLUMNIX_MINUS, LlumnixMinusGlobalScheduler
+)

@@ -153,3 +153,10 @@ class Batch(BaseEntity):
             "num_prefill_tokens": self.num_prefill_tokens,
             "num_decode_tokens": self.num_decode_tokens,
         }
+
+    def __deepcopy__(self, memo):
+        cloned = self.__class__.__new__(self.__class__)
+        memo[id(self)] = cloned
+        for attr, value in self.__dict__.items():
+            setattr(cloned, attr, copy.deepcopy(value, memo))
+        return cloned

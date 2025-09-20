@@ -65,20 +65,14 @@ class ReplicaStageScheduler:
         return batch, batch_stage, execution_time
 
     def __deepcopy__(self, memodict={}):
-        copied_replica_scheduler = ReplicaStageScheduler(
-            self._replica_id,
-            self._stage_id,
-            self._is_last_stage,
-            self._execution_time_predictor,
-        )
-
-        copied_replica_scheduler.current_execution_time = self.current_execution_time
-        copied_replica_scheduler._replica_id = self._replica_id
-        copied_replica_scheduler._stage_id = self._stage_id
-        copied_replica_scheduler._is_last_stage = self._is_last_stage
-        copied_replica_scheduler._execution_time_predictor = self._execution_time_predictor
-        copied_replica_scheduler._batch_queue = copy.deepcopy(self._batch_queue)
-        copied_replica_scheduler._is_busy = self._is_busy
-        return copied_replica_scheduler
-
+        copied = self.__class__.__new__(self.__class__)
+        memodict[id(self)] = copied
+        copied.current_execution_time = self.current_execution_time
+        copied._replica_id = self._replica_id
+        copied._stage_id = self._stage_id
+        copied._is_last_stage = self._is_last_stage
+        copied._execution_time_predictor = self._execution_time_predictor
+        copied._batch_queue = copy.deepcopy(self._batch_queue, memodict)
+        copied._is_busy = self._is_busy
+        return copied
 

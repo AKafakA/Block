@@ -6,3 +6,4 @@ class RequestTimelinePredictorType(BaseIntEnum):
     RANDOM_FORREST = 2
     LINEAR_REGRESSION = 3
     SIMULATE = 4
+    NOISY_SIMULATE = 5

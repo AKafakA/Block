@@ -248,6 +248,18 @@ class TraceRequestGeneratorConfig(BaseRequestGeneratorConfig):
         default="data/processed_traces/splitwise_conv.csv",
         metadata={"help": "Path to the trace request generator file."},
     )
+    predicted_trace_file: str = field(
+        default="",
+        metadata={"help": "Optional path to the file containing predicted decode tokens."},
+    )
+    predicted_decode_column: str = field(
+        default="predicted_num_decode_tokens",
+        metadata={"help": "Column name for predicted decode tokens when available in the trace CSV."},
+    )
+    use_predicted_decode_tokens: bool = field(
+        default=False,
+        metadata={"help": "Use predicted decode tokens instead of ground-truth when scheduling."},
+    )
     prefill_scale_factor: float = field(
         default=1.0,
         metadata={"help": "Prefill scale factor for the trace request generator."},
@@ -263,6 +275,10 @@ class TraceRequestGeneratorConfig(BaseRequestGeneratorConfig):
     max_tokens: int = field(
         default=4096,
         metadata={"help": "Maximum tokens for the trace request generator."},
+    )
+    max_requests: int = field(
+        default=0,
+        metadata={"help": "Optional cap on number of requests to replay (0 = all)."},
     )
 
     @staticmethod
@@ -500,6 +516,26 @@ class SimulationRequestTimelinePredictorConfig(BaseRequestTimelinePredictorConfi
 
 
 @dataclass
+class NoisySimulationRequestTimelinePredictorConfig(BaseRequestTimelinePredictorConfig):
+    noise_fraction: float = field(
+        default=0.1,
+        metadata={"help": "Fractional noise applied to simulated metrics."},
+    )
+    noise_distribution: str = field(
+        default="uniform",
+        metadata={"help": "Noise distribution (currently only 'uniform')."},
+    )
+    random_seed: int = field(
+        default=-1,
+        metadata={"help": "Seed for noise generator; negative for random seed."},
+    )
+
+    @staticmethod
+    def get_type():
+        return RequestTimelinePredictorType.NOISY_SIMULATE
+
+
+@dataclass
 class BaseGlobalSchedulerConfig(BasePolyConfig):
     pass
 
@@ -547,6 +583,92 @@ class LengthAwareOptimalSchedulerConfig(BaseGlobalSchedulerConfig):
     @staticmethod
     def get_type():
         return GlobalSchedulerType.OPT
+
+
+@dataclass
+class BlockOfflineGlobalSchedulerConfig(BaseGlobalSchedulerConfig):
+    target_metric: str = field(
+        default=str(TargetMetric.MIN_LATENCY),
+        metadata={"help": "Target metric for Block offline scheduler."},
+    )
+    fast_predict: bool = field(
+        default=False,
+        metadata={"help": "Enable snapshot-based fast predictor simulation (no deep copy). Experimental: keep off for parity."},
+    )
+    parallel: bool = field(
+        default=False,
+        metadata={"help": "Enable parallel per-replica what-if evaluation."},
+    )
+    parallel_workers: int = field(
+        default=0,
+        metadata={"help": "Number of worker threads for parallel evaluation (0 = auto)."},
+    )
+    parallel_backend: str = field(
+        default="thread",
+        metadata={"help": "Parallel backend for what-if evaluation (thread only)."},
+    )
+    deterministic_noise: bool = field(
+        default=False,
+        metadata={"help": "Use deterministic noise schedule (required for parallelism with noise)."},
+    )
+    request_timeline_predictor_config: BaseRequestTimelinePredictorConfig = field(
+        default_factory=NoisySimulationRequestTimelinePredictorConfig,
+        metadata={"help": "Request timeline predictor config for Block offline scheduler."},
+    )
+
+    @staticmethod
+    def get_type():
+        return GlobalSchedulerType.BLOCK_OFFLINE
+
+
+@dataclass
+class BlockStarOfflineGlobalSchedulerConfig(BaseGlobalSchedulerConfig):
+    target_metric: str = field(
+        default=str(TargetMetric.MIN_LATENCY),
+        metadata={"help": "Target metric for Block* offline scheduler."},
+    )
+    fast_predict: bool = field(
+        default=False,
+        metadata={"help": "Enable snapshot-based fast predictor simulation (no deep copy). Experimental: keep off for parity."},
+    )
+    parallel: bool = field(
+        default=False,
+        metadata={"help": "Enable parallel per-replica what-if evaluation."},
+    )
+    parallel_workers: int = field(
+        default=0,
+        metadata={"help": "Number of worker threads for parallel evaluation (0 = auto)."},
+    )
+    parallel_backend: str = field(
+        default="thread",
+        metadata={"help": "Parallel backend for what-if evaluation (thread only)."},
+    )
+    deterministic_noise: bool = field(
+        default=False,
+        metadata={"help": "Use deterministic noise schedule (required for parallelism with noise)."},
+    )
+    request_timeline_predictor_config: BaseRequestTimelinePredictorConfig = field(
+        default_factory=NoisySimulationRequestTimelinePredictorConfig,
+        metadata={"help": "Request timeline predictor config for Block* offline scheduler."},
+    )
+
+    @staticmethod
+    def get_type():
+        return GlobalSchedulerType.BLOCK_STAR_OFFLINE
+
+
+@dataclass
+class InfassPlusPlusGlobalSchedulerConfig(BaseGlobalSchedulerConfig):
+    @staticmethod
+    def get_type():
+        return GlobalSchedulerType.INFAAS_PLUS_PLUS
+
+
+@dataclass
+class LlumnixMinusGlobalSchedulerConfig(BaseGlobalSchedulerConfig):
+    @staticmethod
+    def get_type():
+        return GlobalSchedulerType.LLUMNIX_MINUS
 
 
 @dataclass

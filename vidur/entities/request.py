@@ -1,3 +1,4 @@
+import copy
 from typing import Tuple
 
 from vidur.entities.base_entity import BaseEntity
@@ -337,3 +338,10 @@ class Request(BaseEntity):
         self._is_prefill_complete = False
 
         self._num_restarts += 1
+
+    def __deepcopy__(self, memo):
+        cloned = self.__class__.__new__(self.__class__)
+        memo[id(self)] = cloned
+        for attr, value in self.__dict__.items():
+            setattr(cloned, attr, copy.deepcopy(value, memo))
+        return cloned

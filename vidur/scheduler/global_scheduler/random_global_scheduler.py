@@ -1,4 +1,4 @@
-from random import randint
+from random import choice
 from typing import List, Tuple
 
 from vidur.entities import Request
@@ -10,8 +10,9 @@ class RandomGlobalScheduler(BaseGlobalScheduler):
         self.sort_requests()
 
         request_mapping = []
+        replica_ids = list(self._replica_schedulers.keys())
         while self._request_queue:
             request = self._request_queue.pop(0)
-            replica_id = randint(1, self._num_replicas) - 1
+            replica_id = choice(replica_ids)
             request_mapping.append((replica_id, request))
         return request_mapping
