@@ -206,16 +206,20 @@ The script configures Sarathi as the replica scheduler, uses RoBERTa-predicted d
 
 #### Remote Suites (automation)
 
-- Use `scripts/remote_run_suite.sh` to launch the standardized offline sweeps on remote hosts.
-  - Defaults: `NORMAL_SCALE_SIMULATION_HOST=wd312@caelum-104`, `LARGE_SCALE_SIMULATION_HOST=wd312@caelum-105`.
-  - Remote branch: `REMOTE_BRANCH=simulator`.
-  - Override any of these via environment variables, for example:
+- Use `scripts/remote_run_suite.sh` to run the offline suites remotely without blocking your terminal.
+  - Setup once (repo/venv/deps/branch): `bash scripts/remote_run_suite.sh setup qps32` or `setup large`
+  - One-click setup+run: `bash scripts/remote_run_suite.sh one_click_qps32` or `one_click_large` (or `one_click_both`)
+  - Launch detached (prints remote log path): `bash scripts/remote_run_suite.sh run_qps32` or `run_large`
+  - Tail latest: `bash scripts/remote_run_suite.sh tail_qps32` or `tail_large`
+  - Collect logs and outputs locally: `bash scripts/remote_run_suite.sh collect_qps32|collect_large|collect_all`
+  - Defaults: `NORMAL_SCALE_SIMULATION_HOST=wd312@caelum-104`, `LARGE_SCALE_SIMULATION_HOST=wd312@caelum-105`, `REMOTE_BRANCH=simulator`.
+  - Override via env, for example:
     ```bash
     NORMAL_SCALE_SIMULATION_HOST=user@hostA \
     REMOTE_BRANCH=simulator \
-    ./scripts/remote_run_suite.sh run_qps32
+    bash scripts/remote_run_suite.sh run_qps32
     ```
-  - Results are written under `simulation_analysis/full_runs/qps32_remote/...` or `simulation_analysis/large_scale/remote/...` on the remote; use `scripts/remote_collect_results.sh` to rsync them back locally.
+  - Results live under `simulation_analysis/...` on the remote; fetch with `scripts/remote_collect_results.sh`.
 
 ### Validation Plan
 

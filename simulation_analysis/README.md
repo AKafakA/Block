@@ -30,9 +30,18 @@ artifacts that back the paper appendix draft.
 - `run_experiment_suite.py`: orchestrates a full scheduler sweep, prints progress every 30 min (configurable), and emits `analysis_summary.json`/`.csv` with TTFT/E2E/waiting percentiles **and throughput**. Comparative improvements for Block/Block* versus heuristics are included in the JSON output under `comparisons`.
 - `run_qps32_suite.sh`, `run_large_scale_suite.sh`: wrappers for the 12-replica QPS=32 and 120-replica QPS=320 suites respectively. Append additional `run_experiment_suite.py` flags via environment variable `REMOTE_EXTRA_ARGS` or direct CLI arguments when launching locally.
 - Remote automation scripts under `scripts/`:
-  - `remote_run_suite.sh`: provisions the remote repo/venv, installs deps, ensures the correct branch is checked out, and launches the chosen suite. Defaults:
-    - Hosts: `NORMAL_SCALE_SIMULATION_HOST=wd312@caelum-104` (QPS=32 runs), `LARGE_SCALE_SIMULATION_HOST=wd312@caelum-105` (large-scale runs). Override by exporting those env vars.
-    - Branch: `REMOTE_BRANCH=simulator`. Override by exporting `REMOTE_BRANCH`.
+  - `remote_run_suite.sh`: split into setup and run steps, runs detached, supports log collection.
+    - Setup (repo/venv/deps/branch): `bash scripts/remote_run_suite.sh setup qps32` or `setup large`
+    - One-click setup+run: `bash scripts/remote_run_suite.sh one_click_qps32` or `one_click_large` (or `one_click_both`)
+    - Run (detached; prints remote log path): `bash scripts/remote_run_suite.sh run_qps32` or `run_large`
+    - Tail latest log: `bash scripts/remote_run_suite.sh tail_qps32` or `tail_large`
+    - Collect logs + outputs to local (defaults under `simulation_analysis/remote_collected/<mode>`):
+      - `bash scripts/remote_run_suite.sh collect_qps32`
+      - `bash scripts/remote_run_suite.sh collect_large`
+      - `bash scripts/remote_run_suite.sh collect_all`
+    - Defaults:
+      - Hosts: `NORMAL_SCALE_SIMULATION_HOST=wd312@caelum-104` (QPS=32), `LARGE_SCALE_SIMULATION_HOST=wd312@caelum-105` (large). Override by exporting those env vars.
+      - Branch: `REMOTE_BRANCH=simulator`. Override by exporting `REMOTE_BRANCH`.
   - `remote_collect_results.sh`: fetches remote `simulation_analysis/...` outputs back into the local tree (requires `parallel-rsync`; install via `apt-get install pssh` or similar).
 
 ## How to Reproduce
