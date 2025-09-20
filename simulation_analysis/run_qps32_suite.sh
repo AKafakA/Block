@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-PYTHONPATH=. python simulation_analysis/run_experiment_suite.py \
+PYTHONPATH=. python3 simulation_analysis/run_experiment_suite.py \
     --output-dir simulation_analysis/full_runs/qps32_remote \
     --analysis-file simulation_analysis/full_runs/qps32_remote/analysis_summary.json \
     --csv-file simulation_analysis/full_runs/qps32_remote/analysis_summary.csv \
@@ -12,4 +12,3 @@ PYTHONPATH=. python simulation_analysis/run_experiment_suite.py \
     --qps 32 \
     --max-requests 0 \
     "$@"
-

@@ -88,7 +88,14 @@ remote_setup() {
       git checkout -b ${REMOTE_BRANCH} origin/${REMOTE_BRANCH} || git checkout ${REMOTE_BRANCH}; \
     fi; \
     git pull --ff-only origin ${REMOTE_BRANCH} || true; \
-    ${PYTHON_BIN} -m pip install --user -r requirements.txt >/dev/null || pip3 install --user -r requirements.txt >/dev/null || true"
+    ${PYTHON_BIN} -m pip install --user --upgrade pip setuptools wheel >/dev/null 2>&1 || true; \
+    if ! ${PYTHON_BIN} -m pip install --user -r requirements.txt >/dev/null 2>&1; then \
+      echo '[remote_setup] requirements install failed; relaxing numpy pin' >&2; \
+      tmp_req=\$(mktemp); \
+      sed -E 's/^numpy\s*~=?\s*1\\.26\\.4$/numpy/' requirements.txt > \"\${tmp_req}\" || cp requirements.txt \"\${tmp_req}\"; \
+      ${PYTHON_BIN} -m pip install --user -r \"\${tmp_req}\" >/dev/null 2>&1 || pip3 install --user -r \"\${tmp_req}\" >/dev/null 2>&1 || true; \
+      rm -f \"\${tmp_req}\"; \
+    fi"
 }
 
 remote_run_detached() {
