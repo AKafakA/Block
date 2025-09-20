@@ -1,14 +1,15 @@
 #!/bin/bash
 # Launch experiment suites on dedicated remote hosts.
 #
-# Expected environment variables:
-#   NORMAL_SCALE_SIMULATION_HOST (e.g., user@caelum-104)
-#   LARGE_SCALE_SIMULATION_HOST  (e.g., user@caelum-105)
+# Expected environment variables (now with sensible defaults):
+#   NORMAL_SCALE_SIMULATION_HOST (default: wd312@caelum-104)
+#   LARGE_SCALE_SIMULATION_HOST  (default: wd312@caelum-105)
 # Optional overrides:
-#   REMOTE_ROOT (default: ~/Block)
-#   VENV_DIR    (default: $REMOTE_ROOT/venv)
-#   PYTHON_BIN  (default: python3)
-#   REPO_URL    (default: current repo origin)
+#   REMOTE_ROOT    (default: ~/Block)
+#   VENV_DIR       (default: $REMOTE_ROOT/venv)
+#   PYTHON_BIN     (default: python3)
+#   REPO_URL       (default: current repo origin)
+#   REMOTE_BRANCH  (default: simulator)  <-- remote branch to checkout
 #   REMOTE_EXTRA_ARGS (additional args passed to the suite script)
 
 set -euo pipefail
@@ -18,8 +19,8 @@ if [[ $# -lt 1 ]]; then
     exit 1
 fi
 
-NORMAL_SCALE_SIMULATION_HOST="wd312@caelum-104"
-LARGE_SCALE_SIMULATION_HOST="wd312@caelum-105"
+NORMAL_SCALE_SIMULATION_HOST=${NORMAL_SCALE_SIMULATION_HOST:-wd312@caelum-104}
+LARGE_SCALE_SIMULATION_HOST=${LARGE_SCALE_SIMULATION_HOST:-wd312@caelum-105}
 
 ACTION=$1
 
@@ -28,15 +29,16 @@ VENV_DIR=${VENV_DIR:-$REMOTE_ROOT/venv}
 PYTHON_BIN=${PYTHON_BIN:-python3}
 REPO_URL=${REPO_URL:-$(git config --get remote.origin.url)}
 REMOTE_EXTRA_ARGS=${REMOTE_EXTRA_ARGS:-}
+REMOTE_BRANCH=${REMOTE_BRANCH:-simulator}
 
 case "${ACTION}" in
     run_qps32)
         HOST=${NORMAL_SCALE_SIMULATION_HOST:-}
-        REMOTE_SUITE="python simulation_analysis/run_qps32_suite.sh ${REMOTE_EXTRA_ARGS}"
+        REMOTE_SUITE="bash simulation_analysis/run_qps32_suite.sh ${REMOTE_EXTRA_ARGS}"
         ;;
     run_large)
         HOST=${LARGE_SCALE_SIMULATION_HOST:-}
-        REMOTE_SUITE="python simulation_analysis/run_large_scale_suite.sh ${REMOTE_EXTRA_ARGS}"
+        REMOTE_SUITE="bash simulation_analysis/run_large_scale_suite.sh ${REMOTE_EXTRA_ARGS}"
         ;;
     *)
         echo "Unknown action: ${ACTION}" >&2
@@ -52,7 +54,13 @@ fi
 ssh "${HOST}" "set -euo pipefail; \
     if [[ ! -d ${REMOTE_ROOT} ]]; then git clone ${REPO_URL} ${REMOTE_ROOT}; fi; \
     cd ${REMOTE_ROOT}; \
-    git pull --ff-only; \
+    git fetch --all --prune; \
+    if git rev-parse --verify ${REMOTE_BRANCH} >/dev/null 2>&1; then \
+      git checkout ${REMOTE_BRANCH}; \
+    else \
+      git checkout -b ${REMOTE_BRANCH} origin/${REMOTE_BRANCH} || git checkout ${REMOTE_BRANCH}; \
+    fi; \
+    git pull --ff-only origin ${REMOTE_BRANCH} || true; \
     if [[ ! -d ${VENV_DIR} ]]; then ${PYTHON_BIN} -m venv ${VENV_DIR}; fi; \
     source ${VENV_DIR}/bin/activate; \
     pip install --upgrade pip >/dev/null; \
@@ -61,4 +69,3 @@ ssh "${HOST}" "set -euo pipefail; \
         echo "Remote execution failed" >&2
         exit 1
     }
-

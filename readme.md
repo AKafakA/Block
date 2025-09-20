@@ -204,6 +204,19 @@ The script configures Sarathi as the replica scheduler, uses RoBERTa-predicted d
 - Process backend (design):
   - A `process` backend runs per‑replica what‑ifs in separate processes (closer to the paper’s distributed predictor). It preserves parity using a deterministic noise schedule and fast‑predict snapshots. See AGENTS.md → “Process Backend (Distributed Predictor Simulation)” for the implementation plan and acceptance tests.
 
+#### Remote Suites (automation)
+
+- Use `scripts/remote_run_suite.sh` to launch the standardized offline sweeps on remote hosts.
+  - Defaults: `NORMAL_SCALE_SIMULATION_HOST=wd312@caelum-104`, `LARGE_SCALE_SIMULATION_HOST=wd312@caelum-105`.
+  - Remote branch: `REMOTE_BRANCH=simulator`.
+  - Override any of these via environment variables, for example:
+    ```bash
+    NORMAL_SCALE_SIMULATION_HOST=user@hostA \
+    REMOTE_BRANCH=simulator \
+    ./scripts/remote_run_suite.sh run_qps32
+    ```
+  - Results are written under `simulation_analysis/full_runs/qps32_remote/...` or `simulation_analysis/large_scale/remote/...` on the remote; use `scripts/remote_collect_results.sh` to rsync them back locally.
+
 ### Validation Plan
 
 - Parity on 12×120 (recommended):

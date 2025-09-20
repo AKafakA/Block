@@ -11,7 +11,7 @@ parallel-ssh -t 0 -h block/config/hosts "sudo dpkg --configure -a && sudo apt-ge
 parallel-ssh -t 0 -h block/config/hosts "echo 'export PATH=$PATH:/usr/local/cuda-12.6/bin:$PATH' >> ~/.bashrc && echo 'export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda-12.6/lib64:$LD_LIBRARY_PATH' >> ~/.bashrc && source ~/.bashrc"
 parallel-ssh -t 0 -h block/config/hosts "sudo nvidia-smi -mig 0"
 parallel-ssh -t 0 -h block/config/hosts "git clone ${VLLM_GITHUB_LINK} && cd vllm && sudo VLLM_USE_PRECOMPILED=1 pip install --editable ."
-parallel-ssh -t 0 -h block/config/hosts "git clone ${BLOCK_GITHUB_LINK} && cd Block && git checkout block  && pip install -r requirements.txt"
+parallel-ssh -t 0 -h block/config/hosts "git clone ${BLOCK_GITHUB_LINK} && cd Block && git checkout main && pip install -r requirements.txt"
 parallel-ssh -t 0 -h block/config/hosts "rm -r ~/cuda-repo-*.deb"
 parallel-ssh -t 0 -h block/config/hosts "pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu126"
 parallel-ssh -t 0 -h block/config/hosts "pip install flashinfer-python==0.2.5 triton==3.2.0"
