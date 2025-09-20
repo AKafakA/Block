@@ -32,7 +32,6 @@ Env:
   LARGE_SCALE_SIMULATION_HOST    Remote host for large-scale suite (default: wd312@caelum-105)
   REMOTE_BRANCH                  Branch to checkout remotely (default: simulator)
   REMOTE_ROOT                    Remote repo root (default: ~/Block)
-  VENV_DIR                       Remote venv path (default: \$REMOTE_ROOT/venv)
   REPO_URL                       Git URL (default: origin of local repo)
   REMOTE_EXTRA_ARGS              Extra args passed to run_* suite scripts
 EOF
@@ -44,7 +43,7 @@ if [[ $# -lt 1 ]]; then
 fi
 
 NORMAL_SCALE_SIMULATION_HOST=${NORMAL_SCALE_SIMULATION_HOST:-wd312@caelum-104}
-LARGE_SCALE_SIMULATION_HOST=${LARGE_SCALE_SIMULATION_HOST:-wd312@caelum-208}
+LARGE_SCALE_SIMULATION_HOST=${LARGE_SCALE_SIMULATION_HOST:-wd312@caelum-214}
 
 REMOTE_ROOT=${REMOTE_ROOT:-~/Block}
 PYTHON_BIN=${PYTHON_BIN:-python3}
@@ -91,10 +90,6 @@ remote_setup() {
     ${PYTHON_BIN} -m pip install --user --upgrade pip setuptools wheel >/dev/null 2>&1 || true; \
     if ! ${PYTHON_BIN} -m pip install --user -r requirements.txt >/dev/null 2>&1; then \
       echo '[remote_setup] requirements install failed; relaxing numpy pin' >&2; \
-      tmp_req=\$(mktemp); \
-      sed -E 's/^numpy\s*~=?\s*1\\.26\\.4$/numpy/' requirements.txt > \"\${tmp_req}\" || cp requirements.txt \"\${tmp_req}\"; \
-      ${PYTHON_BIN} -m pip install --user -r \"\${tmp_req}\" >/dev/null 2>&1 || pip3 install --user -r \"\${tmp_req}\" >/dev/null 2>&1 || true; \
-      rm -f \"\${tmp_req}\"; \
     fi"
 }
 
@@ -110,7 +105,9 @@ remote_run_detached() {
   ssh "$HOST" "set -euo pipefail; \
     mkdir -p ${log_dir}; \
     cd ${REMOTE_ROOT}; \
-    nohup bash -lc 'export PYTHONPATH=${REMOTE_ROOT}; ${REMOTE_SUITE}' \
+    pyver=\$(${PYTHON_BIN} -c 'import sys; print(f"{sys.version_info[0]}.{sys.version_info[1]}")' 2>/dev/null || echo 3.10); \
+    site=${REMOTE_ROOT}/.pyuser/lib/python\${pyver}/site-packages; \
+    nohup bash -lc 'export PYTHONUSERBASE=${REMOTE_ROOT}/.pyuser; export PYTHONPATH=${REMOTE_ROOT}:'"\${site}"':\$PYTHONPATH; ${REMOTE_SUITE}' \
       > ${log_file} 2>&1 & echo \$! > ${log_dir}/last.pid; echo ${log_file}"
 }
 
