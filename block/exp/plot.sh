@@ -11,7 +11,7 @@ python3 experiments_analysis/experiment_plot.py \
     --num-of-cdf-figures 5 \
     --zoom-for-slo \
     --show-slo-text \
-
+    --print-stats-table \
 
 python3 experiments_analysis/prediction_plot.py \
     --experiments-dir experiment_output/data/prediction/sharegpt \

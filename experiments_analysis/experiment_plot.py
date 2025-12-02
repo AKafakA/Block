@@ -29,8 +29,8 @@ scheduler_to_color = {
     'Min QPM': 'purple',
     'INFaaS++': 'orange',
     'Llumnix-': 'skyblue',
-    'Block*': 'black',
-    'Block': 'red',
+    'Block': 'black',
+    'Block*': 'red',
 }
 
 
@@ -285,7 +285,8 @@ def plot_per_qps(experiments_set, output_dir,
                  zoom_out_cdf=False,
                  zoom_out_min_qps=32,
                  scheduler_name_ordered=None,
-                 show_slo_text=False):
+                 show_slo_text=False,
+                 print_statis_table=False):
     qps_output_dir = output_dir
     if os.path.exists(qps_output_dir):
         shutil.rmtree(qps_output_dir)
@@ -346,7 +347,7 @@ def plot_per_qps(experiments_set, output_dir,
             for key in experiment_name_replacement.keys():
                 if key in experiment_name:
                     experiment_name = experiment_name.replace(key, experiment_name_replacement[key])
-                if experiment_name == "Block" and experiment["use_length_estimation"]:
+                if experiment_name == "Block" and not experiment["use_length_estimation"]:
                     experiment_name += "*"
             map_from_name_exp[experiment_name] = experiment
         ordered_key = []
@@ -514,6 +515,80 @@ def plot_per_qps(experiments_set, output_dir,
     fig.subplots_adjust(hspace=0.2, wspace=0.2)
     fig.savefig(f"{qps_output_dir}/overhead.png", bbox_inches='tight')
 
+    # Optionally print comparison table vs best baseline per QPS
+    if print_statis_table:
+        # Define metrics to compare: dict_name -> (human_name, lower_is_better)
+        metrics_spec = [
+            ("average_e2e", "E2E Avg (s)", True, average_e2e),
+            ("p99_e2e", "E2E P99 (s)", True, p99_e2e),
+            ("average_ttft", "TTFT Avg (s)", True, average_ttft),
+            ("p99_ttft", "TTFT P99 (s)", True, p99_ttft),
+            ("requests_throughput", "Throughput (r/s)", False, requests_throughput),
+        ]
+
+        baseline_schedulers = [k for k in index_names if k not in ("Block", "Block*")]
+        rows = []
+        for qps in qps_set:
+            for key, human, lower_is_better, metric_map in metrics_spec:
+                # Collect baseline values available at this QPS
+                candidates = []
+                for sched in baseline_schedulers:
+                    if sched in metric_map and qps in metric_map[sched]:
+                        candidates.append((sched, float(metric_map[sched][qps])))
+                if not candidates:
+                    continue
+                # Pick best baseline
+                if lower_is_better:
+                    best_sched, best_val = min(candidates, key=lambda x: x[1])
+                else:
+                    best_sched, best_val = max(candidates, key=lambda x: x[1])
+
+                # Fetch Block / Block* values if present
+                def get_val(sched_name):
+                    try:
+                        return float(metric_map.get(sched_name, {}).get(qps, float("nan")))
+                    except Exception:
+                        return float("nan")
+
+                block_val = get_val("Block")
+                block_star_val = get_val("Block*")
+
+                def delta_pair(val):
+                    if math.isnan(val) or best_val == 0:
+                        return float("nan"), float("nan")
+                    abs_diff = val - best_val
+                    pct_diff = (val / best_val - 1.0) * 100.0
+                    return abs_diff, pct_diff
+
+                block_abs, block_pct = delta_pair(block_val)
+                star_abs, star_pct = delta_pair(block_star_val)
+
+                rows.append({
+                    "qps": qps,
+                    "metric": human,
+                    "best_baseline": best_sched,
+                    "best_value": round(best_val, 4),
+                    "Block": round(block_val, 4) if not math.isnan(block_val) else np.nan,
+                    "Block Δ": round(block_abs, 4) if not math.isnan(block_abs) else np.nan,
+                    "Block Δ%": round(block_pct, 2) if not math.isnan(block_pct) else np.nan,
+                    "Block*": round(block_star_val, 4) if not math.isnan(block_star_val) else np.nan,
+                    "Block* Δ": round(star_abs, 4) if not math.isnan(star_abs) else np.nan,
+                    "Block* Δ%": round(star_pct, 2) if not math.isnan(star_pct) else np.nan,
+                })
+
+        if rows:
+            df = pd.DataFrame(rows)
+            # Order by QPS then metric
+            df = df.sort_values(by=["qps", "metric"]) 
+            # Print to console
+            print("\n==== Block vs Best Baseline (per QPS) ====")
+            with pd.option_context('display.max_rows', None, 'display.max_columns', None, 'display.width', 200):
+                print(df.to_string(index=False))
+            # Save CSV alongside figures
+            stats_csv = os.path.join(qps_output_dir, "stats_table.csv")
+            df.to_csv(stats_csv, index=False)
+            print(f"Saved stats table: {stats_csv}")
+
 
 def main():
     parser = argparse.ArgumentParser(description='Plot the results of the experiments')
@@ -532,6 +607,7 @@ def main():
     parser.add_argument("--zoom-for-cdf", action='store_true')
     parser.add_argument("--cdf-zoomed-min-qps", type=int, default=36)
     parser.add_argument("--show-slo-text", action='store_true')
+    parser.add_argument("--print-stats-table", action='store_true')
     args = parser.parse_args()
     data_dir = os.getcwd() + "/" + args.experiments_dir
 
@@ -585,7 +661,8 @@ def main():
                      zoom_out_cdf=args.zoom_for_cdf,
                      zoom_out_min_qps=args.cdf_zoomed_min_qps,
                      scheduler_name_ordered=selected_schedulers,
-                     show_slo_text=args.show_slo_text)
+                     show_slo_text=args.show_slo_text,
+                     print_statis_table=args.print_stats_table)
     else:
         print("Not all experiments are collected, skipping plotting.")
 
