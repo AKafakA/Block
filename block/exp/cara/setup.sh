@@ -29,13 +29,15 @@ parallel-ssh -t 0 -h block/config/ampere_hosts "git clone ${BLOCK_GITHUB_LINK} &
 parallel-ssh -t 0 -h block/config/volta_hosts "git clone ${VLLM_GITHUB_LINK} && cd vllm && git checkout cara_v_11"
 parallel-ssh -t 0 -h block/config/volta_hosts  "cd vllm && sudo VLLM_USE_PRECOMPILED=1 pip install --editable ."
 parallel-ssh -t 0 -h block/config/volta_hosts "git clone ${BLOCK_GITHUB_LINK} && cd Block && git checkout cara  && pip install -r requirements.txt"
+parallel-ssh -t 0 -h block/config/volta_hosts "sudo reboot"
+
 
 # install customized ollama for pascal hosts which cannot run vllm due to older architecture
 echo "Starting setup for pascal hosts..."
 parallel-ssh -t 0 -h block/config/pascal_hosts "sudo apt-install -y cmake"
 parallel-ssh -t 0 -h block/config/pascal_hosts "wget https://go.dev/dl/go1.24.0.linux-amd64.tar.gz"
 parallel-ssh -t 0 -h block/config/pascal_hosts "sudo tar -C /usr/local -xzf go1.24.0.linux-amd64.tar.gz"
-parallel-ssh -t 0 -h block/config/pascal_hosts "echo 'export PATH=$PATH:/usr/local/go/bin:$PATH' >> ~/.bashrc && source ~/.bashrc"
+parallel-ssh -t 0 -h block/config/pascal_hosts "echo 'export PATH=$PATH:/usr/local/go/bin:/usr/local/cuda/bin:$PATH' >> ~/.bashrc && source ~/.bashrc"
 parallel-ssh -t 0 -h block/config/pascal_hosts "git clone ${OLLAMA_GITHUB_LINK} && cd ollama && git checkout status-api"
 parallel-ssh -t 0 -h block/config/pascal_hosts "cd ollama && cmake -B build ."
 parallel-ssh -t 0 -h block/config/pascal_hosts "cd ollama && cmake --build build"
