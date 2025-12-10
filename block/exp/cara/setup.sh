@@ -43,10 +43,14 @@ parallel-ssh -t 0 -h block/config/volta_hosts "git clone ${BLOCK_GITHUB_LINK} &&
 
 # install customized ollama for pascal hosts which cannot run vllm due to older architecture
 echo "Starting setup for pascal hosts..."
-parallel-ssh -t 0 -h block/config/pascal_hosts "sudo apt-install -y cmake"
+parallel-ssh -t 0 -h block/config/pascal_hosts "sudo apt install -y cmake"
 parallel-ssh -t 0 -h block/config/pascal_hosts "wget https://go.dev/dl/go1.24.0.linux-amd64.tar.gz"
 parallel-ssh -t 0 -h block/config/pascal_hosts "sudo tar -C /usr/local -xzf go1.24.0.linux-amd64.tar.gz"
-parallel-ssh -t 0 -h block/config/pascal_hosts "echo 'export PATH=$PATH:/usr/local/go/bin:/usr/local/cuda/bin:$PATH' >> ~/.bashrc && source ~/.bashrc"
+parallel-ssh -t 0 -h block/config/pascal_hosts "echo 'export PATH=\$PATH:/usr/local/go/bin:/usr/local/cuda-12.8/bin:/usr/local/cuda/bin' >> ~/.bashrc"
+parallel-ssh -t 0 -h block/config/pascal_hosts "echo 'export LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:/usr/local/cuda-12.8/lib64' >> ~/.bashrc"
 parallel-ssh -t 0 -h block/config/pascal_hosts "git clone ${OLLAMA_GITHUB_LINK} && cd ollama && git checkout status-api"
-parallel-ssh -t 0 -h block/config/pascal_hosts "cd ollama && cmake -B build ."
-parallel-ssh -t 0 -h block/config/pascal_hosts "cd ollama && cmake --build build"
+# Clean any existing build artifacts first
+parallel-ssh -t 0 -h block/config/pascal_hosts "cd ollama && rm -rf build CMakeCache.txt CMakeFiles build"
+# Set PATH explicitly in the cmake commands so nvcc is found
+parallel-ssh -t 0 -h block/config/pascal_hosts "export PATH=\$PATH:/usr/local/go/bin:/usr/local/cuda-12.8/bin:/usr/local/cuda/bin && export LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:/usr/local/cuda-12.8/lib64 && cd ollama && cmake -B build -DCMAKE_CUDA_ARCHITECTURES=60 ."
+parallel-ssh -t 0 -h block/config/pascal_hosts "export PATH=\$PATH:/usr/local/go/bin:/usr/local/cuda-12.8/bin:/usr/local/cuda/bin && export LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:/usr/local/cuda-12.8/lib64 && cd ollama && cmake --build build"

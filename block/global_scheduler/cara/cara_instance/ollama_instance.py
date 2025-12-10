@@ -4,34 +4,6 @@ import aiohttp
 from block.global_scheduler.cara.cara_instance.Instance import Instance
 
 
-class OllamaStreamHandler:
-    """
-    Handles streaming responses from Ollama's /api/generate endpoint.
-    Ollama returns a stream of JSON objects, usually separated by newlines.
-    """
-    def __init__(self):
-        self.buffer = ""
-
-    def add_chunk(self, chunk_bytes: bytes) -> list[dict]:
-        """Add a chunk of bytes to the buffer and return complete JSON objects."""
-        chunk_str = chunk_bytes.decode("utf-8")
-        self.buffer += chunk_str
-        messages = []
-
-        # Ollama sends newline-delimited JSON objects
-        while "\n" in self.buffer:
-            message, self.buffer = self.buffer.split("\n", 1)
-            message = message.strip()
-            if message:
-                try:
-                    json_msg = json.loads(message)
-                    messages.append(json_msg)
-                except json.JSONDecodeError:
-                    # Incomplete JSON (unlikely with line split, but safe to keep)
-                    pass
-        return messages
-
-
 class OllamaInstance(Instance):
 
     def __init__(self, instance_id,
@@ -84,39 +56,46 @@ class OllamaInstance(Instance):
                 async with session.post(self.api_url, json=ollama_payload, headers=headers) as response:
                     if response.status == 200:
                         first_chunk_received = False
-                        handler = OllamaStreamHandler()
 
-                        async for chunk_bytes in response.content.iter_any():
-                            chunk_bytes = chunk_bytes.strip()
-                            if not chunk_bytes:
+                        # Read line by line for newline-delimited JSON
+                        while True:
+                            line = await response.content.readline()
+                            if not line:
+                                break
+
+                            line = line.strip()
+                            if not line:
                                 continue
 
-                            # Parse JSON objects from the stream
-                            json_responses = handler.add_chunk(chunk_bytes)
+                            # Parse the JSON line
+                            try:
+                                data = json.loads(line)
+                            except json.JSONDecodeError:
+                                continue
 
-                            for data in json_responses:
-                                # Ollama response format: {"response": "token", "done": false, ...}
-                                # Final response: {"done": true, "eval_count": 100, ...}
+                            # Process the JSON object
+                            # Ollama response format: {"response": "token", "done": false, ...}
+                            # Final response: {"done": true, "eval_count": 100, ...}
 
-                                if not data.get("done"):
-                                    text = data.get("response", "")
-                                    timestamp = time.perf_counter()
+                            if not data.get("done"):
+                                text = data.get("response", "")
+                                timestamp = time.perf_counter()
 
-                                    # TTFT (Time To First Token) - only count if we got actual text
-                                    if not first_chunk_received and text:
-                                        first_chunk_received = True
-                                        ttft = time.perf_counter() - st
-                                    elif first_chunk_received:
-                                        # ITL (Inter-Token Latency)
-                                        itl.append(timestamp - most_recent_timestamp)
+                                # TTFT (Time To First Token) - only count if we got actual text
+                                if not first_chunk_received and text:
+                                    first_chunk_received = True
+                                    ttft = time.perf_counter() - st
+                                elif first_chunk_received:
+                                    # ITL (Inter-Token Latency)
+                                    itl.append(timestamp - most_recent_timestamp)
 
-                                    most_recent_timestamp = timestamp
-                                    generated_text += text
-                                else:
-                                    # Request is done, capture usage stats
-                                    # Ollama provides 'eval_count' as the output token count
-                                    output_tokens = data.get("eval_count", 0)
-                                    break
+                                most_recent_timestamp = timestamp
+                                generated_text += text
+                            else:
+                                # Request is done, capture usage stats
+                                # Ollama provides 'eval_count' as the output token count
+                                output_tokens = data.get("eval_count", 0)
+                                break
 
                         if first_chunk_received:
                             success = True

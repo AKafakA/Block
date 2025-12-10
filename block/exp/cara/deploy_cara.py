@@ -1,4 +1,5 @@
 import json
+import os
 import re
 import sys
 import argparse
@@ -93,8 +94,17 @@ def get_cleanup_commands(backend: str) -> List[str]:
     elif backend == "ollama":
         cmds = [
             "echo 'Cleaning up existing Ollama processes...'",
-            "pkill -f 'go run . serve' || echo 'No existing go run process found'",
-            "pkill -f 'ollama' || echo 'No existing ollama process found'",
+            # Kill any process using port 11434 first
+            "fuser -k 11434/tcp 2>/dev/null || echo 'Port 11434 not in use'",
+            # Kill Go processes related to ollama
+            "pkill -9 -f 'go run . serve' || echo 'No go run process found'",
+            # Kill any ollama-related processes
+            "pkill -9 -f 'ollama' || echo 'No ollama process found'",
+            # Wait longer for port to be released
+            "sleep 5",
+            # Verify port is free
+            "echo 'Verifying port 11434 is free...'",
+            "! lsof -ti:11434 || (echo 'WARNING: Port 11434 still in use' && lsof -ti:11434 | xargs kill -9)",
             "sleep 2"
         ]
     else:
@@ -171,13 +181,19 @@ def get_ollama_commands(hf_name: str) -> List[str]:
         # Export PATH to include Go and CUDA (same as in setup.sh)
         "export PATH=$PATH:/usr/local/go/bin:/usr/local/cuda-12.8/bin:/usr/local/cuda/bin",
         "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda-12.8/lib64",
-        "echo 'Ollama server starting with go run...'",
+        # CRITICAL: Set OLLAMA_HOST to listen on all interfaces, not just localhost
+        "export OLLAMA_HOST=0.0.0.0:11434",
+        "echo 'Ollama server starting with go run (listening on 0.0.0.0:11434)...'",
         # Start server with go run wrapped in sh -c - environment variables will be inherited
         "sh -c 'cd ~/ollama && go run . serve > ollama_server.log 2>&1 < /dev/null &'",
         "sleep 5",
-        f"echo 'Pulling {ollama_tag} via REST API in background...'",
-        # Use REST API to pull the model in background - use double quotes for sh -c to simplify escaping
-        f'sh -c "curl http://localhost:11434/api/pull -d \'{{\\\"model\\\": \\\"{ollama_tag}\\\"}}\' > ollama_pull.log 2>&1 < /dev/null &"',
+        f"echo 'Pulling {ollama_tag} via REST API (synchronous)...'",
+        # Pull synchronously to wait for completion before warmup
+        f'curl -s http://localhost:11434/api/pull -d \'{{\"model\": \"{ollama_tag}\"}}\' > ollama_pull.log 2>&1',
+        f"echo 'Model pulled successfully. Warming up {ollama_tag} to load into GPU...'",
+        # Warmup inference to load model into GPU memory
+        f'curl -s http://localhost:11434/api/generate -d \'{{\"model\": \"{ollama_tag}\", \"prompt\": \"Hello\", \"stream\": false}}\' > ollama_warmup.log 2>&1',
+        "echo 'Warmup completed. Model loaded into GPU memory.'",
         "echo 'Ollama deployment completed!'",
         "exit 0"
     ]
@@ -201,6 +217,9 @@ def main():
     parser.add_argument("--output", default="block/config/cara/model_deployment.json",
                         help="Output config path")
 
+    parser.add_argument("--models", type=str, default="Qwen-2.5-3B",
+                        help="Comma-separated list of models to deploy (e.g., 'Qwen-2.5-3B' or 'Qwen-2.5-3B,Qwen-2.5-7B'). Deploy all if not specified.")
+
     args = parser.parse_args()
 
     # 1. Load Data
@@ -212,11 +231,34 @@ def main():
         print(f"Error: Config file '{args.config}' not found.")
         sys.exit(1)
 
+    # Load existing deployment config if doing selective deployment
     final_config = {}
+    if args.models and os.path.exists(args.output):
+        try:
+            with open(args.output, 'r') as f:
+                final_config = json.load(f)
+            print(f"--- Loaded existing deployment config from {args.output} ---")
+        except:
+            print(f"--- Could not load existing config, starting fresh ---")
+
     print(f"--- Loaded {sum(len(v) for v in available_nodes.values())} nodes ---")
+
+    # Filter models if --models specified
+    models_to_deploy = None
+    if args.models:
+        models_to_deploy = [m.strip() for m in args.models.split(',')]
+        print(f"--- Deploying only specified models: {models_to_deploy} ---")
+        print(f"--- Existing models will be preserved in output config ---")
+    else:
+        print(f"--- Deploying all models ---")
 
     # 2. Allocation & Deployment
     for model_key, details in config.items():
+        # Skip if not in the list of models to deploy
+        if models_to_deploy and model_key not in models_to_deploy:
+            print(f"\nSkipping: {model_key} (not in deployment list)")
+            # Still add to final config if it exists in output file
+            continue
         print(f"\nProcessing: {model_key}...")
 
         # --- Allocation Logic ---
