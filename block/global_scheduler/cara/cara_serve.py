@@ -32,6 +32,17 @@ backend_port_map = {
 }
 
 
+def to_ollama_tag(hf_name: str) -> str:
+    """Convert HuggingFace model name to Ollama tag format.
+    Example: 'Qwen/Qwen2.5-3B' -> 'qwen2.5:3b'
+    """
+    name = hf_name.lower()
+    if "/" in name:
+        name = name.split("/")[-1]
+    name = name.replace("-", ":")
+    return name
+
+
 
 # align with vllm bench so we can directly leverage existing tools
 @app.post("/v1/completions")
@@ -85,6 +96,7 @@ async def init_app(
         for model, model_config in model_dict.items():
             node_hosts = model_config["node_hosts"]
             backend_type = model_config["backend"]
+            hf_model_name = model_config["hf_model_name"]
             # use the hard-coded port here and ignore the one in host_config as it was generated for Block
             # with homogeneous backend
             # TODO: rewrite the config generation script for Cara later and merge the two configs
@@ -97,11 +109,13 @@ async def init_app(
                 instance_id = f"{model}_{idx}"
                 if backend_type == "ollama":
                     from block.global_scheduler.cara.cara_instance.ollama_instance import OllamaInstance
+                    # Convert HF model name to Ollama tag format
+                    ollama_model_name = to_ollama_tag(hf_model_name)
                     instance = OllamaInstance(
                         instance_id=instance_id,
                         ip_address=ip_address,
                         predictor_ports=predictor_ports,
-                        model_name=model,
+                        model_name=ollama_model_name,
                         backend_port=backend_port
                     )
                 elif backend_type == "vllm":
@@ -110,7 +124,7 @@ async def init_app(
                         instance_id=instance_id,
                         ip_address=ip_address,
                         predictor_ports=predictor_ports,
-                        model_name=model,
+                        model_name=hf_model_name,
                         backend_port=backend_port
                     )
                 else:
@@ -119,6 +133,17 @@ async def init_app(
 
     start_time = time.time()
     scheduling = args.scheduling
+
+    # Log registered instances and routes
+    logger.info(f"CARA Scheduler initialized with {len(instances)} instances:")
+    for inst in instances:
+        logger.info(f"  - {inst._instance_id} ({inst._model_name}) @ {inst._ip_address}")
+    logger.info(f"Scheduling strategy: {scheduling}")
+    logger.info("Registered routes:")
+    for route in app.routes:
+        if hasattr(route, 'path') and hasattr(route, 'methods'):
+            logger.info(f"  {list(route.methods)[0] if route.methods else 'GET'} {route.path}")
+
     return app
 
 
