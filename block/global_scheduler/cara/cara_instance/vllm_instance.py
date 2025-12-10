@@ -66,13 +66,14 @@ class VllmInstance(Instance):
     async def query_backend(self, payload: dict, headers: dict = None):
 
         generated_text = ""
-        st = time.perf_counter()
+        st = time.perf_counter()  # Server-side E2E start time
         most_recent_timestamp = st
         ttft = 0
         itl = []
         output_tokens = 0
         success = False
         error = ""
+        server_e2e_latency = 0.0  # Total time from request start to response complete
 
         vllm_payload = {
             "model": self._model_name,
@@ -142,6 +143,10 @@ class VllmInstance(Instance):
                 else:
                     error = response.reason or ""
                     success = False
+
+        # Calculate server-side E2E latency (total time from request start to completion)
+        server_e2e_latency = time.perf_counter() - st
+
         return {
             "generated_text": generated_text,
             "ttft": ttft,
@@ -149,6 +154,8 @@ class VllmInstance(Instance):
             "output_tokens": output_tokens,
             "success": success,
             "error": error,
+            "model": self._model_name,
+            "server_latency": server_e2e_latency,  # Server-side E2E latency
         }
 
 

@@ -4,7 +4,6 @@ import re
 import sys
 import argparse
 import subprocess
-import time
 from typing import Dict, List
 
 
@@ -171,7 +170,7 @@ def get_vllm_commands(model_path: str, hf_token: str, precision: str, vllm_param
     return cmds
 
 
-def get_ollama_commands(hf_name: str) -> List[str]:
+def get_ollama_commands(hf_name: str, num_parallel: int = 4) -> List[str]:
     ollama_tag = to_ollama_tag(hf_name)
 
     cmds = [
@@ -183,7 +182,10 @@ def get_ollama_commands(hf_name: str) -> List[str]:
         "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda-12.8/lib64",
         # CRITICAL: Set OLLAMA_HOST to listen on all interfaces, not just localhost
         "export OLLAMA_HOST=0.0.0.0:11434",
-        "echo 'Ollama server starting with go run (listening on 0.0.0.0:11434)...'",
+        # Enable parallel request processing to maximize GPU utilization
+        f"export OLLAMA_NUM_PARALLEL={num_parallel}",
+        "export OLLAMA_MAX_LOADED_MODELS=1",
+        f"echo 'Ollama server starting with {num_parallel} parallel requests (listening on 0.0.0.0:11434)...'",
         # Start server with go run wrapped in sh -c - environment variables will be inherited
         "sh -c 'cd ~/ollama && go run . serve > ollama_server.log 2>&1 < /dev/null &'",
         "sleep 5",
@@ -219,6 +221,9 @@ def main():
 
     parser.add_argument("--models", type=str, default="Qwen-2.5-3B",
                         help="Comma-separated list of models to deploy (e.g., 'Qwen-2.5-3B' or 'Qwen-2.5-3B,Qwen-2.5-7B'). Deploy all if not specified.")
+
+    parser.add_argument("--ollama-num-parallel", type=int, default=4,
+                        help="Number of parallel requests Ollama can handle (default: 4). Higher values increase GPU utilization.")
 
     args = parser.parse_args()
 
@@ -313,7 +318,8 @@ def main():
                 cmds = get_vllm_commands(hf_name, args.hf_token, precision, vllm_params)
                 run_ssh_cmd(host, cmds, f"Deploying vLLM ({model_key})")
             elif backend == "ollama":
-                cmds = get_ollama_commands(hf_name)
+                print(f"  Ollama parallel requests: {args.ollama_num_parallel}")
+                cmds = get_ollama_commands(hf_name, num_parallel=args.ollama_num_parallel)
                 run_ssh_cmd(host, cmds, f"Deploying Ollama ({model_key})")
 
     # 3. Save Config
