@@ -1,0 +1,25 @@
+{
+  "Qwen-2.5-72B": {
+    "hf_model_name": "Qwen/Qwen2.5-72B",
+    "precision": "fp16",
+    "backend": "vllm",
+    "node_type": {
+      "d8545": {
+        "count": 1,
+        "gpu-memory-utilization": 0.95,
+        "max-model-len": 8192,
+        "enforce-eager": true
+      }
+    }
+  },
+  "Qwen-2.5-3B": {
+    "hf_model_name": "Qwen/Qwen2.5-3B",
+    "precision": "fp16",
+    "backend": "ollama",
+    "node_type": {
+      "c240g5": {
+        "count": 1
+      }
+    }
+  }
+}
