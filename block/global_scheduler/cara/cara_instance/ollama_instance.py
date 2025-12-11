@@ -58,7 +58,8 @@ class OllamaInstance(Instance):
             try:
                 async with session.post(self.api_url, json=ollama_payload, headers=headers) as response:
                     if response.status == 200:
-                        first_chunk_received = False
+                        first_token_with_text_received = False  # Track first token with actual text for TTFT
+                        received_done_signal = False  # Track if we got the final done: true chunk
 
                         # Read line by line for newline-delimited JSON
                         while True:
@@ -85,28 +86,31 @@ class OllamaInstance(Instance):
                                 timestamp = time.perf_counter()
 
                                 # TTFT (Time To First Token) - only count if we got actual text
-                                if not first_chunk_received and text:
-                                    first_chunk_received = True
+                                if not first_token_with_text_received and text:
+                                    first_token_with_text_received = True
                                     ttft = time.perf_counter() - st
-                                elif first_chunk_received:
-                                    # ITL (Inter-Token Latency)
+                                elif first_token_with_text_received and text:
+                                    # ITL (Inter-Token Latency) - only track for chunks with text
                                     itl.append(timestamp - most_recent_timestamp)
 
-                                most_recent_timestamp = timestamp
-                                generated_text += text
+                                if text:  # Only update timestamp for chunks with actual text
+                                    most_recent_timestamp = timestamp
+                                    generated_text += text
                             else:
                                 # Request is done, capture usage stats
                                 # Ollama provides 'eval_count' as the output token count
                                 output_tokens = data.get("eval_count", 0)
+                                received_done_signal = True
+                                success = True  # Successfully received the completion signal
                                 break
 
-                        if first_chunk_received:
-                            success = True
-                        else:
+                        # If we didn't receive the done signal, something went wrong
+                        if not received_done_signal:
                             success = False
                             error = (
-                                "Never received a valid chunk to calculate TTFT. "
-                                "This response will be marked as failed!"
+                                f"Stream ended without receiving 'done' signal. "
+                                f"Generated text length: {len(generated_text)}, "
+                                f"First token received: {first_token_with_text_received}"
                             )
                     else:
                         error = f"HTTP {response.status}: {response.reason}"
