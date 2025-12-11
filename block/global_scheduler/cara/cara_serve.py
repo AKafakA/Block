@@ -70,7 +70,7 @@ async def completion(request: Request) -> Response:
     except Exception as e:
         logger.error(f"Error processing request {request_id}: {e}")
         logger.error(f"Instance: {selected_instance._instance_id if selected_instance else 'None'}")
-        logger.error(f"Host: {selected_instance._ip_address if selected_instance else 'Unknown'}")
+        logger.error(f"Host: {selected_instance._hostname if selected_instance else 'Unknown'}")
         logger.error(f"Model: {selected_instance._model_name if selected_instance else 'Unknown'}")
         logger.error(traceback.format_exc())
 
@@ -81,7 +81,7 @@ async def completion(request: Request) -> Response:
             "error_traceback": traceback.format_exc(),
             "request_id": request_id,
             "instance_id": selected_instance._instance_id if selected_instance else "Unknown",
-            "host": selected_instance._ip_address if selected_instance else "Unknown",
+            "host": selected_instance._hostname if selected_instance else "Unknown",
             "model": selected_instance._model_name if selected_instance else "Unknown",
         }
         return JSONResponse(content=error_response, status_code=500)
@@ -126,6 +126,7 @@ async def init_app(
                     ollama_model_name = to_ollama_tag(hf_model_name)
                     instance = OllamaInstance(
                         instance_id=instance_id,
+                        hostname=hostname,
                         ip_address=ip_address,
                         predictor_ports=predictor_ports,
                         model_name=ollama_model_name,
@@ -135,6 +136,7 @@ async def init_app(
                     from block.global_scheduler.cara.cara_instance.vllm_instance import VllmInstance
                     instance = VllmInstance(
                         instance_id=instance_id,
+                        hostname=hostname,
                         ip_address=ip_address,
                         predictor_ports=predictor_ports,
                         model_name=hf_model_name,

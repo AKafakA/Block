@@ -6,6 +6,7 @@ import time
 
 class Instance(ABC):
     def __init__(self, instance_id,
+                 hostname,
                  ip_address,
                  predictor_ports,
                  model_name,
@@ -13,6 +14,7 @@ class Instance(ABC):
                  query_backend_timeout,
                  backend_port=8000):
         self._instance_id = instance_id
+        self._hostname = hostname
         self._predictor_ports = predictor_ports
         self._backend_port = backend_port
         self._predictor_urls = [f"http://{ip_address}:{port}/predict" for port in predictor_ports]
@@ -62,6 +64,7 @@ class Instance(ABC):
         serving_time = time.time() - start
         response_dict['serving_time'] = serving_time
         response_dict['instance_id'] = self._instance_id
+        response_dict['host'] = self._hostname
 
         if self._predicted_latency.get(request_id):
             self.serving_time.append((serving_time, self._predicted_latency[request_id]))

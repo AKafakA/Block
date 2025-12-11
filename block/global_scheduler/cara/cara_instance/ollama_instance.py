@@ -7,6 +7,7 @@ from block.global_scheduler.cara.cara_instance.Instance import Instance
 class OllamaInstance(Instance):
 
     def __init__(self, instance_id,
+                 hostname,
                  ip_address,
                  predictor_ports,
                  model_name,
@@ -14,6 +15,7 @@ class OllamaInstance(Instance):
                  query_backend_timeout=10 * 60 * 2,
                  backend_port=11434):  # Default Ollama port
         super().__init__(instance_id,
+                         hostname,
                          ip_address,
                          predictor_ports,
                          model_name,
@@ -126,5 +128,5 @@ class OllamaInstance(Instance):
             "model": self._model_name,
             "server_latency": server_e2e_latency,  # Server-side E2E latency
             "instance_id": self._instance_id,
-            "host": self._ip_address,
+            "host": self._hostname,
         }

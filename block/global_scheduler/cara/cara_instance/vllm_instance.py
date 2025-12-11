@@ -48,6 +48,7 @@ class StreamedResponseHandler:
 class VllmInstance(Instance):
 
     def __init__(self, instance_id,
+                 hostname,
                  ip_address,
                  predictor_ports,
                  model_name,
@@ -55,6 +56,7 @@ class VllmInstance(Instance):
                  query_backend_timeout=10 * 60 * 2,
                  backend_port=8000):
         super().__init__(instance_id,
+                         hostname,
                          ip_address,
                          predictor_ports,
                          model_name,
@@ -157,7 +159,7 @@ class VllmInstance(Instance):
             "model": self._model_name,
             "server_latency": server_e2e_latency,  # Server-side E2E latency
             "instance_id": self._instance_id,
-            "host": self._ip_address,
+            "host": self._hostname,
         }
 
 
