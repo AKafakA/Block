@@ -946,6 +946,63 @@ async def benchmark(
                 print("{:<40} {:<10.2f}".format(f"P{p_word} Scheduling Overhead (ms):", p_value))
                 result[f"p{p_word}_scheduling_overhead_ms"] = p_value
 
+    # Print prompt and response length statistics
+    if isinstance(metrics, BenchmarkMetrics):
+        print("{s:{c}^{n}}".format(s="Prompt & Response Length Statistics", n=50, c="-"))
+
+        # Get successful requests only for accurate statistics
+        successful_input_lens = [outputs[i].prompt_len for i in range(len(outputs)) if outputs[i].success]
+        successful_output_lens = [actual_output_lens[i] for i in range(len(outputs)) if outputs[i].success]
+
+        if successful_input_lens and successful_output_lens:
+            # Prompt length statistics
+            mean_prompt_len = np.mean(successful_input_lens)
+            median_prompt_len = np.median(successful_input_lens)
+            std_prompt_len = np.std(successful_input_lens)
+
+            print("{:<40} {:<10.2f}".format("Mean Prompt Length (tokens):", mean_prompt_len))
+            print("{:<40} {:<10.2f}".format("Median Prompt Length (tokens):", median_prompt_len))
+            print("{:<40} {:<10.2f}".format("Std Prompt Length (tokens):", std_prompt_len))
+
+            for p in selected_percentiles:
+                p_value = np.percentile(successful_input_lens, p)
+                p_word = str(int(p)) if int(p) == p else str(p)
+                print("{:<40} {:<10.2f}".format(f"P{p_word} Prompt Length (tokens):", p_value))
+                result[f"p{p_word}_prompt_len"] = p_value
+
+            print()
+
+            # Response length statistics
+            mean_output_len = np.mean(successful_output_lens)
+            median_output_len = np.median(successful_output_lens)
+            std_output_len = np.std(successful_output_lens)
+
+            print("{:<40} {:<10.2f}".format("Mean Response Length (tokens):", mean_output_len))
+            print("{:<40} {:<10.2f}".format("Median Response Length (tokens):", median_output_len))
+            print("{:<40} {:<10.2f}".format("Std Response Length (tokens):", std_output_len))
+
+            for p in selected_percentiles:
+                p_value = np.percentile(successful_output_lens, p)
+                p_word = str(int(p)) if int(p) == p else str(p)
+                print("{:<40} {:<10.2f}".format(f"P{p_word} Response Length (tokens):", p_value))
+                result[f"p{p_word}_output_len"] = p_value
+
+            print()
+
+            # Correlation between prompt and response lengths
+            if len(successful_input_lens) > 1:
+                correlation = np.corrcoef(successful_input_lens, successful_output_lens)[0, 1]
+                print("{:<40} {:<10.4f}".format("Prompt-Response Correlation:", correlation))
+                result["prompt_response_correlation"] = correlation
+
+            # Add statistics to result
+            result["mean_prompt_len"] = mean_prompt_len
+            result["median_prompt_len"] = median_prompt_len
+            result["std_prompt_len"] = std_prompt_len
+            result["mean_output_len"] = mean_output_len
+            result["median_output_len"] = median_output_len
+            result["std_output_len"] = std_output_len
+
     print("=" * 50)
 
     if profile:
@@ -1485,7 +1542,7 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
         if "temperature" not in sampling_params:
             sampling_params["temperature"] = 0.0  # Default to greedy decoding.
 
-        default_percentile_metrics = "ttft,tpot,itl"
+        default_percentile_metrics = "ttft,tpot,itl,e2el"
     else:
         sampling_params = {}
         default_percentile_metrics = "e2el"
