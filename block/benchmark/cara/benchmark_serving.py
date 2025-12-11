@@ -991,9 +991,15 @@ async def benchmark(
 
             # Correlation between prompt and response lengths
             if len(successful_input_lens) > 1:
-                correlation = np.corrcoef(successful_input_lens, successful_output_lens)[0, 1]
-                print("{:<40} {:<10.4f}".format("Prompt-Response Correlation:", correlation))
-                result["prompt_response_correlation"] = correlation
+                # Check if there's variance in both arrays (std > 0)
+                # If either has zero variance, correlation is undefined
+                if std_prompt_len > 0 and std_output_len > 0:
+                    correlation = np.corrcoef(successful_input_lens, successful_output_lens)[0, 1]
+                    print("{:<40} {:<10.4f}".format("Prompt-Response Correlation:", correlation))
+                    result["prompt_response_correlation"] = correlation
+                else:
+                    print("{:<40} {:<10}".format("Prompt-Response Correlation:", "N/A (zero variance)"))
+                    result["prompt_response_correlation"] = None
 
             # Add statistics to result
             result["mean_prompt_len"] = mean_prompt_len

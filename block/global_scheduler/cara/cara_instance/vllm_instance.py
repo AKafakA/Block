@@ -53,7 +53,7 @@ class VllmInstance(Instance):
                  predictor_ports,
                  model_name,
                  query_predictor_timeout=10,
-                 query_backend_timeout=10 * 60 * 2,
+                 query_backend_timeout=30 * 60,  # 30 minutes timeout for vLLM
                  backend_port=8000):
         super().__init__(instance_id,
                          hostname,

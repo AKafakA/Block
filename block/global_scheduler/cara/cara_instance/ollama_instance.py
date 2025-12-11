@@ -1,3 +1,4 @@
+import asyncio
 import json
 import time
 import aiohttp
@@ -12,7 +13,7 @@ class OllamaInstance(Instance):
                  predictor_ports,
                  model_name,
                  query_predictor_timeout=10,
-                 query_backend_timeout=10 * 60 * 2,
+                 query_backend_timeout=30 * 60,  # 30 minutes timeout for Ollama
                  backend_port=11434):  # Default Ollama port
         super().__init__(instance_id,
                          hostname,
@@ -60,64 +61,93 @@ class OllamaInstance(Instance):
                     if response.status == 200:
                         first_token_with_text_received = False  # Track first token with actual text for TTFT
                         received_done_signal = False  # Track if we got the final done: true chunk
+                        chunks_received = 0
+                        last_chunk_data = None
 
                         # Read line by line for newline-delimited JSON
-                        while True:
-                            line = await response.content.readline()
-                            if not line:
-                                break
+                        try:
+                            while True:
+                                line = await response.content.readline()
+                                if not line:
+                                    break
 
-                            line = line.strip()
-                            if not line:
-                                continue
+                                line = line.strip()
+                                if not line:
+                                    continue
 
-                            # Parse the JSON line
-                            try:
-                                data = json.loads(line)
-                            except json.JSONDecodeError:
-                                continue
+                                chunks_received += 1
 
-                            # Process the JSON object
-                            # Ollama response format: {"response": "token", "done": false, ...}
-                            # Final response: {"done": true, "eval_count": 100, ...}
+                                # Parse the JSON line
+                                try:
+                                    data = json.loads(line)
+                                    last_chunk_data = data  # Keep track of last valid chunk
+                                except json.JSONDecodeError as je:
+                                    # Log the decode error but continue
+                                    continue
 
-                            if not data.get("done"):
-                                text = data.get("response", "")
-                                timestamp = time.perf_counter()
+                                # Process the JSON object
+                                # Ollama response format: {"response": "token", "done": false, ...}
+                                # Final response: {"done": true, "eval_count": 100, ...}
 
-                                # TTFT (Time To First Token) - only count if we got actual text
-                                if not first_token_with_text_received and text:
-                                    first_token_with_text_received = True
-                                    ttft = time.perf_counter() - st
-                                elif first_token_with_text_received and text:
-                                    # ITL (Inter-Token Latency) - only track for chunks with text
-                                    itl.append(timestamp - most_recent_timestamp)
+                                if not data.get("done"):
+                                    text = data.get("response", "")
+                                    timestamp = time.perf_counter()
 
-                                if text:  # Only update timestamp for chunks with actual text
-                                    most_recent_timestamp = timestamp
-                                    generated_text += text
-                            else:
-                                # Request is done, capture usage stats
-                                # Ollama provides 'eval_count' as the output token count
-                                output_tokens = data.get("eval_count", 0)
-                                received_done_signal = True
-                                success = True  # Successfully received the completion signal
-                                break
+                                    # TTFT (Time To First Token) - only count if we got actual text
+                                    if not first_token_with_text_received and text:
+                                        first_token_with_text_received = True
+                                        ttft = time.perf_counter() - st
+                                    elif first_token_with_text_received and text:
+                                        # ITL (Inter-Token Latency) - only track for chunks with text
+                                        itl.append(timestamp - most_recent_timestamp)
 
-                        # If we didn't receive the done signal, something went wrong
-                        if not received_done_signal:
+                                    if text:  # Only update timestamp for chunks with actual text
+                                        most_recent_timestamp = timestamp
+                                        generated_text += text
+                                else:
+                                    # Request is done, capture usage stats
+                                    # Ollama provides 'eval_count' as the output token count
+                                    output_tokens = data.get("eval_count", 0)
+                                    received_done_signal = True
+                                    success = True  # Successfully received the completion signal
+                                    break
+                        except asyncio.TimeoutError:
+                            # Stream reading timed out
                             success = False
                             error = (
-                                f"Stream ended without receiving 'done' signal. "
+                                f"Timeout while reading stream. "
                                 f"Generated text length: {len(generated_text)}, "
+                                f"Chunks received: {chunks_received}, "
+                                f"First token received: {first_token_with_text_received}"
+                            )
+
+                        # Always mark as failure if we didn't receive the done signal
+                        # This ensures system consistency - a request is only successful
+                        # if Ollama explicitly signals completion
+                        if not received_done_signal and not error:
+                            success = False
+                            # Estimate output tokens for debugging
+                            # Rough estimate: ~4 chars per token on average
+                            estimated_tokens = len(generated_text) // 4
+                            expected_tokens = ollama_payload["options"]["num_predict"]
+                            completion_ratio = estimated_tokens / expected_tokens if expected_tokens > 0 else 0
+
+                            error = (
+                                f"Stream ended without 'done' signal. "
+                                f"Generated text length: {len(generated_text)}, "
+                                f"Estimated tokens: {estimated_tokens}/{expected_tokens} ({completion_ratio:.1%}), "
+                                f"Chunks received: {chunks_received}, "
                                 f"First token received: {first_token_with_text_received}"
                             )
                     else:
                         error = f"HTTP {response.status}: {response.reason}"
                         success = False
+            except asyncio.TimeoutError:
+                success = False
+                error = f"Request timeout after {self._backend_timeout.total}s"
             except Exception as e:
                 success = False
-                error = str(e)
+                error = f"{type(e).__name__}: {str(e)}"
 
         # Calculate server-side E2E latency (total time from request start to completion)
         server_e2e_latency = time.perf_counter() - st
