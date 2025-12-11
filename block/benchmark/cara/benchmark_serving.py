@@ -1040,7 +1040,7 @@ def add_cli_args(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--model",
         type=str,
-        default="Qwen-2.5-72B",
+        default="Qwen/Qwen2.5-72B",
         help="Name of the model running at cara service also, so we can use its tokenizer to avoid redownloading.",
     )
     parser.add_argument(
