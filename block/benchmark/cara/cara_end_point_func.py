@@ -40,6 +40,8 @@ class RequestFuncOutput:
     model: str = ""
     request_id: str = ""
     scheduling_overhead: float = 0.0  # CARA-specific: client E2E - server E2E = network + CARA routing
+    instance_id: str = ""  # Instance that handled the request
+    host: str = ""  # Host IP address of the instance
 
 
 async def async_request_cara_openai_completions(
@@ -97,6 +99,8 @@ async def async_request_cara_openai_completions(
                     output.ttft = response_map.get("ttft", 0.0)  # Backend's time to first token
                     output.itl = response_map.get("itl", [])     # Backend's inter-token latencies
                     output.model = response_map.get("model", "")
+                    output.instance_id = response_map.get("instance_id", "")
+                    output.host = response_map.get("host", "")
 
                     # Get server-side E2E latency (reported by backend instance)
                     server_latency = response_map.get("server_latency", 0.0)
@@ -111,10 +115,20 @@ async def async_request_cara_openai_completions(
                     # Request failed on CARA server side
                     output.success = False
                     output.error = response_map.get("error", "Unknown error from CARA server")
+                    output.instance_id = response_map.get("instance_id", "")
+                    output.host = response_map.get("host", "")
+                    output.model = response_map.get("model", "")
             else:
-                # HTTP error
+                # HTTP error - try to parse response for debugging info
                 output.success = False
-                output.error = f"HTTP {response.status}: {response.reason or 'Unknown error'}"
+                try:
+                    error_data = await response.json()
+                    output.error = error_data.get("error", f"HTTP {response.status}: {response.reason or 'Unknown error'}")
+                    output.instance_id = error_data.get("instance_id", "")
+                    output.host = error_data.get("host", "")
+                    output.model = error_data.get("model", "")
+                except:
+                    output.error = f"HTTP {response.status}: {response.reason or 'Unknown error'}"
     except Exception:
         output.success = False
         exc_info = sys.exc_info()

@@ -377,6 +377,64 @@ def calculate_metrics(
     # Find the time range across all successful requests
     successful_outputs = [output for output in outputs if output.success]
     failed_outputs = [output for output in outputs if not output.success]
+
+    # Log detailed failed request information to a file for debugging
+    if failed_outputs:
+        from datetime import datetime
+        from collections import Counter
+        error_log_filename = f"failed_requests_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+
+        # Analyze failure patterns
+        failures_by_instance = Counter(f.instance_id or 'Unknown' for f in failed_outputs)
+        failures_by_host = Counter(f.host or 'Unknown' for f in failed_outputs)
+        failures_by_model = Counter(f.model or 'Unknown' for f in failed_outputs)
+
+        with open(error_log_filename, 'w') as error_log:
+            error_log.write("=" * 80 + "\n")
+            error_log.write(f"FAILED REQUESTS DEBUG LOG\n")
+            error_log.write(f"Generated: {datetime.now().isoformat()}\n")
+            error_log.write(f"Total Failed Requests: {len(failed_outputs)}\n")
+            error_log.write("=" * 80 + "\n\n")
+
+            # Summary section
+            error_log.write("FAILURE SUMMARY:\n")
+            error_log.write("-" * 80 + "\n")
+            error_log.write(f"\nFailures by Instance:\n")
+            for instance_id, count in failures_by_instance.most_common():
+                error_log.write(f"  {instance_id}: {count} failures\n")
+
+            error_log.write(f"\nFailures by Host:\n")
+            for host, count in failures_by_host.most_common():
+                error_log.write(f"  {host}: {count} failures\n")
+
+            error_log.write(f"\nFailures by Model:\n")
+            for model, count in failures_by_model.most_common():
+                error_log.write(f"  {model}: {count} failures\n")
+            error_log.write("\n" + "=" * 80 + "\n")
+
+            # Detailed failure information
+            error_log.write("\nDETAILED FAILURE INFORMATION:\n")
+            error_log.write("=" * 80 + "\n")
+
+            for idx, failed_output in enumerate(failed_outputs, 1):
+                error_log.write(f"\n{'='*80}\n")
+                error_log.write(f"Failed Request #{idx}\n")
+                error_log.write(f"{'='*80}\n")
+                error_log.write(f"Request ID:     {failed_output.request_id or 'N/A'}\n")
+                error_log.write(f"Instance ID:    {failed_output.instance_id or 'N/A'}\n")
+                error_log.write(f"Host:           {failed_output.host or 'N/A'}\n")
+                error_log.write(f"Model:          {failed_output.model or 'N/A'}\n")
+                error_log.write(f"Start Time:     {failed_output.start_time}\n")
+                error_log.write(f"Prompt Length:  {failed_output.prompt_len}\n")
+                error_log.write(f"\nError Message:\n")
+                error_log.write("-" * 80 + "\n")
+                error_log.write(failed_output.error or 'No error message')
+                error_log.write("\n" + "-" * 80 + "\n")
+
+        print(f"\n⚠️  {len(failed_outputs)} failed requests detected!")
+        print(f"📝 Detailed error logs written to: {error_log_filename}")
+        print(f"    Summary: {dict(failures_by_instance.most_common(3))}\n")
+
     if successful_outputs:
         min_start_time = min(output.start_time for output in successful_outputs)
         max_end_time = max(

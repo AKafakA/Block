@@ -156,6 +156,8 @@ class VllmInstance(Instance):
             "error": error,
             "model": self._model_name,
             "server_latency": server_e2e_latency,  # Server-side E2E latency
+            "instance_id": self._instance_id,
+            "host": self._ip_address,
         }
 
 

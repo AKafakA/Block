@@ -52,24 +52,37 @@ async def completion(request: Request) -> Response:
     num_requests += 1
     request_id = request_json.get("request_id")
     served_requests.append(request_id)
+    selected_instance = None
     try:
         if scheduling == "random":
-            instance = random.choice(instances)
+            selected_instance = random.choice(instances)
         elif scheduling == "round_robin":
-            instance = instances[num_requests % len(instances)]
+            selected_instance = instances[num_requests % len(instances)]
         else:
-            instance = random.choice(instances)
-        response_dict = await instance.query_instance(
+            selected_instance = random.choice(instances)
+
+        response_dict = await selected_instance.query_instance(
             request_json,
             # useless for now, leave for future extension
             predicted_num_decode_tokens=0
         )
         return JSONResponse(content=response_dict)
     except Exception as e:
-        logger.error(f"Error processing request: {e}")
+        logger.error(f"Error processing request {request_id}: {e}")
+        logger.error(f"Instance: {selected_instance._instance_id if selected_instance else 'None'}")
+        logger.error(f"Host: {selected_instance._ip_address if selected_instance else 'Unknown'}")
+        logger.error(f"Model: {selected_instance._model_name if selected_instance else 'Unknown'}")
         logger.error(traceback.format_exc())
+
+        # Include debugging info in the error response
         error_response = {
-            "error": str(e)
+            "success": False,
+            "error": str(e),
+            "error_traceback": traceback.format_exc(),
+            "request_id": request_id,
+            "instance_id": selected_instance._instance_id if selected_instance else "Unknown",
+            "host": selected_instance._ip_address if selected_instance else "Unknown",
+            "model": selected_instance._model_name if selected_instance else "Unknown",
         }
         return JSONResponse(content=error_response, status_code=500)
 
