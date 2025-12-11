@@ -13,7 +13,7 @@ class OllamaInstance(Instance):
                  predictor_ports,
                  model_name,
                  query_predictor_timeout=10,
-                 query_backend_timeout=30 * 60,  # 30 minutes timeout for Ollama
+                 query_backend_timeout=60 * 60,  # 60 minutes timeout for Ollama
                  backend_port=11434):  # Default Ollama port
         super().__init__(instance_id,
                          hostname,
@@ -112,7 +112,7 @@ class OllamaInstance(Instance):
                                     success = True  # Successfully received the completion signal
                                     break
                         except asyncio.TimeoutError:
-                            # Stream reading timed out
+                            # Stream reading timed out - mark as failure
                             success = False
                             error = (
                                 f"Timeout while reading stream. "
@@ -121,13 +121,10 @@ class OllamaInstance(Instance):
                                 f"First token received: {first_token_with_text_received}"
                             )
 
-                        # Always mark as failure if we didn't receive the done signal
-                        # This ensures system consistency - a request is only successful
-                        # if Ollama explicitly signals completion
+                        # If we didn't receive the done signal, mark as failure
                         if not received_done_signal and not error:
                             success = False
                             # Estimate output tokens for debugging
-                            # Rough estimate: ~4 chars per token on average
                             estimated_tokens = len(generated_text) // 4
                             expected_tokens = ollama_payload["options"]["num_predict"]
                             completion_ratio = estimated_tokens / expected_tokens if expected_tokens > 0 else 0
