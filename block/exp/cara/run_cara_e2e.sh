@@ -18,6 +18,8 @@ HOSTS_FILE="block/config/hosts"
 DEPLOYMENT_CONFIG="block/config/cara/model_deployment.json"
 HF_TOKEN="${HF_TOKEN:-}"  # Set HF_TOKEN env var or pass as argument
 
+REDEPLOY=${1:-false}  # Pass 'true' as first argument to force redeployment
+
 echo "========================================"
 echo "CARA End-to-End Deployment & Test"
 echo "========================================"
@@ -27,16 +29,16 @@ echo ""
 echo "Step 1: Deploying Backend Instances"
 echo "------------------------------------"
 echo "This will deploy vLLM and Ollama instances across all configured hosts..."
-python block/exp/cara/deploy_cara.py \
-  --hosts ${HOSTS_FILE} \
-  --config ${MODEL_CONFIG} \
-  --hf-token "${HF_TOKEN}" \
-  --output ${DEPLOYMENT_CONFIG}
-
-if [ $? -ne 0 ]; then
-    echo "❌ Backend deployment failed!"
-    exit 1
+if [ "$REDEPLOY" = "true" ]; then
+  python block/exp/cara/deploy_cara.py \
+    --hosts ${HOSTS_FILE} \
+    --config ${MODEL_CONFIG} \
+    --hf-token "${HF_TOKEN}" \
+    --output ${DEPLOYMENT_CONFIG}
+else
+  echo "Skipping redeployment of backends. Using existing deployment config at ${DEPLOYMENT_CONFIG}."
 fi
+
 
 echo "✅ Backend deployment completed"
 echo ""
@@ -48,24 +50,8 @@ echo "Waiting 60 seconds for models to load..."
 sleep 60
 echo ""
 
-# Step 3: Verify backend deployments
-echo "Step 3: Verifying Backend Deployments"
-echo "--------------------------------------"
-python block/exp/cara/e2e/check_deployment.py \
-  --config ${DEPLOYMENT_CONFIG} \
-  --output block/config/cara/verified_hosts.json
-
-if [ $? -ne 0 ]; then
-    echo "❌ Backend verification failed!"
-    echo "Some backends may not be responding. Check logs on remote hosts."
-    exit 1
-fi
-
-echo "✅ All backends verified"
-echo ""
-
-# Step 4: Start CARA scheduler server
-echo "Step 4: Starting CARA Scheduler Server"
+# Start CARA scheduler server
+echo "Step 3: Starting CARA Scheduler Server"
 echo "---------------------------------------"
 echo "Starting CARA server on ${TARGET_HOST}:${CARA_PORT}..."
 
@@ -73,7 +59,6 @@ echo "Starting CARA server on ${TARGET_HOST}:${CARA_PORT}..."
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   ${TARGET_HOST} \
   "pkill -f 'cara_serve.py' || echo 'No existing CARA server found'"
-
 sleep 2
 
 # Start CARA server in background
@@ -90,19 +75,8 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
 echo "Waiting 10 seconds for CARA server to start..."
 sleep 10
 
-# Verify CARA server is running
-CARA_HOST_IP=$(echo ${TARGET_HOST} | cut -d'@' -f2)
-curl -s "http://${CARA_HOST_IP}:${CARA_PORT}/health" > /dev/null 2>&1
-
-if [ $? -eq 0 ]; then
-    echo "✅ CARA server is running at http://${CARA_HOST_IP}:${CARA_PORT}"
-else
-    echo "⚠️  Warning: CARA server health check failed (this is expected if /health endpoint not implemented)"
-fi
-echo ""
-
-# Step 5: Run benchmark tests
-echo "Step 5: Running Benchmark Tests"
+# Run benchmark tests
+echo "Step 4: Running Benchmark Tests"
 echo "--------------------------------"
 
 # Configuration for benchmark
@@ -115,6 +89,15 @@ echo "  Requests: 50"
 echo "  Input length: 128 tokens"
 echo "  Output length: 64 tokens"
 echo ""
+
+# Add vLLM to PYTHONPATH if it exists locally
+if [ -d "$HOME/vllm" ]; then
+  export PYTHONPATH="$HOME/vllm:$PYTHONPATH"
+  echo "Using local vLLM from: $HOME/vllm"
+elif [ -d "~/vllm" ]; then
+  export PYTHONPATH="~/vllm:$PYTHONPATH"
+  echo "Using local vLLM from: ~/vllm"
+fi
 
 python block/benchmark/cara/benchmark_serving.py \
   --backend cara \

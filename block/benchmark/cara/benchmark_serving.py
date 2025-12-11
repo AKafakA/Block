@@ -34,9 +34,12 @@ from vllm.benchmarks.lib.endpoint_request_func import (
 )
 from vllm.benchmarks.lib.ready_checker import wait_for_endpoint
 from vllm.benchmarks.lib.utils import convert_to_pytorch_benchmark_format, write_to_json
-from vllm.tokenizers import TokenizerLike, get_tokenizer
+from vllm.transformers_utils.tokenizer import get_tokenizer
 from vllm.utils.gc_utils import freeze_gc_heap
 from vllm.utils.network_utils import join_host_port
+
+from transformers import PreTrainedTokenizerBase
+
 
 from block.benchmark.cara.cara_end_point_func import RequestFuncOutput, CARA_ASYNC_REQUEST_FUNCS
 
@@ -278,7 +281,7 @@ def calculate_metrics(
     input_requests: list[SampleRequest],
     outputs: list[RequestFuncOutput],
     dur_s: float,
-    tokenizer: TokenizerLike,
+    tokenizer: PreTrainedTokenizerBase,
     selected_percentiles: list[float],
     goodput_config_dict: dict[str, float],
 ) -> tuple[BenchmarkMetrics, list[int]]:
@@ -481,7 +484,7 @@ async def benchmark(
     base_url: str,
     model_id: str,
     model_name: str,
-    tokenizer: TokenizerLike,
+    tokenizer: PreTrainedTokenizerBase,
     input_requests: list[SampleRequest],
     logprobs: int | None,
     request_rate: float,
