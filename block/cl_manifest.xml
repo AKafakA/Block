@@ -1,25 +1,25 @@
 <rspec xmlns="http://www.geni.net/resources/rspec/3" xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" xmlns:tour="http://www.protogeni.net/resources/rspec/ext/apt-tour/1" xmlns:jacks="http://www.protogeni.net/resources/rspec/ext/jacks/1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.geni.net/resources/rspec/3    http://www.geni.net/resources/rspec/3/request.xsd" type="request">
-  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node0" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+d8545-10s10301" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082443">
+  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node0" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+d8545-10s10305" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084140">
     <sliver_type name="raw-pc"/>
     <hardware_type name="d8545"/>
-    <interface client_id="node0:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d8545-10s10301:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082462" mac_address="946dae61974a">
+    <interface client_id="node0:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d8545-10s10305:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084146" mac_address="946DAE619422">
       <ip address="10.10.1.1" type="ipv4" netmask="255.255.255.0"/>
     </interface>
     <services>
-      <login authentication="ssh-keys" hostname="d8545-10s10301.wisc.cloudlab.us" port="22" username="asdwb"/>
+      <login authentication="ssh-keys" hostname="d8545-10s10305.wisc.cloudlab.us" port="22" username="asdwb"/>
       <emulab:console server="boss.wisc.cloudlab.us"/>
       <emulab:recovery available="true"/>
       <emulab:powercycle available="true"/>
       <emulab:imageable available="true"/>
       <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
     </services>
-    <emulab:vnode name="d8545-10s10301" hardware_type="d8545"/>
-    <host name="node0.asdwb-283467.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.146.44"/>
+    <emulab:vnode name="d8545-10s10305" hardware_type="d8545"/>
+    <host name="node0.asdwb-284330.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.146.43"/>
   </node>
-  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node1" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+d7525-10s10315" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082428">
+  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node1" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+d7525-10s10315" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084135">
     <sliver_type name="raw-pc"/>
     <hardware_type name="d7525"/>
-    <interface client_id="node1:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10315:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082463" mac_address="946dae619eda">
+    <interface client_id="node1:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10315:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084147" mac_address="946dae619eda">
       <ip address="10.10.1.2" type="ipv4" netmask="255.255.255.0"/>
     </interface>
     <services>
@@ -31,166 +31,13 @@
       <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
     </services>
     <emulab:vnode name="d7525-10s10315" hardware_type="d7525"/>
-    <host name="node1.asdwb-283467.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.146.39"/>
+    <host name="node1.asdwb-284330.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.146.39"/>
   </node>
-  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node2" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c4130-110133" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082436">
+  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node2" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+d7525-10s10335" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084113">
     <sliver_type name="raw-pc"/>
-    <hardware_type name="c4130"/>
-    <interface client_id="node2:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c4130-110133:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082464" mac_address="b8cef6b0644a">
+    <hardware_type name="d7525"/>
+    <interface client_id="node2:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10335:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084148" mac_address="946dae619eba">
       <ip address="10.10.1.3" type="ipv4" netmask="255.255.255.0"/>
-    </interface>
-    <services>
-      <login authentication="ssh-keys" hostname="c4130-110133.wisc.cloudlab.us" port="22" username="asdwb"/>
-      <emulab:console server="boss.wisc.cloudlab.us"/>
-      <emulab:recovery available="true"/>
-      <emulab:powercycle available="true"/>
-      <emulab:imageable available="true"/>
-      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
-    </services>
-    <emulab:vnode name="c4130-110133" hardware_type="c4130"/>
-    <host name="node2.asdwb-283467.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.146.25"/>
-  </node>
-  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node3" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+d8545-10s10305" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082433">
-    <sliver_type name="raw-pc"/>
-    <hardware_type name="d8545"/>
-    <interface client_id="node3:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d8545-10s10305:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082465" mac_address="946DAE619422">
-      <ip address="10.10.1.4" type="ipv4" netmask="255.255.255.0"/>
-    </interface>
-    <services>
-      <login authentication="ssh-keys" hostname="d8545-10s10305.wisc.cloudlab.us" port="22" username="asdwb"/>
-      <emulab:console server="boss.wisc.cloudlab.us"/>
-      <emulab:recovery available="true"/>
-      <emulab:powercycle available="true"/>
-      <emulab:imageable available="true"/>
-      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
-    </services>
-    <emulab:vnode name="d8545-10s10305" hardware_type="d8545"/>
-    <host name="node3.asdwb-283467.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.146.43"/>
-  </node>
-  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node4" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c4130-110433" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082431">
-    <sliver_type name="raw-pc"/>
-    <hardware_type name="c4130"/>
-    <interface client_id="node4:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c4130-110433:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082466" mac_address="b8cef6b0640a">
-      <ip address="10.10.1.5" type="ipv4" netmask="255.255.255.0"/>
-    </interface>
-    <services>
-      <login authentication="ssh-keys" hostname="c4130-110433.wisc.cloudlab.us" port="22" username="asdwb"/>
-      <emulab:console server="boss.wisc.cloudlab.us"/>
-      <emulab:recovery available="true"/>
-      <emulab:powercycle available="true"/>
-      <emulab:imageable available="true"/>
-      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
-    </services>
-    <emulab:vnode name="c4130-110433" hardware_type="c4130"/>
-    <host name="node4.asdwb-283467.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.146.23"/>
-  </node>
-  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node5" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c240g5-110209" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082455">
-    <sliver_type name="raw-pc"/>
-    <hardware_type name="c240g5"/>
-    <interface client_id="node5:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110209:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082467" mac_address="b83fd277c666">
-      <ip address="10.10.1.6" type="ipv4" netmask="255.255.255.0"/>
-    </interface>
-    <services>
-      <login authentication="ssh-keys" hostname="c240g5-110209.wisc.cloudlab.us" port="22" username="asdwb"/>
-      <emulab:console server="boss.wisc.cloudlab.us"/>
-      <emulab:recovery available="true"/>
-      <emulab:powercycle available="true"/>
-      <emulab:imageable available="true"/>
-      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
-    </services>
-    <emulab:vnode name="c240g5-110209" hardware_type="c240g5"/>
-    <host name="node5.asdwb-283467.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.144.63"/>
-  </node>
-  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node6" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c240g5-110221" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082440">
-    <sliver_type name="raw-pc"/>
-    <hardware_type name="c240g5"/>
-    <interface client_id="node6:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110221:eth3" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082468" mac_address="b83fd277e50f">
-      <ip address="10.10.1.7" type="ipv4" netmask="255.255.255.0"/>
-    </interface>
-    <services>
-      <login authentication="ssh-keys" hostname="c240g5-110221.wisc.cloudlab.us" port="22" username="asdwb"/>
-      <emulab:console server="boss.wisc.cloudlab.us"/>
-      <emulab:recovery available="true"/>
-      <emulab:powercycle available="true"/>
-      <emulab:imageable available="true"/>
-      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
-    </services>
-    <emulab:vnode name="c240g5-110221" hardware_type="c240g5"/>
-    <host name="node6.asdwb-283467.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.144.69"/>
-  </node>
-  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node7" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c240g5-110121" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082458">
-    <sliver_type name="raw-pc"/>
-    <hardware_type name="c240g5"/>
-    <interface client_id="node7:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110121:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082469" mac_address="b83fd277d8ba">
-      <ip address="10.10.1.8" type="ipv4" netmask="255.255.255.0"/>
-    </interface>
-    <services>
-      <login authentication="ssh-keys" hostname="c240g5-110121.wisc.cloudlab.us" port="22" username="asdwb"/>
-      <emulab:console server="boss.wisc.cloudlab.us"/>
-      <emulab:recovery available="true"/>
-      <emulab:powercycle available="true"/>
-      <emulab:imageable available="true"/>
-      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
-    </services>
-    <emulab:vnode name="c240g5-110121" hardware_type="c240g5"/>
-    <host name="node7.asdwb-283467.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.144.53"/>
-  </node>
-  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node8" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+d7525-10s10323" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082435">
-    <sliver_type name="raw-pc"/>
-    <hardware_type name="d7525"/>
-    <interface client_id="node8:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10323:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082470" mac_address="946dae6195c2">
-      <ip address="10.10.1.9" type="ipv4" netmask="255.255.255.0"/>
-    </interface>
-    <services>
-      <login authentication="ssh-keys" hostname="d7525-10s10323.wisc.cloudlab.us" port="22" username="asdwb"/>
-      <emulab:console server="boss.wisc.cloudlab.us"/>
-      <emulab:recovery available="true"/>
-      <emulab:powercycle available="true"/>
-      <emulab:imageable available="true"/>
-      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
-    </services>
-    <emulab:vnode name="d7525-10s10323" hardware_type="d7525"/>
-    <host name="node8.asdwb-283467.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.146.35"/>
-  </node>
-  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node9" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c240g5-110131" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082456">
-    <sliver_type name="raw-pc"/>
-    <hardware_type name="c240g5"/>
-    <interface client_id="node9:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110131:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082471" mac_address="b83fd277e516">
-      <ip address="10.10.1.10" type="ipv4" netmask="255.255.255.0"/>
-    </interface>
-    <services>
-      <login authentication="ssh-keys" hostname="c240g5-110131.wisc.cloudlab.us" port="22" username="asdwb"/>
-      <emulab:console server="boss.wisc.cloudlab.us"/>
-      <emulab:recovery available="true"/>
-      <emulab:powercycle available="true"/>
-      <emulab:imageable available="true"/>
-      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
-    </services>
-    <emulab:vnode name="c240g5-110131" hardware_type="c240g5"/>
-    <host name="node9.asdwb-283467.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.144.58"/>
-  </node>
-  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node10" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c240g5-110115" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082451">
-    <sliver_type name="raw-pc"/>
-    <hardware_type name="c240g5"/>
-    <interface client_id="node10:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110115:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082472" mac_address="b83fd277d8c6">
-      <ip address="10.10.1.11" type="ipv4" netmask="255.255.255.0"/>
-    </interface>
-    <services>
-      <login authentication="ssh-keys" hostname="c240g5-110115.wisc.cloudlab.us" port="22" username="asdwb"/>
-      <emulab:console server="boss.wisc.cloudlab.us"/>
-      <emulab:recovery available="true"/>
-      <emulab:powercycle available="true"/>
-      <emulab:imageable available="true"/>
-      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
-    </services>
-    <emulab:vnode name="c240g5-110115" hardware_type="c240g5"/>
-    <host name="node10.asdwb-283467.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.144.50"/>
-  </node>
-  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node11" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+d7525-10s10335" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082445">
-    <sliver_type name="raw-pc"/>
-    <hardware_type name="d7525"/>
-    <interface client_id="node11:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10335:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082473" mac_address="946dae619eba">
-      <ip address="10.10.1.12" type="ipv4" netmask="255.255.255.0"/>
     </interface>
     <services>
       <login authentication="ssh-keys" hostname="d7525-10s10335.wisc.cloudlab.us" port="22" username="asdwb"/>
@@ -201,47 +48,13 @@
       <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
     </services>
     <emulab:vnode name="d7525-10s10335" hardware_type="d7525"/>
-    <host name="node11.asdwb-283467.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.146.29"/>
+    <host name="node2.asdwb-284330.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.146.29"/>
   </node>
-  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node12" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+d7525-10s10337" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082429">
-    <sliver_type name="raw-pc"/>
-    <hardware_type name="d7525"/>
-    <interface client_id="node12:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10337:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082474" mac_address="946dae619e82">
-      <ip address="10.10.1.13" type="ipv4" netmask="255.255.255.0"/>
-    </interface>
-    <services>
-      <login authentication="ssh-keys" hostname="d7525-10s10337.wisc.cloudlab.us" port="22" username="asdwb"/>
-      <emulab:console server="boss.wisc.cloudlab.us"/>
-      <emulab:recovery available="true"/>
-      <emulab:powercycle available="true"/>
-      <emulab:imageable available="true"/>
-      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
-    </services>
-    <emulab:vnode name="d7525-10s10337" hardware_type="d7525"/>
-    <host name="node12.asdwb-283467.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.146.28"/>
-  </node>
-  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node13" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+d7525-10s10333" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082430">
-    <sliver_type name="raw-pc"/>
-    <hardware_type name="d7525"/>
-    <interface client_id="node13:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10333:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082475" mac_address="946dae61966a">
-      <ip address="10.10.1.14" type="ipv4" netmask="255.255.255.0"/>
-    </interface>
-    <services>
-      <login authentication="ssh-keys" hostname="d7525-10s10333.wisc.cloudlab.us" port="22" username="asdwb"/>
-      <emulab:console server="boss.wisc.cloudlab.us"/>
-      <emulab:recovery available="true"/>
-      <emulab:powercycle available="true"/>
-      <emulab:imageable available="true"/>
-      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
-    </services>
-    <emulab:vnode name="d7525-10s10333" hardware_type="d7525"/>
-    <host name="node13.asdwb-283467.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.146.30"/>
-  </node>
-  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node14" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c240g5-110229" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082453">
+  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node3" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c240g5-110229" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084132">
     <sliver_type name="raw-pc"/>
     <hardware_type name="c240g5"/>
-    <interface client_id="node14:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110229:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082476" mac_address="b83fd277ded6">
-      <ip address="10.10.1.15" type="ipv4" netmask="255.255.255.0"/>
+    <interface client_id="node3:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110229:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084149" mac_address="b83fd277ded6">
+      <ip address="10.10.1.4" type="ipv4" netmask="255.255.255.0"/>
     </interface>
     <services>
       <login authentication="ssh-keys" hostname="c240g5-110229.wisc.cloudlab.us" port="22" username="asdwb"/>
@@ -252,268 +65,30 @@
       <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
     </services>
     <emulab:vnode name="c240g5-110229" hardware_type="c240g5"/>
-    <host name="node14.asdwb-283467.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.144.73"/>
+    <host name="node3.asdwb-284330.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.144.73"/>
   </node>
-  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node15" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+d7525-10s10339" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082449">
+  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node4" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+d8545-10s10301" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084130">
     <sliver_type name="raw-pc"/>
-    <hardware_type name="d7525"/>
-    <interface client_id="node15:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10339:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082477" mac_address="946dae619b42">
-      <ip address="10.10.1.16" type="ipv4" netmask="255.255.255.0"/>
+    <hardware_type name="d8545"/>
+    <interface client_id="node4:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d8545-10s10301:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084150" mac_address="946dae61974a">
+      <ip address="10.10.1.5" type="ipv4" netmask="255.255.255.0"/>
     </interface>
     <services>
-      <login authentication="ssh-keys" hostname="d7525-10s10339.wisc.cloudlab.us" port="22" username="asdwb"/>
+      <login authentication="ssh-keys" hostname="d8545-10s10301.wisc.cloudlab.us" port="22" username="asdwb"/>
       <emulab:console server="boss.wisc.cloudlab.us"/>
       <emulab:recovery available="true"/>
       <emulab:powercycle available="true"/>
       <emulab:imageable available="true"/>
       <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
     </services>
-    <emulab:vnode name="d7525-10s10339" hardware_type="d7525"/>
-    <host name="node15.asdwb-283467.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.146.27"/>
+    <emulab:vnode name="d8545-10s10301" hardware_type="d8545"/>
+    <host name="node4.asdwb-284330.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.146.44"/>
   </node>
-  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node16" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+d7525-10s10321" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082437">
-    <sliver_type name="raw-pc"/>
-    <hardware_type name="d7525"/>
-    <interface client_id="node16:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10321:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082478" mac_address="946dae61969a">
-      <ip address="10.10.1.17" type="ipv4" netmask="255.255.255.0"/>
-    </interface>
-    <services>
-      <login authentication="ssh-keys" hostname="d7525-10s10321.wisc.cloudlab.us" port="22" username="asdwb"/>
-      <emulab:console server="boss.wisc.cloudlab.us"/>
-      <emulab:recovery available="true"/>
-      <emulab:powercycle available="true"/>
-      <emulab:imageable available="true"/>
-      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
-    </services>
-    <emulab:vnode name="d7525-10s10321" hardware_type="d7525"/>
-    <host name="node16.asdwb-283467.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.146.36"/>
-  </node>
-  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node17" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c240g5-110125" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082434">
+  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node5" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c240g5-110119" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084137">
     <sliver_type name="raw-pc"/>
     <hardware_type name="c240g5"/>
-    <interface client_id="node17:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110125:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082479" mac_address="b83fd277cca6">
-      <ip address="10.10.1.18" type="ipv4" netmask="255.255.255.0"/>
-    </interface>
-    <services>
-      <login authentication="ssh-keys" hostname="c240g5-110125.wisc.cloudlab.us" port="22" username="asdwb"/>
-      <emulab:console server="boss.wisc.cloudlab.us"/>
-      <emulab:recovery available="true"/>
-      <emulab:powercycle available="true"/>
-      <emulab:imageable available="true"/>
-      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
-    </services>
-    <emulab:vnode name="c240g5-110125" hardware_type="c240g5"/>
-    <host name="node17.asdwb-283467.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.144.55"/>
-  </node>
-  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node18" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+d7525-10s10317" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082448">
-    <sliver_type name="raw-pc"/>
-    <hardware_type name="d7525"/>
-    <interface client_id="node18:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10317:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082480" mac_address="946dae61980a">
-      <ip address="10.10.1.19" type="ipv4" netmask="255.255.255.0"/>
-    </interface>
-    <services>
-      <login authentication="ssh-keys" hostname="d7525-10s10317.wisc.cloudlab.us" port="22" username="asdwb"/>
-      <emulab:console server="boss.wisc.cloudlab.us"/>
-      <emulab:recovery available="true"/>
-      <emulab:powercycle available="true"/>
-      <emulab:imageable available="true"/>
-      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
-    </services>
-    <emulab:vnode name="d7525-10s10317" hardware_type="d7525"/>
-    <host name="node18.asdwb-283467.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.146.38"/>
-  </node>
-  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node19" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+d7525-10s10319" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082457">
-    <sliver_type name="raw-pc"/>
-    <hardware_type name="d7525"/>
-    <interface client_id="node19:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10319:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082481" mac_address="946dae6199a2">
-      <ip address="10.10.1.20" type="ipv4" netmask="255.255.255.0"/>
-    </interface>
-    <services>
-      <login authentication="ssh-keys" hostname="d7525-10s10319.wisc.cloudlab.us" port="22" username="asdwb"/>
-      <emulab:console server="boss.wisc.cloudlab.us"/>
-      <emulab:recovery available="true"/>
-      <emulab:powercycle available="true"/>
-      <emulab:imageable available="true"/>
-      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
-    </services>
-    <emulab:vnode name="d7525-10s10319" hardware_type="d7525"/>
-    <host name="node19.asdwb-283467.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.146.37"/>
-  </node>
-  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node20" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c240g5-110117" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082447">
-    <sliver_type name="raw-pc"/>
-    <hardware_type name="c240g5"/>
-    <interface client_id="node20:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110117:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082482" mac_address="b83fd277e522">
-      <ip address="10.10.1.21" type="ipv4" netmask="255.255.255.0"/>
-    </interface>
-    <services>
-      <login authentication="ssh-keys" hostname="c240g5-110117.wisc.cloudlab.us" port="22" username="asdwb"/>
-      <emulab:console server="boss.wisc.cloudlab.us"/>
-      <emulab:recovery available="true"/>
-      <emulab:powercycle available="true"/>
-      <emulab:imageable available="true"/>
-      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
-    </services>
-    <emulab:vnode name="c240g5-110117" hardware_type="c240g5"/>
-    <host name="node20.asdwb-283467.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.144.51"/>
-  </node>
-  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node21" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c240g5-110107" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082452">
-    <sliver_type name="raw-pc"/>
-    <hardware_type name="c240g5"/>
-    <interface client_id="node21:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110107:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082483" mac_address="b83fd277d8ae">
-      <ip address="10.10.1.22" type="ipv4" netmask="255.255.255.0"/>
-    </interface>
-    <services>
-      <login authentication="ssh-keys" hostname="c240g5-110107.wisc.cloudlab.us" port="22" username="asdwb"/>
-      <emulab:console server="boss.wisc.cloudlab.us"/>
-      <emulab:recovery available="true"/>
-      <emulab:powercycle available="true"/>
-      <emulab:imageable available="true"/>
-      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
-    </services>
-    <emulab:vnode name="c240g5-110107" hardware_type="c240g5"/>
-    <host name="node21.asdwb-283467.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.144.46"/>
-  </node>
-  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node22" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+d7525-10s10331" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082432">
-    <sliver_type name="raw-pc"/>
-    <hardware_type name="d7525"/>
-    <interface client_id="node22:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10331:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082484" mac_address="946dae619e8a">
-      <ip address="10.10.1.23" type="ipv4" netmask="255.255.255.0"/>
-    </interface>
-    <services>
-      <login authentication="ssh-keys" hostname="d7525-10s10331.wisc.cloudlab.us" port="22" username="asdwb"/>
-      <emulab:console server="boss.wisc.cloudlab.us"/>
-      <emulab:recovery available="true"/>
-      <emulab:powercycle available="true"/>
-      <emulab:imageable available="true"/>
-      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
-    </services>
-    <emulab:vnode name="d7525-10s10331" hardware_type="d7525"/>
-    <host name="node22.asdwb-283467.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.146.31"/>
-  </node>
-  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node23" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+d7525-10s10311" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082438">
-    <sliver_type name="raw-pc"/>
-    <hardware_type name="d7525"/>
-    <interface client_id="node23:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10311:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082485" mac_address="946dae619cda">
-      <ip address="10.10.1.24" type="ipv4" netmask="255.255.255.0"/>
-    </interface>
-    <services>
-      <login authentication="ssh-keys" hostname="d7525-10s10311.wisc.cloudlab.us" port="22" username="asdwb"/>
-      <emulab:console server="boss.wisc.cloudlab.us"/>
-      <emulab:recovery available="true"/>
-      <emulab:powercycle available="true"/>
-      <emulab:imageable available="true"/>
-      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
-    </services>
-    <emulab:vnode name="d7525-10s10311" hardware_type="d7525"/>
-    <host name="node23.asdwb-283467.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.146.41"/>
-  </node>
-  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node24" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c240g5-110103" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082450">
-    <sliver_type name="raw-pc"/>
-    <hardware_type name="c240g5"/>
-    <interface client_id="node24:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110103:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082486" mac_address="b83fd277d89a">
-      <ip address="10.10.1.25" type="ipv4" netmask="255.255.255.0"/>
-    </interface>
-    <services>
-      <login authentication="ssh-keys" hostname="c240g5-110103.wisc.cloudlab.us" port="22" username="asdwb"/>
-      <emulab:console server="boss.wisc.cloudlab.us"/>
-      <emulab:recovery available="true"/>
-      <emulab:powercycle available="true"/>
-      <emulab:imageable available="true"/>
-      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
-    </services>
-    <emulab:vnode name="c240g5-110103" hardware_type="c240g5"/>
-    <host name="node24.asdwb-283467.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.144.44"/>
-  </node>
-  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node25" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c240g5-110201" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082439">
-    <sliver_type name="raw-pc"/>
-    <hardware_type name="c240g5"/>
-    <interface client_id="node25:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110201:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082487" mac_address="b83fd2780202">
-      <ip address="10.10.1.26" type="ipv4" netmask="255.255.255.0"/>
-    </interface>
-    <services>
-      <login authentication="ssh-keys" hostname="c240g5-110201.wisc.cloudlab.us" port="22" username="asdwb"/>
-      <emulab:console server="boss.wisc.cloudlab.us"/>
-      <emulab:recovery available="true"/>
-      <emulab:powercycle available="true"/>
-      <emulab:imageable available="true"/>
-      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
-    </services>
-    <emulab:vnode name="c240g5-110201" hardware_type="c240g5"/>
-    <host name="node25.asdwb-283467.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.144.59"/>
-  </node>
-  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node26" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+d7525-10s10327" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082446">
-    <sliver_type name="raw-pc"/>
-    <hardware_type name="d7525"/>
-    <interface client_id="node26:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10327:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082488" mac_address="946dae619e2a">
-      <ip address="10.10.1.27" type="ipv4" netmask="255.255.255.0"/>
-    </interface>
-    <services>
-      <login authentication="ssh-keys" hostname="d7525-10s10327.wisc.cloudlab.us" port="22" username="asdwb"/>
-      <emulab:console server="boss.wisc.cloudlab.us"/>
-      <emulab:recovery available="true"/>
-      <emulab:powercycle available="true"/>
-      <emulab:imageable available="true"/>
-      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
-    </services>
-    <emulab:vnode name="d7525-10s10327" hardware_type="d7525"/>
-    <host name="node26.asdwb-283467.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.146.33"/>
-  </node>
-  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node27" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c240g5-110207" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082444">
-    <sliver_type name="raw-pc"/>
-    <hardware_type name="c240g5"/>
-    <interface client_id="node27:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110207:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082489" mac_address="b83fd277c636">
-      <ip address="10.10.1.28" type="ipv4" netmask="255.255.255.0"/>
-    </interface>
-    <services>
-      <login authentication="ssh-keys" hostname="c240g5-110207.wisc.cloudlab.us" port="22" username="asdwb"/>
-      <emulab:console server="boss.wisc.cloudlab.us"/>
-      <emulab:recovery available="true"/>
-      <emulab:powercycle available="true"/>
-      <emulab:imageable available="true"/>
-      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
-    </services>
-    <emulab:vnode name="c240g5-110207" hardware_type="c240g5"/>
-    <host name="node27.asdwb-283467.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.144.62"/>
-  </node>
-  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node28" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c240g5-110231" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082441">
-    <sliver_type name="raw-pc"/>
-    <hardware_type name="c240g5"/>
-    <interface client_id="node28:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110231:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082490" mac_address="b83fd277c62a">
-      <ip address="10.10.1.29" type="ipv4" netmask="255.255.255.0"/>
-    </interface>
-    <services>
-      <login authentication="ssh-keys" hostname="c240g5-110231.wisc.cloudlab.us" port="22" username="asdwb"/>
-      <emulab:console server="boss.wisc.cloudlab.us"/>
-      <emulab:recovery available="true"/>
-      <emulab:powercycle available="true"/>
-      <emulab:imageable available="true"/>
-      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
-    </services>
-    <emulab:vnode name="c240g5-110231" hardware_type="c240g5"/>
-    <host name="node28.asdwb-283467.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.144.74"/>
-  </node>
-  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node29" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c240g5-110101" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082459">
-    <sliver_type name="raw-pc"/>
-    <hardware_type name="c240g5"/>
-    <interface client_id="node29:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110101:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082491" mac_address="b83fd277d8b2">
-      <ip address="10.10.1.30" type="ipv4" netmask="255.255.255.0"/>
-    </interface>
-    <services>
-      <login authentication="ssh-keys" hostname="c240g5-110101.wisc.cloudlab.us" port="22" username="asdwb"/>
-      <emulab:console server="boss.wisc.cloudlab.us"/>
-      <emulab:recovery available="true"/>
-      <emulab:powercycle available="true"/>
-      <emulab:imageable available="true"/>
-      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
-    </services>
-    <emulab:vnode name="c240g5-110101" hardware_type="c240g5"/>
-    <host name="node29.asdwb-283467.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.144.43"/>
-  </node>
-  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node30" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c240g5-110119" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082454">
-    <sliver_type name="raw-pc"/>
-    <hardware_type name="c240g5"/>
-    <interface client_id="node30:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110119:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082492" mac_address="b83fd277d88e">
-      <ip address="10.10.1.31" type="ipv4" netmask="255.255.255.0"/>
+    <interface client_id="node5:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110119:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084151" mac_address="b83fd277d88e">
+      <ip address="10.10.1.6" type="ipv4" netmask="255.255.255.0"/>
     </interface>
     <services>
       <login authentication="ssh-keys" hostname="c240g5-110119.wisc.cloudlab.us" port="22" username="asdwb"/>
@@ -524,58 +99,483 @@
       <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
     </services>
     <emulab:vnode name="c240g5-110119" hardware_type="c240g5"/>
-    <host name="node30.asdwb-283467.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.144.52"/>
+    <host name="node5.asdwb-284330.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.144.52"/>
   </node>
-  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node31" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c240g5-110129" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082442">
+  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node6" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+d7525-10s10331" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084124">
     <sliver_type name="raw-pc"/>
-    <hardware_type name="c240g5"/>
-    <interface client_id="node31:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110129:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082493" mac_address="b83fd277ca42">
-      <ip address="10.10.1.32" type="ipv4" netmask="255.255.255.0"/>
+    <hardware_type name="d7525"/>
+    <interface client_id="node6:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10331:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084152" mac_address="946dae619e8a">
+      <ip address="10.10.1.7" type="ipv4" netmask="255.255.255.0"/>
     </interface>
     <services>
-      <login authentication="ssh-keys" hostname="c240g5-110129.wisc.cloudlab.us" port="22" username="asdwb"/>
+      <login authentication="ssh-keys" hostname="d7525-10s10331.wisc.cloudlab.us" port="22" username="asdwb"/>
       <emulab:console server="boss.wisc.cloudlab.us"/>
       <emulab:recovery available="true"/>
       <emulab:powercycle available="true"/>
       <emulab:imageable available="true"/>
       <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
     </services>
-    <emulab:vnode name="c240g5-110129" hardware_type="c240g5"/>
-    <host name="node31.asdwb-283467.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.144.57"/>
+    <emulab:vnode name="d7525-10s10331" hardware_type="d7525"/>
+    <host name="node6.asdwb-284330.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.146.31"/>
   </node>
-  <link xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="link-1" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082461" vlantag="1107">
-    <interface_ref client_id="node0:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d8545-10s10301:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082462"/>
-    <interface_ref client_id="node1:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10315:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082463"/>
-    <interface_ref client_id="node2:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c4130-110133:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082464"/>
-    <interface_ref client_id="node3:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d8545-10s10305:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082465"/>
-    <interface_ref client_id="node4:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c4130-110433:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082466"/>
-    <interface_ref client_id="node5:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110209:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082467"/>
-    <interface_ref client_id="node6:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110221:eth3" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082468"/>
-    <interface_ref client_id="node7:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110121:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082469"/>
-    <interface_ref client_id="node8:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10323:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082470"/>
-    <interface_ref client_id="node9:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110131:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082471"/>
-    <interface_ref client_id="node10:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110115:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082472"/>
-    <interface_ref client_id="node11:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10335:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082473"/>
-    <interface_ref client_id="node12:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10337:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082474"/>
-    <interface_ref client_id="node13:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10333:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082475"/>
-    <interface_ref client_id="node14:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110229:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082476"/>
-    <interface_ref client_id="node15:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10339:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082477"/>
-    <interface_ref client_id="node16:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10321:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082478"/>
-    <interface_ref client_id="node17:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110125:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082479"/>
-    <interface_ref client_id="node18:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10317:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082480"/>
-    <interface_ref client_id="node19:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10319:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082481"/>
-    <interface_ref client_id="node20:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110117:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082482"/>
-    <interface_ref client_id="node21:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110107:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082483"/>
-    <interface_ref client_id="node22:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10331:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082484"/>
-    <interface_ref client_id="node23:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10311:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082485"/>
-    <interface_ref client_id="node24:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110103:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082486"/>
-    <interface_ref client_id="node25:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110201:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082487"/>
-    <interface_ref client_id="node26:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10327:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082488"/>
-    <interface_ref client_id="node27:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110207:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082489"/>
-    <interface_ref client_id="node28:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110231:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082490"/>
-    <interface_ref client_id="node29:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110101:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082491"/>
-    <interface_ref client_id="node30:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110119:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082492"/>
-    <interface_ref client_id="node31:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110129:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1082493"/>
+  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node7" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+d7525-10s10325" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084131">
+    <sliver_type name="raw-pc"/>
+    <hardware_type name="d7525"/>
+    <interface client_id="node7:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10325:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084153" mac_address="946dae619e6a">
+      <ip address="10.10.1.8" type="ipv4" netmask="255.255.255.0"/>
+    </interface>
+    <services>
+      <login authentication="ssh-keys" hostname="d7525-10s10325.wisc.cloudlab.us" port="22" username="asdwb"/>
+      <emulab:console server="boss.wisc.cloudlab.us"/>
+      <emulab:recovery available="true"/>
+      <emulab:powercycle available="true"/>
+      <emulab:imageable available="true"/>
+      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
+    </services>
+    <emulab:vnode name="d7525-10s10325" hardware_type="d7525"/>
+    <host name="node7.asdwb-284330.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.146.34"/>
+  </node>
+  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node8" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c240g5-110131" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084116">
+    <sliver_type name="raw-pc"/>
+    <hardware_type name="c240g5"/>
+    <interface client_id="node8:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110131:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084154" mac_address="b83fd277e516">
+      <ip address="10.10.1.9" type="ipv4" netmask="255.255.255.0"/>
+    </interface>
+    <services>
+      <login authentication="ssh-keys" hostname="c240g5-110131.wisc.cloudlab.us" port="22" username="asdwb"/>
+      <emulab:console server="boss.wisc.cloudlab.us"/>
+      <emulab:recovery available="true"/>
+      <emulab:powercycle available="true"/>
+      <emulab:imageable available="true"/>
+      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
+    </services>
+    <emulab:vnode name="c240g5-110131" hardware_type="c240g5"/>
+    <host name="node8.asdwb-284330.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.144.58"/>
+  </node>
+  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node9" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c4130-110233" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084142">
+    <sliver_type name="raw-pc"/>
+    <hardware_type name="c4130"/>
+    <interface client_id="node9:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c4130-110233:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084155" mac_address="b83fd21309fa">
+      <ip address="10.10.1.10" type="ipv4" netmask="255.255.255.0"/>
+    </interface>
+    <services>
+      <login authentication="ssh-keys" hostname="c4130-110233.wisc.cloudlab.us" port="22" username="asdwb"/>
+      <emulab:console server="boss.wisc.cloudlab.us"/>
+      <emulab:recovery available="true"/>
+      <emulab:powercycle available="true"/>
+      <emulab:imageable available="true"/>
+      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
+    </services>
+    <emulab:vnode name="c4130-110233" hardware_type="c4130"/>
+    <host name="node9.asdwb-284330.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.146.24"/>
+  </node>
+  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node10" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c4130-110533" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084119">
+    <sliver_type name="raw-pc"/>
+    <hardware_type name="c4130"/>
+    <interface client_id="node10:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c4130-110533:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084156" mac_address="b83fd21307d2">
+      <ip address="10.10.1.11" type="ipv4" netmask="255.255.255.0"/>
+    </interface>
+    <services>
+      <login authentication="ssh-keys" hostname="c4130-110533.wisc.cloudlab.us" port="22" username="asdwb"/>
+      <emulab:console server="boss.wisc.cloudlab.us"/>
+      <emulab:recovery available="true"/>
+      <emulab:powercycle available="true"/>
+      <emulab:imageable available="true"/>
+      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
+    </services>
+    <emulab:vnode name="c4130-110533" hardware_type="c4130"/>
+    <host name="node10.asdwb-284330.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.146.22"/>
+  </node>
+  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node11" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c240g5-110115" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084114">
+    <sliver_type name="raw-pc"/>
+    <hardware_type name="c240g5"/>
+    <interface client_id="node11:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110115:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084157" mac_address="b83fd277d8c6">
+      <ip address="10.10.1.12" type="ipv4" netmask="255.255.255.0"/>
+    </interface>
+    <services>
+      <login authentication="ssh-keys" hostname="c240g5-110115.wisc.cloudlab.us" port="22" username="asdwb"/>
+      <emulab:console server="boss.wisc.cloudlab.us"/>
+      <emulab:recovery available="true"/>
+      <emulab:powercycle available="true"/>
+      <emulab:imageable available="true"/>
+      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
+    </services>
+    <emulab:vnode name="c240g5-110115" hardware_type="c240g5"/>
+    <host name="node11.asdwb-284330.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.144.50"/>
+  </node>
+  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node12" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+d7525-10s10327" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084128">
+    <sliver_type name="raw-pc"/>
+    <hardware_type name="d7525"/>
+    <interface client_id="node12:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10327:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084158" mac_address="946dae619e2a">
+      <ip address="10.10.1.13" type="ipv4" netmask="255.255.255.0"/>
+    </interface>
+    <services>
+      <login authentication="ssh-keys" hostname="d7525-10s10327.wisc.cloudlab.us" port="22" username="asdwb"/>
+      <emulab:console server="boss.wisc.cloudlab.us"/>
+      <emulab:recovery available="true"/>
+      <emulab:powercycle available="true"/>
+      <emulab:imageable available="true"/>
+      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
+    </services>
+    <emulab:vnode name="d7525-10s10327" hardware_type="d7525"/>
+    <host name="node12.asdwb-284330.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.146.33"/>
+  </node>
+  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node13" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c240g5-110103" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084120">
+    <sliver_type name="raw-pc"/>
+    <hardware_type name="c240g5"/>
+    <interface client_id="node13:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110103:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084159" mac_address="b83fd277d89a">
+      <ip address="10.10.1.14" type="ipv4" netmask="255.255.255.0"/>
+    </interface>
+    <services>
+      <login authentication="ssh-keys" hostname="c240g5-110103.wisc.cloudlab.us" port="22" username="asdwb"/>
+      <emulab:console server="boss.wisc.cloudlab.us"/>
+      <emulab:recovery available="true"/>
+      <emulab:powercycle available="true"/>
+      <emulab:imageable available="true"/>
+      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
+    </services>
+    <emulab:vnode name="c240g5-110103" hardware_type="c240g5"/>
+    <host name="node13.asdwb-284330.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.144.44"/>
+  </node>
+  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node14" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c240g5-110201" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084138">
+    <sliver_type name="raw-pc"/>
+    <hardware_type name="c240g5"/>
+    <interface client_id="node14:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110201:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084160" mac_address="b83fd2780202">
+      <ip address="10.10.1.15" type="ipv4" netmask="255.255.255.0"/>
+    </interface>
+    <services>
+      <login authentication="ssh-keys" hostname="c240g5-110201.wisc.cloudlab.us" port="22" username="asdwb"/>
+      <emulab:console server="boss.wisc.cloudlab.us"/>
+      <emulab:recovery available="true"/>
+      <emulab:powercycle available="true"/>
+      <emulab:imageable available="true"/>
+      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
+    </services>
+    <emulab:vnode name="c240g5-110201" hardware_type="c240g5"/>
+    <host name="node14.asdwb-284330.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.144.59"/>
+  </node>
+  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node15" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+d7525-10s10317" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084118">
+    <sliver_type name="raw-pc"/>
+    <hardware_type name="d7525"/>
+    <interface client_id="node15:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10317:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084161" mac_address="946dae61980a">
+      <ip address="10.10.1.16" type="ipv4" netmask="255.255.255.0"/>
+    </interface>
+    <services>
+      <login authentication="ssh-keys" hostname="d7525-10s10317.wisc.cloudlab.us" port="22" username="asdwb"/>
+      <emulab:console server="boss.wisc.cloudlab.us"/>
+      <emulab:recovery available="true"/>
+      <emulab:powercycle available="true"/>
+      <emulab:imageable available="true"/>
+      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
+    </services>
+    <emulab:vnode name="d7525-10s10317" hardware_type="d7525"/>
+    <host name="node15.asdwb-284330.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.146.38"/>
+  </node>
+  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node16" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c240g5-110127" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084133">
+    <sliver_type name="raw-pc"/>
+    <hardware_type name="c240g5"/>
+    <interface client_id="node16:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110127:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084162" mac_address="b83fd277d896">
+      <ip address="10.10.1.17" type="ipv4" netmask="255.255.255.0"/>
+    </interface>
+    <services>
+      <login authentication="ssh-keys" hostname="c240g5-110127.wisc.cloudlab.us" port="22" username="asdwb"/>
+      <emulab:console server="boss.wisc.cloudlab.us"/>
+      <emulab:recovery available="true"/>
+      <emulab:powercycle available="true"/>
+      <emulab:imageable available="true"/>
+      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
+    </services>
+    <emulab:vnode name="c240g5-110127" hardware_type="c240g5"/>
+    <host name="node16.asdwb-284330.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.144.56"/>
+  </node>
+  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node17" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c240g5-110203" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084117">
+    <sliver_type name="raw-pc"/>
+    <hardware_type name="c240g5"/>
+    <interface client_id="node17:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110203:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084163" mac_address="b83fd278024e">
+      <ip address="10.10.1.18" type="ipv4" netmask="255.255.255.0"/>
+    </interface>
+    <services>
+      <login authentication="ssh-keys" hostname="c240g5-110203.wisc.cloudlab.us" port="22" username="asdwb"/>
+      <emulab:console server="boss.wisc.cloudlab.us"/>
+      <emulab:recovery available="true"/>
+      <emulab:powercycle available="true"/>
+      <emulab:imageable available="true"/>
+      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
+    </services>
+    <emulab:vnode name="c240g5-110203" hardware_type="c240g5"/>
+    <host name="node17.asdwb-284330.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.144.60"/>
+  </node>
+  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node18" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c240g5-110107" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084115">
+    <sliver_type name="raw-pc"/>
+    <hardware_type name="c240g5"/>
+    <interface client_id="node18:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110107:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084164" mac_address="b83fd277d8ae">
+      <ip address="10.10.1.19" type="ipv4" netmask="255.255.255.0"/>
+    </interface>
+    <services>
+      <login authentication="ssh-keys" hostname="c240g5-110107.wisc.cloudlab.us" port="22" username="asdwb"/>
+      <emulab:console server="boss.wisc.cloudlab.us"/>
+      <emulab:recovery available="true"/>
+      <emulab:powercycle available="true"/>
+      <emulab:imageable available="true"/>
+      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
+    </services>
+    <emulab:vnode name="c240g5-110107" hardware_type="c240g5"/>
+    <host name="node18.asdwb-284330.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.144.46"/>
+  </node>
+  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node19" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c240g5-110221" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084112">
+    <sliver_type name="raw-pc"/>
+    <hardware_type name="c240g5"/>
+    <interface client_id="node19:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110221:eth3" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084165" mac_address="b83fd277e50f">
+      <ip address="10.10.1.20" type="ipv4" netmask="255.255.255.0"/>
+    </interface>
+    <services>
+      <login authentication="ssh-keys" hostname="c240g5-110221.wisc.cloudlab.us" port="22" username="asdwb"/>
+      <emulab:console server="boss.wisc.cloudlab.us"/>
+      <emulab:recovery available="true"/>
+      <emulab:powercycle available="true"/>
+      <emulab:imageable available="true"/>
+      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
+    </services>
+    <emulab:vnode name="c240g5-110221" hardware_type="c240g5"/>
+    <host name="node19.asdwb-284330.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.144.69"/>
+  </node>
+  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node20" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+d7525-10s10333" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084127">
+    <sliver_type name="raw-pc"/>
+    <hardware_type name="d7525"/>
+    <interface client_id="node20:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10333:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084166" mac_address="946dae61966a">
+      <ip address="10.10.1.21" type="ipv4" netmask="255.255.255.0"/>
+    </interface>
+    <services>
+      <login authentication="ssh-keys" hostname="d7525-10s10333.wisc.cloudlab.us" port="22" username="asdwb"/>
+      <emulab:console server="boss.wisc.cloudlab.us"/>
+      <emulab:recovery available="true"/>
+      <emulab:powercycle available="true"/>
+      <emulab:imageable available="true"/>
+      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
+    </services>
+    <emulab:vnode name="d7525-10s10333" hardware_type="d7525"/>
+    <host name="node20.asdwb-284330.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.146.30"/>
+  </node>
+  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node21" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c240g5-110121" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084126">
+    <sliver_type name="raw-pc"/>
+    <hardware_type name="c240g5"/>
+    <interface client_id="node21:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110121:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084167" mac_address="b83fd277d8ba">
+      <ip address="10.10.1.22" type="ipv4" netmask="255.255.255.0"/>
+    </interface>
+    <services>
+      <login authentication="ssh-keys" hostname="c240g5-110121.wisc.cloudlab.us" port="22" username="asdwb"/>
+      <emulab:console server="boss.wisc.cloudlab.us"/>
+      <emulab:recovery available="true"/>
+      <emulab:powercycle available="true"/>
+      <emulab:imageable available="true"/>
+      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
+    </services>
+    <emulab:vnode name="c240g5-110121" hardware_type="c240g5"/>
+    <host name="node21.asdwb-284330.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.144.53"/>
+  </node>
+  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node22" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c240g5-110207" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084123">
+    <sliver_type name="raw-pc"/>
+    <hardware_type name="c240g5"/>
+    <interface client_id="node22:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110207:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084168" mac_address="b83fd277c636">
+      <ip address="10.10.1.23" type="ipv4" netmask="255.255.255.0"/>
+    </interface>
+    <services>
+      <login authentication="ssh-keys" hostname="c240g5-110207.wisc.cloudlab.us" port="22" username="asdwb"/>
+      <emulab:console server="boss.wisc.cloudlab.us"/>
+      <emulab:recovery available="true"/>
+      <emulab:powercycle available="true"/>
+      <emulab:imageable available="true"/>
+      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
+    </services>
+    <emulab:vnode name="c240g5-110207" hardware_type="c240g5"/>
+    <host name="node22.asdwb-284330.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.144.62"/>
+  </node>
+  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node23" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+d7525-10s10339" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084125">
+    <sliver_type name="raw-pc"/>
+    <hardware_type name="d7525"/>
+    <interface client_id="node23:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10339:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084169" mac_address="946dae619b42">
+      <ip address="10.10.1.24" type="ipv4" netmask="255.255.255.0"/>
+    </interface>
+    <services>
+      <login authentication="ssh-keys" hostname="d7525-10s10339.wisc.cloudlab.us" port="22" username="asdwb"/>
+      <emulab:console server="boss.wisc.cloudlab.us"/>
+      <emulab:recovery available="true"/>
+      <emulab:powercycle available="true"/>
+      <emulab:imageable available="true"/>
+      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
+    </services>
+    <emulab:vnode name="d7525-10s10339" hardware_type="d7525"/>
+    <host name="node23.asdwb-284330.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.146.27"/>
+  </node>
+  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node24" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+d7525-10s10337" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084139">
+    <sliver_type name="raw-pc"/>
+    <hardware_type name="d7525"/>
+    <interface client_id="node24:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10337:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084170" mac_address="946dae619e82">
+      <ip address="10.10.1.25" type="ipv4" netmask="255.255.255.0"/>
+    </interface>
+    <services>
+      <login authentication="ssh-keys" hostname="d7525-10s10337.wisc.cloudlab.us" port="22" username="asdwb"/>
+      <emulab:console server="boss.wisc.cloudlab.us"/>
+      <emulab:recovery available="true"/>
+      <emulab:powercycle available="true"/>
+      <emulab:imageable available="true"/>
+      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
+    </services>
+    <emulab:vnode name="d7525-10s10337" hardware_type="d7525"/>
+    <host name="node24.asdwb-284330.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.146.28"/>
+  </node>
+  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node25" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+d7525-10s10309" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084136">
+    <sliver_type name="raw-pc"/>
+    <hardware_type name="d7525"/>
+    <interface client_id="node25:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10309:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084171" mac_address="946dae619eea">
+      <ip address="10.10.1.26" type="ipv4" netmask="255.255.255.0"/>
+    </interface>
+    <services>
+      <login authentication="ssh-keys" hostname="d7525-10s10309.wisc.cloudlab.us" port="22" username="asdwb"/>
+      <emulab:console server="boss.wisc.cloudlab.us"/>
+      <emulab:recovery available="true"/>
+      <emulab:powercycle available="true"/>
+      <emulab:imageable available="true"/>
+      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
+    </services>
+    <emulab:vnode name="d7525-10s10309" hardware_type="d7525"/>
+    <host name="node25.asdwb-284330.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.146.42"/>
+  </node>
+  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node26" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+d7525-10s10321" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084143">
+    <sliver_type name="raw-pc"/>
+    <hardware_type name="d7525"/>
+    <interface client_id="node26:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10321:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084172" mac_address="946dae61969a">
+      <ip address="10.10.1.27" type="ipv4" netmask="255.255.255.0"/>
+    </interface>
+    <services>
+      <login authentication="ssh-keys" hostname="d7525-10s10321.wisc.cloudlab.us" port="22" username="asdwb"/>
+      <emulab:console server="boss.wisc.cloudlab.us"/>
+      <emulab:recovery available="true"/>
+      <emulab:powercycle available="true"/>
+      <emulab:imageable available="true"/>
+      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
+    </services>
+    <emulab:vnode name="d7525-10s10321" hardware_type="d7525"/>
+    <host name="node26.asdwb-284330.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.146.36"/>
+  </node>
+  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node27" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+d7525-10s10323" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084141">
+    <sliver_type name="raw-pc"/>
+    <hardware_type name="d7525"/>
+    <interface client_id="node27:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10323:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084173" mac_address="946dae6195c2">
+      <ip address="10.10.1.28" type="ipv4" netmask="255.255.255.0"/>
+    </interface>
+    <services>
+      <login authentication="ssh-keys" hostname="d7525-10s10323.wisc.cloudlab.us" port="22" username="asdwb"/>
+      <emulab:console server="boss.wisc.cloudlab.us"/>
+      <emulab:recovery available="true"/>
+      <emulab:powercycle available="true"/>
+      <emulab:imageable available="true"/>
+      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
+    </services>
+    <emulab:vnode name="d7525-10s10323" hardware_type="d7525"/>
+    <host name="node27.asdwb-284330.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.146.35"/>
+  </node>
+  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node28" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c240g5-110209" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084122">
+    <sliver_type name="raw-pc"/>
+    <hardware_type name="c240g5"/>
+    <interface client_id="node28:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110209:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084174" mac_address="b83fd277c666">
+      <ip address="10.10.1.29" type="ipv4" netmask="255.255.255.0"/>
+    </interface>
+    <services>
+      <login authentication="ssh-keys" hostname="c240g5-110209.wisc.cloudlab.us" port="22" username="asdwb"/>
+      <emulab:console server="boss.wisc.cloudlab.us"/>
+      <emulab:recovery available="true"/>
+      <emulab:powercycle available="true"/>
+      <emulab:imageable available="true"/>
+      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
+    </services>
+    <emulab:vnode name="c240g5-110209" hardware_type="c240g5"/>
+    <host name="node28.asdwb-284330.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.144.63"/>
+  </node>
+  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node29" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c240g5-110117" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084134">
+    <sliver_type name="raw-pc"/>
+    <hardware_type name="c240g5"/>
+    <interface client_id="node29:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110117:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084175" mac_address="b83fd277e522">
+      <ip address="10.10.1.30" type="ipv4" netmask="255.255.255.0"/>
+    </interface>
+    <services>
+      <login authentication="ssh-keys" hostname="c240g5-110117.wisc.cloudlab.us" port="22" username="asdwb"/>
+      <emulab:console server="boss.wisc.cloudlab.us"/>
+      <emulab:recovery available="true"/>
+      <emulab:powercycle available="true"/>
+      <emulab:imageable available="true"/>
+      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
+    </services>
+    <emulab:vnode name="c240g5-110117" hardware_type="c240g5"/>
+    <host name="node29.asdwb-284330.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.144.51"/>
+  </node>
+  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node30" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c240g5-110231" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084121">
+    <sliver_type name="raw-pc"/>
+    <hardware_type name="c240g5"/>
+    <interface client_id="node30:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110231:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084176" mac_address="b83fd277c62a">
+      <ip address="10.10.1.31" type="ipv4" netmask="255.255.255.0"/>
+    </interface>
+    <services>
+      <login authentication="ssh-keys" hostname="c240g5-110231.wisc.cloudlab.us" port="22" username="asdwb"/>
+      <emulab:console server="boss.wisc.cloudlab.us"/>
+      <emulab:recovery available="true"/>
+      <emulab:powercycle available="true"/>
+      <emulab:imageable available="true"/>
+      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
+    </services>
+    <emulab:vnode name="c240g5-110231" hardware_type="c240g5"/>
+    <host name="node30.asdwb-284330.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.144.74"/>
+  </node>
+  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node31" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c240g5-110101" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084129">
+    <sliver_type name="raw-pc"/>
+    <hardware_type name="c240g5"/>
+    <interface client_id="node31:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110101:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084177" mac_address="b83fd277d8b2">
+      <ip address="10.10.1.32" type="ipv4" netmask="255.255.255.0"/>
+    </interface>
+    <services>
+      <login authentication="ssh-keys" hostname="c240g5-110101.wisc.cloudlab.us" port="22" username="asdwb"/>
+      <emulab:console server="boss.wisc.cloudlab.us"/>
+      <emulab:recovery available="true"/>
+      <emulab:powercycle available="true"/>
+      <emulab:imageable available="true"/>
+      <execute shell="/bin/sh" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'" tag="portal-repository"/>
+    </services>
+    <emulab:vnode name="c240g5-110101" hardware_type="c240g5"/>
+    <host name="node31.asdwb-284330.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.144.43"/>
+  </node>
+  <link xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="link-1" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084145" vlantag="1107">
+    <interface_ref client_id="node0:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d8545-10s10305:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084146"/>
+    <interface_ref client_id="node1:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10315:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084147"/>
+    <interface_ref client_id="node2:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10335:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084148"/>
+    <interface_ref client_id="node3:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110229:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084149"/>
+    <interface_ref client_id="node4:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d8545-10s10301:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084150"/>
+    <interface_ref client_id="node5:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110119:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084151"/>
+    <interface_ref client_id="node6:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10331:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084152"/>
+    <interface_ref client_id="node7:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10325:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084153"/>
+    <interface_ref client_id="node8:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110131:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084154"/>
+    <interface_ref client_id="node9:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c4130-110233:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084155"/>
+    <interface_ref client_id="node10:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c4130-110533:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084156"/>
+    <interface_ref client_id="node11:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110115:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084157"/>
+    <interface_ref client_id="node12:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10327:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084158"/>
+    <interface_ref client_id="node13:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110103:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084159"/>
+    <interface_ref client_id="node14:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110201:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084160"/>
+    <interface_ref client_id="node15:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10317:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084161"/>
+    <interface_ref client_id="node16:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110127:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084162"/>
+    <interface_ref client_id="node17:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110203:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084163"/>
+    <interface_ref client_id="node18:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110107:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084164"/>
+    <interface_ref client_id="node19:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110221:eth3" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084165"/>
+    <interface_ref client_id="node20:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10333:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084166"/>
+    <interface_ref client_id="node21:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110121:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084167"/>
+    <interface_ref client_id="node22:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110207:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084168"/>
+    <interface_ref client_id="node23:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10339:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084169"/>
+    <interface_ref client_id="node24:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10337:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084170"/>
+    <interface_ref client_id="node25:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10309:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084171"/>
+    <interface_ref client_id="node26:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10321:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084172"/>
+    <interface_ref client_id="node27:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d7525-10s10323:eth4" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084173"/>
+    <interface_ref client_id="node28:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110209:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084174"/>
+    <interface_ref client_id="node29:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110117:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084175"/>
+    <interface_ref client_id="node30:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110231:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084176"/>
+    <interface_ref client_id="node31:if0" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110101:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1084177"/>
     <emulab:best_effort enabled="true"/>
     <component_manager name="urn:publicid:IDN+wisc.cloudlab.us+authority+cm"/>
     <emulab:switchpath>leafsw-z9100-10n20144:spinesw-z9432-10s10525</emulab:switchpath>
@@ -592,28 +592,28 @@ MIID+QYJKoZIhvcNAQcDoIID6jCCA+YCAQAxggHNMIIByQIBADCBsDCBqDELMAkG
 A1UEBhMCVVMxDTALBgNVBAgTBFV0YWgxFzAVBgNVBAcTDlNhbHQgTGFrZSBDaXR5
 MR0wGwYDVQQKExRVdGFoIE5ldHdvcmsgVGVzdGJlZDEPMA0GA1UECxMGQVBUTEFC
 MRcwFQYDVQQDEw53d3cuYXB0bGFiLm5ldDEoMCYGCSqGSIb3DQEJARYZdGVzdGJl
-ZC1vcHNAZmx1eC51dGFoLmVkdQIDIuXLMA0GCSqGSIb3DQEBAQUABIIBANVTrwNo
-ssjP4S/B0rVt93qV4QrkqomSh6zYBGUgH5sLQNIO97jGtKtw7MA7/lk7ZjUfDVKM
-9Iiqx/XaWm62s4C5DJIIa2re1NdsvrprwrXHt6ZHPuVCqfMqgO9f9NaUIeJaL3CS
-C2+vEsGrEqyNQM5JM8hXFgbvG0MYQ52pxEFI46Dc3cdFhpJX9XTw3iV1tmfyDRN6
-s3IiDX9HLKbVG+6kUt0tJHB5XGeLa1ec3xRs+miCATSytD4oMThCIiMcrLsXE039
-S1XH4UiElKUfsteqTjndVnGQosXkC51nJhex0nmjiqVGWYXfg6ChUiGjpdng3Pmm
-TDQhIghJ8h6+VxkwggIOBgkqhkiG9w0BBwEwHQYJYIZIAWUDBAEqBBBz5HySn5ey
-qIF0Po98BOnngIIB4HZmR8niVL2Chs6ARMuSTnh/qtWgjhjEK8Ej2ByRM+8tIphu
-ZXJh+eUbtYMzKTmWF8P8ndgkWEZoMcoqMI1KufC9G8ITRgdVvDdjauIqeNrhiOXw
-NdXPrCgpuYBPuWyWr+LeG8cUo3jGNlyEjl8Lw4BvKKVDLAjVs2TDIe5fTmTkRzw7
-RRDO44i97dxJUo3dvk6Upo5/WpZFoy6IfHcKQ0AEJp1N52W8VLuBggYOz55msW52
-NaMqhB87BQnvfQ9dG5+z2/bqmUZs5bNVvTV3SOak/8g4rDMGGdIc/KlEt0oeDX5d
-Zpq+l2dORFJbKZOaVDgHTt1yx5dgz2wPevy9sF//q3wAJwB16iS4q+t74PpTMCn0
-HsRmjhaOYSNU2pkEC0KX7MjM2O3iTmgZIWUbj7Tk582MZ2cOv84C16GOIB0pr7B3
-UywZqtaGiSQ2Q47PY5Ftq5u0xsIcw8pO7d0JgsjN04p82SQJPhKadohCpp6dhMWu
-KYXI7jz+Fvl55liYye7zsWYI2VsBQFaJhLkSo4UlVAeNQTDkERllUF9oF/ohqey2
-hECBebYbybluGIiyDFV31aV6lKWzHpz/l+L493t3hPBpr/pzKqjf0up0sOpBKjJK
-sQIp3o0r+DaGyO3Xxw==
+ZC1vcHNAZmx1eC51dGFoLmVkdQIDIv5ZMA0GCSqGSIb3DQEBAQUABIIBAOA+O1Xq
+BsyAWp43RDJGizeqqufo1w4O3jUHlEjzEKRjel12oRBdKULhFWxUhaq5Lx+UlXFk
+jUH1gVeOooqalwM5t6BRUhvY0TZIrBw1NgU6x8sFBBvf84KNaX0qUgqNLzVTHwYh
+Qbr4gvYEwO6mbNkM6+IFSf9WUgA9/ToOxKCXwgAOvH09tupxJp5pwwvrfZd6mtFK
+mqanyW3EFod/a00jfkeS3nP1yv66gTR67TNOtc8DKutLV8NI6Mg0dWRaiKQlpnHh
+K5KKN1GXiEGXHDWdDPR/DR8ZI6+2/G3h2jm/oY0wmKX204/tCaaXuqMOwKe/ayU7
+54Jwxa8iptRqydswggIOBgkqhkiG9w0BBwEwHQYJYIZIAWUDBAEqBBBb5d1ll8uk
+pccDfc86bO55gIIB4JZzVeUlq5QmzxuVynxrdDXVZu3edvGiobE5NLELFjzeAVMr
+gufLYFXEKuS1PA/aaTK7Q4b7RupcdVeb+mAzEegZY9FJ06pFXVdNAn5ut57eIeIk
+2+ySTGPuOgiYWl+6tLxaaoDt+UCZwn8rRgNPvV3ZD2jBZF0XhwrJ09SOk+zpy+05
+k1+ihtLxwgGEggH6I7HDcXAs5wO0quAzHUYzn2JPmpGjw1KgD+W+XFUrTUGUp2bU
+GksecI0x5yHLelygpKmvp38XiSPec7rleNHwuGqnlCD7zdTfqTPKNPp/zO/wzSp/
+CXUAaL4Y8utQftg2e8JVY1HLrSiECxD7RZJsBoQm75IuLxlYV9l3P8cuJYt4EoxH
+BVO8jf6RKHQfjeoEpjGIPWXfb8rQozw1zbvoWzAbbCAtwrpP40K5R1P5AkEELqO0
+P9IaEBwzt1GkE1DOUW3gUUtWnMJJMC8j0t2LaWISAqGZuv5EaVR6ErArwOUGRci/
+DdOWqXo1o939wVAxrUCV8wm8DsrLHAbq+cAuExWEtac1n0jhc3yIf+7+qFm7qvQu
+937GsEpjy94T/uOFr/Mm1UIKFLrIAf/IvY7Q1WO8V2OBcwKKiABpUj3QagEjC673
+JvEB5USCQj6fE3DqBA==
 -----END PKCS7-----
 </emulab:password>
   <emulab:repository type="git" url="https://github.com/AKafakA/dodoor-cl-profile" refspec="refs/heads/cara" commit="aa4f3e8db5d042947f37d306044be54d693baf1a" command="/bin/echo 'nameserver 155.98.60.2' | sudo /bin/csh -c '/bin/cat &gt;&gt; /etc/resolv.conf' &amp;&amp; cd /local &amp;&amp; sudo chmod 777 . &amp;&amp; umask 002 &amp;&amp; sudo rm -rf repository &amp;&amp; sudo git config --system --add safe.directory /local/repository &amp;&amp; git clone -n 'https://github.com/AKafakA/dodoor-cl-profile' repository &amp;&amp; cd repository &amp;&amp; git config --add core.sharedRepository group &amp;&amp; git checkout aa4f3e8db5d042947f37d306044be54d693baf1a &amp;&amp; git branch -ft cara origin/cara &amp;&amp; git checkout -B cara HEAD &amp;&amp; git submodule update --init --recursive &amp;&amp; ( [ ! -f /local/repository/test-common.py ] || sed -i'' -e 's/2.25.305821105408246119474742976030998643995/2.25.305821105.408246119.47474297.603099864.3995/g' /local/repository/test-common.py ) &amp;&amp; sudo chown -R asdwb . &amp;&amp; git remote set-url --push origin 'git@github.com:AKafakA/dodoor-cl-profile'"/>
-  <emulab:portal name="cloudlab" url="https://www.cloudlab.us/status.php?uuid=40d76bc5-d2a8-11f0-bc80-e4434b2381fc" project="Hyperion" experiment="asdwb-283467" sequence="1765028060"/>
+  <emulab:portal name="cloudlab" url="https://www.cloudlab.us/status.php?uuid=5be378ed-d785-11f0-bc80-e4434b2381fc" project="Hyperion" experiment="asdwb-284330" sequence="1765562829"/>
   <rs:site_info xmlns:rs="http://www.protogeni.net/resources/rspec/ext/site-info/1">
     <rs:location country="US" latitude="43.0667" longitude="89.4000"/>
   </rs:site_info>

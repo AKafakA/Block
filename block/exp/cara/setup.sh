@@ -54,3 +54,6 @@ parallel-ssh -t 0 -h block/config/pascal_hosts "cd ollama && rm -rf build CMakeC
 # Set PATH explicitly in the cmake commands so nvcc is found
 parallel-ssh -t 0 -h block/config/pascal_hosts "export PATH=\$PATH:/usr/local/go/bin:/usr/local/cuda-12.8/bin:/usr/local/cuda/bin && export LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:/usr/local/cuda-12.8/lib64 && cd ollama && cmake -B build -DCMAKE_CUDA_ARCHITECTURES=60 ."
 parallel-ssh -t 0 -h block/config/pascal_hosts "export PATH=\$PATH:/usr/local/go/bin:/usr/local/cuda-12.8/bin:/usr/local/cuda/bin && export LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:/usr/local/cuda-12.8/lib64 && cd ollama && cmake --build build"
+
+# reboot all hosts to make the nvidia driver and cuda work properly
+parallel-ssh -t 0 -h block/config/hosts "sudo reboot"
