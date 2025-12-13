@@ -11,14 +11,21 @@ set -e  # Exit on error
 
 # Configuration
 TARGET_HOST="asdwb@d8545-10s10301.wisc.cloudlab.us"  # Host to run CARA server
-CARA_PORT=8200
 MODEL_CONFIG="block/config/cara/model_config_template.json"
 HOST_CONFIG="block/config/host_configs.json"
 HOSTS_FILE="block/config/hosts"
 DEPLOYMENT_CONFIG="block/config/cara/model_deployment.json"
+
+SCHEDULING_STRATEGY="random"  # Scheduling strategy for CARA
 HF_TOKEN="${HF_TOKEN:-}"  # Set HF_TOKEN env var or pass as argument
 
-REDEPLOY=${1:-false}  # Pass 'true' as first argument to force redeployment
+DOWNLOAD_DATASET=${2:-false}  # Pass 'true' as first argument to download dataset
+
+DATASET_NAME="sharegpt"
+DATRSET_PATH="~/dataset/sharegpt"
+DATASET_LINK="https://huggingface.co/datasets/anon8231489123/ShareGPT_Vicuna_unfiltered/resolve/main/ShareGPT_V3_unfiltered_cleaned_split.json"
+
+REDEPLOY=${1:-false}  # Pass 'true' as second argument to force redeployment
 
 echo "========================================"
 echo "CARA End-to-End Deployment & Test"
@@ -35,23 +42,24 @@ if [ "$REDEPLOY" = "true" ]; then
     --config ${MODEL_CONFIG} \
     --hf-token "${HF_TOKEN}" \
     --output ${DEPLOYMENT_CONFIG}
+  sleep 600  # Wait for models to load
 else
   echo "Skipping redeployment of backends. Using existing deployment config at ${DEPLOYMENT_CONFIG}."
 fi
 
-
-echo "✅ Backend deployment completed"
-echo ""
-
-# Step 2: Wait for backends to initialize
-echo "Step 2: Waiting for Backends to Initialize"
-echo "-------------------------------------------"
-echo "Waiting 60 seconds for models to load..."
-sleep 60
-echo ""
+if [ "$DOWNLOAD_DATASET" = "true" ]; then
+  echo "Downloading ShareGPT dataset to ${DATRSET_PATH}..."
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    ${TARGET_HOST} \
+    "mkdir -p ${DATRSET_PATH} && wget -O ${DATRSET_PATH}/sharegpt_random_10k.jsonl ${DATASET_LINK}"
+  echo "Dataset download completed."
+fi
+else
+  echo "Skipping redeployment of backends. Using existing deployment config at ${DEPLOYMENT_CONFIG}."
+fi
 
 # Start CARA scheduler server
-echo "Step 3: Starting CARA Scheduler Server"
+echo "Step 2: Starting CARA Scheduler Server"
 echo "---------------------------------------"
 echo "Starting CARA server on ${TARGET_HOST}:${CARA_PORT}..."
 
@@ -65,18 +73,16 @@ sleep 2
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   ${TARGET_HOST} \
   "cd Block && nohup python -m block.global_scheduler.cara.cara_serve \
-    --host 0.0.0.0 \
-    --port ${CARA_PORT} \
     --model_config_path ${DEPLOYMENT_CONFIG} \
     --host_config ${HOST_CONFIG} \
-    --scheduling random \
+    --scheduling ${SCHEDULING_STRATEGY} \
     > experiment_output/logs/cara_server.log 2>&1 &"
 
 echo "Waiting 10 seconds for CARA server to start..."
 sleep 10
 
 # Run benchmark tests
-echo "Step 4: Running Benchmark Tests"
+echo "Step 3: Running Benchmark Tests"
 echo "--------------------------------"
 
 # Configuration for benchmark
@@ -99,19 +105,17 @@ elif [ -d "~/vllm" ]; then
   echo "Using local vLLM from: ~/vllm"
 fi
 
-python block/benchmark/cara/benchmark_serving.py \
-  --backend cara \
-  --base-url "http://${CARA_HOST_IP}:${CARA_PORT}" \
-  --endpoint /v1/completions \
-  --model cara \
-  --dataset-name random \
-  --random-input-len 128 \
-  --random-output-len 64 \
-  --num-prompts 50 \
-  --request-rate inf \
-  --save-result \
-  --result-dir ${OUTPUT_DIR} \
-  --result-filename cara_benchmark_$(date +%Y%m%d_%H%M%S).json
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  ${TARGET_HOST} \
+  "export PYTHONPATH=${PYTHONPATH} && \
+   cd Block && \
+   python block/benchmark/cara/benchmark_serving.py \
+     --dataset-name ${DATASET_NAME} \
+     --dataset-path ${DATRSET_PATH}/sharegpt_random_10k.jsonl \
+     --num-prompts 50 \
+     --input-length 128 \
+     --output-length 64 \
+     --output-dir ${OUTPUT_DIR}"
 
 if [ $? -ne 0 ]; then
     echo "❌ Benchmark failed!"

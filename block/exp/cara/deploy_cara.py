@@ -111,7 +111,8 @@ def get_cleanup_commands(backend: str) -> List[str]:
     return cmds
 
 
-def get_vllm_commands(model_path: str, hf_token: str, precision: str, vllm_params: Dict = None) -> List[str]:
+def get_vllm_commands(model_path: str, hf_token: str, precision: str, vllm_params: Dict = None,
+                      fresh_deploy: bool = False) -> List[str]:
     dtype_flag = "float16" if precision == "fp16" else "auto"
 
     # Ensure token is not None to prevent Python crash
@@ -156,6 +157,8 @@ def get_vllm_commands(model_path: str, hf_token: str, precision: str, vllm_param
     else:
         cmds.append("echo 'Using system default HF cache'")
 
+    sleep_time = 600 if fresh_deploy else 10
+
     cmds.extend([
         "export LD_LIBRARY_PATH=/usr/local/lib/python3.10/dist-packages/nvidia/nvshmem/lib:$LD_LIBRARY_PATH",
         "echo 'Step 4: Detecting GPU count...'",
@@ -163,15 +166,17 @@ def get_vllm_commands(model_path: str, hf_token: str, precision: str, vllm_param
         "echo \"GPU_COUNT=$GPU_COUNT\"",
         "echo 'Step 5: Launching vLLM server in background...'",
         f"sh -c 'cd ~/vllm && {vllm_cmd_str} > vllm_server.log 2>&1 < /dev/null &'",
-        "sleep 2",
+        f"sleep {sleep_time}",
         "echo 'Deployment completed!'",
         "exit 0"
     ])
     return cmds
 
 
-def get_ollama_commands(hf_name: str, num_parallel: int = 4) -> List[str]:
+def get_ollama_commands(hf_name: str, num_parallel: int = 4, fresh_deploy: bool = False) -> List[str]:
     ollama_tag = to_ollama_tag(hf_name)
+
+    sleeping_time = 600 if fresh_deploy else 10
 
     cmds = [
         "if [ ! -d ~/ollama ]; then echo 'ERROR: ollama directory not found'; exit 1; fi",
@@ -188,7 +193,7 @@ def get_ollama_commands(hf_name: str, num_parallel: int = 4) -> List[str]:
         f"echo 'Ollama server starting with {num_parallel} parallel requests (listening on 0.0.0.0:11434)...'",
         # Start server with go run wrapped in sh -c - environment variables will be inherited
         "sh -c 'cd ~/ollama && go run . serve > ollama_server.log 2>&1 < /dev/null &'",
-        "sleep 5",
+        f"sleep {sleeping_time}",
         f"echo 'Pulling {ollama_tag} via REST API (synchronous)...'",
         # Pull synchronously to wait for completion before warmup
         f'curl -s http://localhost:11434/api/pull -d \'{{\"model\": \"{ollama_tag}\"}}\' > ollama_pull.log 2>&1',
@@ -219,11 +224,15 @@ def main():
     parser.add_argument("--output", default="block/config/cara/model_deployment.json",
                         help="Output config path")
 
-    parser.add_argument("--models", type=str, default="Qwen-2.5-3B",
+    parser.add_argument("--models", type=str, default=None,
                         help="Comma-separated list of models to deploy (e.g., 'Qwen-2.5-3B' or 'Qwen-2.5-3B,Qwen-2.5-7B'). Deploy all if not specified.")
 
     parser.add_argument("--ollama-num-parallel", type=int, default=4,
                         help="Number of parallel requests Ollama can handle (default: 4). Higher values increase GPU utilization.")
+
+
+    parser.add_argument("--fresh-deploy", action="store_true",
+                        help="If set, it usually need much longer time to download models from HF and golang packages for Ollama.")
 
     args = parser.parse_args()
 
@@ -315,11 +324,13 @@ def main():
             if backend == "vllm":
                 if vllm_params:
                     print(f"  vLLM params: {vllm_params}")
-                cmds = get_vllm_commands(hf_name, args.hf_token, precision, vllm_params)
+                cmds = get_vllm_commands(hf_name, args.hf_token, precision, vllm_params,
+                                         fresh_deploy=args.fresh_deploy)
                 run_ssh_cmd(host, cmds, f"Deploying vLLM ({model_key})")
             elif backend == "ollama":
                 print(f"  Ollama parallel requests: {args.ollama_num_parallel}")
-                cmds = get_ollama_commands(hf_name, num_parallel=args.ollama_num_parallel)
+                cmds = get_ollama_commands(hf_name, num_parallel=args.ollama_num_parallel,
+                                           fresh_deploy=args.fresh_deploy)
                 run_ssh_cmd(host, cmds, f"Deploying Ollama ({model_key})")
 
     # 3. Save Config
