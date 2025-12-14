@@ -43,6 +43,7 @@ class OllamaInstance(Instance):
             "model": self._model_name,
             "prompt": payload["prompt"],
             "stream": True,
+            "raw": True,
             # Add stop tokens at top level (not in options) to prevent infinite repetition
             "stop": payload.get("stop", []),
             "options": {
