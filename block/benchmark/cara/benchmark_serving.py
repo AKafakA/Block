@@ -1252,7 +1252,7 @@ def add_cli_args(parser: argparse.ArgumentParser):
         "--save-detailed",
         nargs="*",
         default=["prompts", "response", "models"],
-        help="When saving the results, specify which detailed metrics to save. "
+        help="When saving the results, specify which per-requests detailed metrics to save. "
         "Available metrics: prompts, response, ttft, itl, e2el, input_lens, "
         "output_lens, scheduling_overheads, errors, models, hosts, instance_ids. "
         "Example: --save-detailed ttft itl response models hosts. "
@@ -1456,6 +1456,10 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
     print(args)
     random.seed(args.seed)
     np.random.seed(args.seed)
+
+    # Auto-enable save_result if save_detailed is specified
+    if args.save_detailed is not None and len(args.save_detailed) > 0:
+        args.save_result = True
 
     # Validate ramp-up arguments
     if args.ramp_up_strategy is not None:
@@ -1711,6 +1715,11 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
                 outfile.write("\n")
             json.dump(result_json, outfile)
         save_to_pytorch_benchmark_format(args, result_json, file_name)
+
+        # Print the saved filename for easy tracking
+        print("\n" + "=" * 50)
+        print(f"Results saved to: {file_name}")
+        print("=" * 50 + "\n")
 
     return result_json
 

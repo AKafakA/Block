@@ -224,7 +224,7 @@ def main():
     parser.add_argument("--output", default="block/config/cara/model_deployment.json",
                         help="Output config path")
 
-    parser.add_argument("--models", type=str, default=None,
+    parser.add_argument("--models", type=str, default="Qwen-2.5-3B",
                         help="Comma-separated list of models to deploy (e.g., 'Qwen-2.5-3B' or 'Qwen-2.5-3B,Qwen-2.5-7B'). Deploy all if not specified.")
 
     parser.add_argument("--ollama-num-parallel", type=int, default=4,

@@ -43,13 +43,13 @@ class OllamaInstance(Instance):
             "model": self._model_name,
             "prompt": payload["prompt"],
             "stream": True,
+            # Add stop tokens at top level (not in options) to prevent infinite repetition
+            "stop": payload.get("stop", []),
             "options": {
                 "temperature": 0.0,
                 "repeat_penalty": 1.0,
                 # Ollama uses 'num_predict' instead of 'max_tokens'
                 "num_predict": min(payload["max_tokens"], 8192),
-                # Add stop tokens if provided to prevent infinite repetition
-                "stop": payload.get("stop", []),
             }
         }
 
