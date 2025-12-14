@@ -857,16 +857,22 @@ async def benchmark(
             "request_goodput": metrics.request_goodput if goodput_config_dict else None,
             "output_throughput": metrics.output_throughput,
             "total_token_throughput": metrics.total_token_throughput,
+            "prompts": [request.prompt for request in input_requests],
             "input_lens": [output.prompt_len for output in outputs],
             "output_lens": actual_output_lens,
             "ttfts": [output.ttft for output in outputs],
             "itls": [output.itl for output in outputs],
+            "e2els": [output.latency for output in outputs],
             "generated_texts": [output.generated_text for output in outputs],
             "errors": [output.error for output in outputs],
             "max_output_tokens_per_s": metrics.max_output_tokens_per_s,
             "max_concurrent_requests": metrics.max_concurrent_requests,
             # CARA-specific: scheduling overhead (network + routing overhead)
             "scheduling_overheads": [output.scheduling_overhead for output in outputs],
+            # CARA-specific: heterogeneous model environment tracking
+            "models": [output.model for output in outputs],
+            "hosts": [output.host for output in outputs],
+            "instance_ids": [output.instance_id for output in outputs],
         }
     else:
         result = {
@@ -1244,9 +1250,13 @@ def add_cli_args(parser: argparse.ArgumentParser):
     )
     parser.add_argument(
         "--save-detailed",
-        action="store_true",
-        help="When saving the results, whether to include per request "
-        "information such as response, error, ttfs, tpots, etc.",
+        nargs="*",
+        default=["prompts", "response", "models"],
+        help="When saving the results, specify which detailed metrics to save. "
+        "Available metrics: prompts, response, ttft, itl, e2el, input_lens, "
+        "output_lens, scheduling_overheads, errors, models, hosts, instance_ids. "
+        "Example: --save-detailed ttft itl response models hosts. "
+        "If not specified, detailed metrics are not saved.",
     )
     parser.add_argument(
         "--append-result",
@@ -1629,22 +1639,53 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
     # Merge with benchmark result
     result_json = {**result_json, **benchmark_result}
 
-    if not args.save_detailed:
-        # Remove fields with too many data points
-        for field in [
-            "input_lens",
-            "output_lens",
-            "ttfts",
-            "itls",
-            "generated_texts",
-            "errors",
-        ]:
-            if field in result_json:
-                del result_json[field]
-            if field in benchmark_result:
-                del benchmark_result[field]
+    # Handle selective saving of detailed metrics
+    # Map metric names to their corresponding field names in the result
+    metric_to_field = {
+        "prompts": "prompts",
+        "response": "generated_texts",
+        "ttft": "ttfts",
+        "itl": "itls",
+        "e2el": "e2els",
+        "input_lens": "input_lens",
+        "output_lens": "output_lens",
+        "scheduling_overheads": "scheduling_overheads",
+        "errors": "errors",
+        # CARA-specific: heterogeneous model environment tracking
+        "models": "models",
+        "hosts": "hosts",
+        "instance_ids": "instance_ids",
+    }
 
-        # Save to file
+    # All possible detailed fields
+    all_detailed_fields = set(metric_to_field.values())
+
+    # Determine which fields to keep
+    if args.save_detailed is None or len(args.save_detailed) == 0:
+        # If --save-detailed is not specified or empty, remove all detailed fields
+        fields_to_remove = all_detailed_fields
+    else:
+        # Validate specified metrics
+        valid_metrics = set(metric_to_field.keys())
+        for metric in args.save_detailed:
+            if metric not in valid_metrics:
+                raise ValueError(
+                    f"Invalid metric '{metric}' specified in --save-detailed. "
+                    f"Valid metrics are: {', '.join(sorted(valid_metrics))}"
+                )
+
+        # Keep only specified metrics, remove all others
+        fields_to_keep = {metric_to_field[m] for m in args.save_detailed}
+        fields_to_remove = all_detailed_fields - fields_to_keep
+
+    # Remove unwanted fields
+    for field in fields_to_remove:
+        if field in result_json:
+            del result_json[field]
+        if field in benchmark_result:
+            del benchmark_result[field]
+
+    # Save to file
     if args.save_result or args.append_result:
         base_model_id = model_id.split("/")[-1]
         max_concurrency_str = (

@@ -87,7 +87,9 @@ class VllmInstance(Instance):
             "stream": True,
             "stream_options": {
                 "include_usage": True,
-             }
+            },
+            # Add stop tokens if provided to prevent infinite repetition
+            "stop": payload.get("stop", []),
         }
 
         if not headers:

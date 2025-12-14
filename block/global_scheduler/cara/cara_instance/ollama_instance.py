@@ -48,6 +48,8 @@ class OllamaInstance(Instance):
                 "repeat_penalty": 1.0,
                 # Ollama uses 'num_predict' instead of 'max_tokens'
                 "num_predict": min(payload["max_tokens"], 8192),
+                # Add stop tokens if provided to prevent infinite repetition
+                "stop": payload.get("stop", []),
             }
         }
 

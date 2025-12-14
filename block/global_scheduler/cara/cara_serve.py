@@ -8,8 +8,10 @@ from argparse import Namespace
 from typing import Any, Optional, List
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
+from prometheus_client import start_wsgi_server
 
 from block.global_scheduler.cara.cara_instance.Instance import Instance
+from block.global_scheduler.cara.utils import STOP_WORD_MAPS
 from block.server_utils import serve_http
 import resource
 import logging
@@ -30,6 +32,8 @@ backend_port_map = {
     "ollama": 11434,
     "vllm": 8000
 }
+chat = False
+model_family = "Qwen"
 
 
 def to_ollama_tag(hf_name: str) -> str:
@@ -53,6 +57,13 @@ async def completion(request: Request) -> Response:
     request_id = request_json.get("request_id")
     served_requests.append(request_id)
     selected_instance = None
+    if chat:
+        # Append stop words based on model family
+        start_word = STOP_WORD_MAPS[model_family][0]
+        stop_word = STOP_WORD_MAPS[model_family][1]
+        request_json["prompt"] = f"{start_word}user\n" + request_json["prompt"] + f"{stop_word}\n{start_word}assistant\n"
+        # Add stop tokens to prevent infinite repetition
+        request_json["stop"] = [stop_word, "<|endoftext|>"]
     try:
         if scheduling == "random":
             selected_instance = random.choice(instances)
@@ -98,7 +109,9 @@ async def init_app(
         instances_list: Optional[List[Instance]] = None,
 ) -> FastAPI:
     app = build_app(args)
-    global instances, start_time, scheduling
+    global instances, start_time, scheduling, chat, model_family
+    chat = args.chat
+    model_family = args.model_family
     model_config_path = args.model_config_path
 
     model_dict = json.load(open(model_config_path))
@@ -217,6 +230,10 @@ if __name__ == "__main__":
                         help="Scheduling strategy among instances: random, round_robin")
     parser.add_argument("--debugging_logs", action="store_true",
                         help="Enable debug level logging")
+    parser.add_argument("--chat", action="store_true",
+                        help="Whether the model is a chat model to decide if stop words are appended")
+    parser.add_argument("--model-family", type=str, default="Qwen",
+                        help="Model family, used for append the stop words for chat models")
     args = parser.parse_args()
     logger.info("Starting server with args: %s", str(args))
     # in case the limited by the number of files
