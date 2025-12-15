@@ -81,7 +81,7 @@ class VllmInstance(Instance):
             "model": self._model_name,
             "prompt": payload["prompt"],
             "temperature": 0.0,
-            "repetition_penalty": 1.0,
+            "repetition_penalty": payload.get("repetition_penalty", 1.0),
             "max_tokens": payload["max_tokens"],
             "logprobs": None,
             "stream": True,

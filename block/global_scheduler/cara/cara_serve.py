@@ -10,12 +10,14 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 
 from block.global_scheduler.cara.cara_instance.Instance import Instance
-from block.global_scheduler.cara.utils import STOP_WORD_MAPS
 from block.server_utils import serve_http
 import resource
 import logging
 import traceback
 
+STOP_WORD_MAPS = {
+    "Qwen": ["<|im_start|>", "<|im_end|>"]
+}
 TIMEOUT_KEEP_ALIVE = 5  # seconds.
 app = FastAPI()
 instances = []
@@ -61,7 +63,6 @@ async def completion(request: Request) -> Response:
         start_word = STOP_WORD_MAPS[model_family][0]
         stop_word = STOP_WORD_MAPS[model_family][1]
 
-
         system_prompt = f"{start_word}system\nYou are a helpful assistant.{stop_word}\n"
         user_part = f"{start_word}user\n{request_json['prompt']}{stop_word}\n"
         assistant_trigger = f"{start_word}assistant\n"
@@ -69,8 +70,8 @@ async def completion(request: Request) -> Response:
         # Combine them
         request_json["prompt"] = system_prompt + user_part + assistant_trigger
 
-
         request_json["stop"] = [stop_word, "<|endoftext|>", start_word]
+        request_json["repetition_penalty"] = float(request_json.get("repetition_penalty", 1.0))
     try:
         if scheduling == "random":
             selected_instance = random.choice(instances)
@@ -241,6 +242,8 @@ if __name__ == "__main__":
                         help="Whether the model is a chat model to decide if stop words are appended")
     parser.add_argument("--model-family", type=str, default="Qwen",
                         help="Model family, used for append the stop words for chat models")
+    parser.add_argument("--repetition-penalty", type=float, default=1.0,
+                        help="Repetition penalty to use for generation to avoid repetition")
     args = parser.parse_args()
     logger.info("Starting server with args: %s", str(args))
     # in case the limited by the number of files

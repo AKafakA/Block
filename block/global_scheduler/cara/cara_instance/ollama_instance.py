@@ -47,7 +47,7 @@ class OllamaInstance(Instance):
             # Add stop tokens at top level (not in options) to prevent infinite repetition
             "options": {
                 "temperature": 0.0,
-                "repeat_penalty": 1.0,
+                "repeat_penalty": payload.get("repetition_penalty", 1.0),
                 # Ollama uses 'num_predict' instead of 'max_tokens'
                 "num_predict": min(payload["max_tokens"], 8192),
                 "stop": payload.get("stop", []),
