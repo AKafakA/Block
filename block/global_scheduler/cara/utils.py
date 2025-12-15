@@ -6,6 +6,11 @@ STOP_WORD_MAPS = {
     "Qwen": ["<|im_start|>", "<|im_end|>"]
 }
 
+# Ollama stream reading configuration
+# Max consecutive empty reads before considering stream stalled
+# At 0.01s sleep per empty read: 1000 = 10s, 3000 = 30s, 10000 = 100s
+MAX_EMPTY_READS_BEFORE_TIMEOUT = 1000  # Default: 10 seconds
+
 
 def set_ulimit(target_soft_limit: int = 65535):
     if sys.platform.startswith("win"):

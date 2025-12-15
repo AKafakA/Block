@@ -25,7 +25,6 @@ parallel-ssh -t 0 -h block/config/volta_hosts "sudo apt-get install -y cuda-driv
 parallel-ssh -t 0 -h block/config/pascal_hosts "sudo apt-get install -y cuda-drivers"
 parallel-ssh -t 0 -h block/config/ampere_hosts "pip install --upgrade torch"
 parallel-ssh -t 0 -h block/config/volta_hosts "pip install --upgrade torch"
-#parallel-ssh -t 0 -h block/config/hosts "pip install --upgrade flash-attn"
 parallel-ssh -t 0 -h block/config/hosts "pip install --upgrade "ray[cgraph]""
 parallel-ssh -t 0 -h block/config/hosts "echo 'export PATH=$PATH:/usr/local/cuda-12.8/bin:$PATH' >> ~/.bashrc && echo 'export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda-12.8/lib64:$LD_LIBRARY_PATH' >> ~/.bashrc && source ~/.bashrc"
 

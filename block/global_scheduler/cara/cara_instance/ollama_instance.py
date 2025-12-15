@@ -2,6 +2,7 @@ import asyncio
 import json
 import time
 from block.global_scheduler.cara.cara_instance.Instance import Instance
+from block.global_scheduler.cara.utils import MAX_EMPTY_READS_BEFORE_TIMEOUT
 
 
 class OllamaInstance(Instance):
@@ -65,13 +66,36 @@ class OllamaInstance(Instance):
                     received_done_signal = False  # Track if we got the final done: true chunk
                     chunks_received = 0
                     last_chunk_data = None
+                    empty_read_count = 0  # Safety counter to prevent infinite loops
 
                     # Read line by line for newline-delimited JSON
                     try:
-                        while True:
+                        while not received_done_signal:
                             line = await response.content.readline()
-                            if not line:
-                                break
+
+                            # Only break if we've truly reached EOF (empty bytes after stripping)
+                            # Don't break on temporary empty reads during slow generation
+                            if line == b'':
+                                empty_read_count += 1
+
+                                # Safety check: if we've had too many consecutive empty reads, bail out
+                                if empty_read_count >= MAX_EMPTY_READS_BEFORE_TIMEOUT:
+                                    error = (
+                                        f"Stream stalled: {MAX_EMPTY_READS_BEFORE_TIMEOUT} consecutive empty reads. "
+                                        f"Generated text length: {len(generated_text)}, "
+                                        f"Chunks received: {chunks_received}"
+                                    )
+                                    break
+
+                                # Check if connection is actually closed
+                                if response.content.at_eof():
+                                    break
+                                # Otherwise, continue waiting for more data
+                                await asyncio.sleep(0.01)  # Small delay to avoid busy waiting
+                                continue
+
+                            # Reset empty read counter when we get data
+                            empty_read_count = 0
 
                             line = line.strip()
                             if not line:
@@ -91,7 +115,14 @@ class OllamaInstance(Instance):
                             # Ollama response format: {"response": "token", "done": false, ...}
                             # Final response: {"done": true, "eval_count": 100, ...}
 
-                            if not data.get("done"):
+                            if data.get("done"):
+                                # Request is done, capture usage stats
+                                # Ollama provides 'eval_count' as the output token count
+                                output_tokens = data.get("eval_count", 0)
+                                received_done_signal = True
+                                success = True  # Successfully received the completion signal
+                                break
+                            else:
                                 text = data.get("response", "")
                                 timestamp = time.perf_counter()
 
@@ -106,13 +137,6 @@ class OllamaInstance(Instance):
                                 if text:  # Only update timestamp for chunks with actual text
                                     most_recent_timestamp = timestamp
                                     generated_text += text
-                            else:
-                                # Request is done, capture usage stats
-                                # Ollama provides 'eval_count' as the output token count
-                                output_tokens = data.get("eval_count", 0)
-                                received_done_signal = True
-                                success = True  # Successfully received the completion signal
-                                break
                     except asyncio.TimeoutError:
                         # Stream reading timed out - mark as failure
                         success = False
