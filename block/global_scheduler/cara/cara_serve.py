@@ -8,7 +8,6 @@ from argparse import Namespace
 from typing import Any, Optional, List
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
-from prometheus_client import start_wsgi_server
 
 from block.global_scheduler.cara.cara_instance.Instance import Instance
 from block.global_scheduler.cara.utils import STOP_WORD_MAPS
@@ -61,9 +60,17 @@ async def completion(request: Request) -> Response:
         # Append stop words based on model family
         start_word = STOP_WORD_MAPS[model_family][0]
         stop_word = STOP_WORD_MAPS[model_family][1]
-        request_json["prompt"] = f"{start_word}user\n" + request_json["prompt"] + f"{stop_word}\n{start_word}assistant\n"
-        # Add stop tokens to prevent infinite repetition
-        request_json["stop"] = [stop_word, "<|endoftext|>"]
+
+
+        system_prompt = f"{start_word}system\nYou are a helpful assistant.{stop_word}\n"
+        user_part = f"{start_word}user\n{request_json['prompt']}{stop_word}\n"
+        assistant_trigger = f"{start_word}assistant\n"
+
+        # Combine them
+        request_json["prompt"] = system_prompt + user_part + assistant_trigger
+
+
+        request_json["stop"] = [stop_word, "<|endoftext|>", start_word]
     try:
         if scheduling == "random":
             selected_instance = random.choice(instances)
