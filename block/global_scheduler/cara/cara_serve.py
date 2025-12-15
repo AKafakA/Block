@@ -188,7 +188,7 @@ async def run_server(args: Namespace,
                      instances_list: Optional[List[Instance]] = None,
                      **uvicorn_kwargs: Any) -> None:
     app = await init_app(args, instances_list)
-    print(set_ulimit() + " set limits file ")
+    print(str(set_ulimit()) + " set limits file ")
     assert len(instances) > 0
 
     if args.debugging_logs:
