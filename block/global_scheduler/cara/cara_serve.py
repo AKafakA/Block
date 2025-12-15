@@ -194,20 +194,31 @@ async def run_server(args: Namespace,
     if args.debugging_logs:
         logger.setLevel(logging.DEBUG)
 
-    shutdown_task = await serve_http(
-        app,
-        host=args.host,
-        port=args.port,
-        timeout_keep_alive=TIMEOUT_KEEP_ALIVE,
-        ssl_keyfile=args.ssl_keyfile,
-        ssl_certfile=args.ssl_certfile,
-        ssl_ca_certs=args.ssl_ca_certs,
-        ssl_cert_reqs=args.ssl_cert_reqs,
-        workers=args.workers,
-        **uvicorn_kwargs,
-    )
+    try:
+        shutdown_task = await serve_http(
+            app,
+            host=args.host,
+            port=args.port,
+            timeout_keep_alive=TIMEOUT_KEEP_ALIVE,
+            ssl_keyfile=args.ssl_keyfile,
+            ssl_certfile=args.ssl_certfile,
+            ssl_ca_certs=args.ssl_ca_certs,
+            ssl_cert_reqs=args.ssl_cert_reqs,
+            workers=args.workers,
+            **uvicorn_kwargs,
+        )
 
-    await shutdown_task
+        await shutdown_task
+    finally:
+        # Cleanup: Close all instance HTTP sessions gracefully
+        logger.info("Shutting down instances and closing HTTP sessions...")
+        for instance in instances:
+            try:
+                await instance.close()
+                logger.info(f"  - Closed session for {instance._instance_id}")
+            except Exception as e:
+                logger.error(f"  - Error closing session for {instance._instance_id}: {e}")
+        logger.info("All instance sessions closed.")
 
 
 if __name__ == "__main__":
