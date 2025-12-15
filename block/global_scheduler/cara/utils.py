@@ -1,4 +1,6 @@
 import sys
+import logging
+logger = logging.getLogger(__name__)
 
 STOP_WORD_MAPS = {
     "Qwen": ["<|im_start|>", "<|im_end|>"]
@@ -7,7 +9,7 @@ STOP_WORD_MAPS = {
 
 def set_ulimit(target_soft_limit: int = 65535):
     if sys.platform.startswith("win"):
-        print("Windows detected, skipping ulimit adjustment.")
+        logger.info("Skipping ulimit setting on Windows platform.")
         return
 
     import resource
@@ -15,11 +17,14 @@ def set_ulimit(target_soft_limit: int = 65535):
     resource_type = resource.RLIMIT_NOFILE
     current_soft, current_hard = resource.getrlimit(resource_type)
 
+    set_succeed = False
+
     if current_soft < target_soft_limit:
         try:
             resource.setrlimit(resource_type, (target_soft_limit, current_hard))
+            set_succeed = True
         except ValueError as e:
-            print(
+            logger.warning(
                 "Found ulimit of %s and failed to automatically increase "
                 "with error %s. This can cause fd limit errors like "
                 "`OSError: [Errno 24] Too many open files`. Consider "
@@ -27,3 +32,4 @@ def set_ulimit(target_soft_limit: int = 65535):
                 current_soft,
                 e,
             )
+    return set_succeed
