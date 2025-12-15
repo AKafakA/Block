@@ -1,7 +1,6 @@
 import asyncio
 import json
 import time
-import aiohttp
 from block.global_scheduler.cara.cara_instance.Instance import Instance
 
 
@@ -13,7 +12,7 @@ class OllamaInstance(Instance):
                  predictor_ports,
                  model_name,
                  query_predictor_timeout=10,
-                 query_backend_timeout=60 * 60,  # 60 minutes timeout for Ollama
+                 query_backend_timeout=2 * 60 * 60,  # 60 minutes timeout for Ollama
                  backend_port=11434):  # Default Ollama port
         super().__init__(instance_id,
                          hostname,
