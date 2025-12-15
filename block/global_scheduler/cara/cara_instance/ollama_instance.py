@@ -87,11 +87,13 @@ class OllamaInstance(Instance):
                                     )
                                     break
 
-                                # Check if connection is actually closed
-                                if response.content.at_eof():
-                                    break
-                                # Otherwise, continue waiting for more data
+                                # Be more patient before checking EOF - wait a bit for data to arrive
                                 await asyncio.sleep(0.01)  # Small delay to avoid busy waiting
+
+                                # Only break on EOF if we've had multiple empty reads in a row
+                                # This handles race conditions where done chunk is in flight
+                                if response.content.at_eof() and empty_read_count > 10:
+                                    break
                                 continue
 
                             # Reset empty read counter when we get data
