@@ -42,6 +42,7 @@ from transformers import PreTrainedTokenizerBase
 
 
 from block.benchmark.cara.cara_end_point_func import RequestFuncOutput, CARA_ASYNC_REQUEST_FUNCS
+from block.global_scheduler.cara.utils import set_ulimit
 
 # Merge CARA async request functions with vLLM's request functions
 ASYNC_REQUEST_FUNCS = {**ASYNC_REQUEST_FUNCS, **CARA_ASYNC_REQUEST_FUNCS}
@@ -1454,6 +1455,13 @@ def main(args: argparse.Namespace) -> dict[str, Any]:
 
 async def main_async(args: argparse.Namespace) -> dict[str, Any]:
     print(args)
+
+    # Set file descriptor limit to handle high concurrency
+    if set_ulimit():
+        print("Successfully set ulimit for benchmark client")
+    else:
+        print("Warning: Failed to increase ulimit - may encounter 'Too many open files' errors with high concurrency")
+
     random.seed(args.seed)
     np.random.seed(args.seed)
 
