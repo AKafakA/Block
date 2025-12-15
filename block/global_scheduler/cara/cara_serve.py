@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse, Response
 
 from block.global_scheduler.cara.cara_instance.Instance import Instance
 from block.server_utils import serve_http
+from block.global_scheduler.cara.utils import set_ulimit
 import resource
 import logging
 import traceback
@@ -187,6 +188,7 @@ async def run_server(args: Namespace,
                      instances_list: Optional[List[Instance]] = None,
                      **uvicorn_kwargs: Any) -> None:
     app = await init_app(args, instances_list)
+    set_ulimit()
     assert len(instances) > 0
 
     if args.debugging_logs:
@@ -246,7 +248,5 @@ if __name__ == "__main__":
                         help="Repetition penalty to use for generation to avoid repetition")
     args = parser.parse_args()
     logger.info("Starting server with args: %s", str(args))
-    # in case the limited by the number of files
-    resource.setrlimit(resource.RLIMIT_NOFILE, (65536, 65536))
 
     asyncio.run(run_server(args))

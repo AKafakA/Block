@@ -29,6 +29,22 @@ class Instance(ABC):
         self.serving_time = []
         self._predictor_timeout = aiohttp.ClientTimeout(total=query_predictor_timeout)
         self._backend_timeout = aiohttp.ClientTimeout(total=query_backend_timeout)
+        self._session = None
+
+    async def get_session(self):
+        if self._session is None or self._session.closed:
+            # Optimized connector for high throughput
+            connector = aiohttp.TCPConnector(
+                limit=0,  # Unlimited parallel connections
+                ttl_dns_cache=300,  # Cache DNS for 5 minutes
+                use_dns_cache=True,
+                keepalive_timeout=60  # Keep sockets open for 60s
+            )
+            self._session = aiohttp.ClientSession(
+                timeout=self._backend_timeout,
+                connector=connector
+            )
+        return self._session
 
     async def query_predictor(self, request_id: int,
                               num_context_tokens: int,
