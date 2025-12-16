@@ -46,7 +46,7 @@
   "Qwen-2.5-3B": {
     "hf_model_name": "Qwen/Qwen2.5-3B",
     "precision": "fp16",
-    "backend": "ollama",
+    "backend": "vllm",
     "node_hosts": [
       "asdwb@c240g5-110115.wisc.cloudlab.us",
       "asdwb@c240g5-110103.wisc.cloudlab.us",

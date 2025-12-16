@@ -113,7 +113,11 @@ def get_cleanup_commands(backend: str) -> List[str]:
 
 def get_vllm_commands(model_path: str, hf_token: str, precision: str, vllm_params: Dict = None,
                       fresh_deploy: bool = False) -> List[str]:
-    dtype_flag = "float16" if precision == "fp16" else "auto"
+    # Use dtype from vllm_params if present (for old vLLM v0 versions), otherwise derive from precision
+    if vllm_params and "dtype" in vllm_params:
+        dtype_flag = vllm_params["dtype"]
+    else:
+        dtype_flag = "float16" if precision == "fp16" else "auto"
 
     # Ensure token is not None to prevent Python crash
     token_str = hf_token if hf_token else ""
@@ -130,7 +134,8 @@ def get_vllm_commands(model_path: str, hf_token: str, precision: str, vllm_param
         "--trust-remote-code"
     ]
 
-    # Add optional vLLM parameters from config (skip use_hf_cache as it's not a vLLM param)
+    # Add optional vLLM parameters from config
+    # Filter out non-vLLM params: use_hf_cache, serve_with_v0, dtype (already used above), attention_backend (set as env var)
     if vllm_params:
         if "gpu-memory-utilization" in vllm_params:
             vllm_cmd_parts.append(f"--gpu-memory-utilization {vllm_params['gpu-memory-utilization']}")
@@ -156,6 +161,12 @@ def get_vllm_commands(model_path: str, hf_token: str, precision: str, vllm_param
         cmds.append("echo 'Using custom HF cache at /mydata/hf_cache'")
     else:
         cmds.append("echo 'Using system default HF cache'")
+
+    # Set attention backend as environment variable for old vLLM v0
+    if vllm_params and "attention_backend" in vllm_params:
+        backend_value = vllm_params["attention_backend"].upper()
+        cmds.append(f"export VLLM_ATTENTION_BACKEND={backend_value}")
+        cmds.append(f"echo 'Using attention backend: {backend_value}'")
 
     sleep_time = 600 if fresh_deploy else 10
 

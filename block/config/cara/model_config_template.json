@@ -52,10 +52,13 @@
   "Qwen-2.5-3B": {
     "hf_model_name": "Qwen/Qwen2.5-3B",
     "precision": "fp16",
-    "backend": "ollama",
+    "backend": "vllm",
     "node_type": {
       "c240g5": {
-        "count": 16
+        "count": 16,
+        "serve_with_v0": true,
+        "dtype": "float16",
+        "attention_backend": "XFORMERS"
       }
     }
   }

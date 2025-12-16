@@ -56,6 +56,6 @@ parallel-ssh -t 0 -h block/config/pascal_hosts "pip install xformers"
 # 4. Build and Install vLLM
 # We explicit set TORCH_CUDA_ARCH_LIST=6.0 to force the compiler to generate Pascal (sm_60) binaries.
 # We pass the env var into sudo to ensure the build process sees it.
-parallel-ssh -t 0 -h block/config/pascal_hosts "cd vllm && sudo TORCH_CUDA_ARCH_LIST=6.0 pip install --editable ."
+parallel-ssh -t 0 -h block/config/pascal_hosts "cd vllm && sudo CUDACXX=/usr/local/cuda-12.8/bin/nvcc TORCH_CUDA_ARCH_LIST=6.0 MAX_JOBS=7 CMAKE_BUILD_PARALLEL_LEVEL=7 pip install --editable ."
 # 5. Install Block Repo (Standard setup)
 parallel-ssh -t 0 -h block/config/pascal_hosts "git clone ${BLOCK_GITHUB_LINK} && cd Block && git checkout cara && pip install -r requirements.txt"
