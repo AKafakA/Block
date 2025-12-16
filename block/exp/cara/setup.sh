@@ -42,16 +42,20 @@ parallel-ssh -t 0 -h block/config/volta_hosts  "cd vllm && sudo VLLM_USE_PRECOMP
 parallel-ssh -t 0 -h block/config/volta_hosts "git clone ${BLOCK_GITHUB_LINK} && cd Block && git checkout cara  && pip install -r requirements.txt"
 
 
-# install customized ollama for pascal hosts which cannot run vllm due to older architecture
+
+# install customized vllm for pascal hosts (using the P100-compatible branch)
 echo "Starting setup for pascal hosts..."
+# 1. Install Build Dependencies
+# vLLM requires cmake to build from source
 parallel-ssh -t 0 -h block/config/pascal_hosts "sudo apt install -y cmake"
-parallel-ssh -t 0 -h block/config/pascal_hosts "wget https://go.dev/dl/go1.24.0.linux-amd64.tar.gz"
-parallel-ssh -t 0 -h block/config/pascal_hosts "sudo tar -C /usr/local -xzf go1.24.0.linux-amd64.tar.gz"
-parallel-ssh -t 0 -h block/config/pascal_hosts "echo 'export PATH=\$PATH:/usr/local/go/bin:/usr/local/cuda-12.8/bin:/usr/local/cuda/bin' >> ~/.bashrc"
-parallel-ssh -t 0 -h block/config/pascal_hosts "echo 'export LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:/usr/local/cuda-12.8/lib64' >> ~/.bashrc"
-parallel-ssh -t 0 -h block/config/pascal_hosts "git clone ${OLLAMA_GITHUB_LINK} && cd ollama && git checkout status-api"
-# Clean any existing build artifacts first
-parallel-ssh -t 0 -h block/config/pascal_hosts "cd ollama && rm -rf build CMakeCache.txt CMakeFiles build"
-# Set PATH explicitly in the cmake commands so nvcc is found
-parallel-ssh -t 0 -h block/config/pascal_hosts "export PATH=\$PATH:/usr/local/go/bin:/usr/local/cuda-12.8/bin:/usr/local/cuda/bin && export LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:/usr/local/cuda-12.8/lib64 && cd ollama && cmake -B build -DCMAKE_CUDA_ARCHITECTURES=60 ."
-parallel-ssh -t 0 -h block/config/pascal_hosts "export PATH=\$PATH:/usr/local/go/bin:/usr/local/cuda-12.8/bin:/usr/local/cuda/bin && export LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:/usr/local/cuda-12.8/lib64 && cd ollama && cmake --build build"
+# 2. Clone vLLM and checkout your P100 branch
+parallel-ssh -t 0 -h block/config/pascal_hosts "git clone ${VLLM_GITHUB_LINK} && cd vllm && git checkout cara_p100_v_6.0"
+# 3. Install Xformers
+# P100 cannot run FlashAttn, so we install xformers as the fallback backend
+parallel-ssh -t 0 -h block/config/pascal_hosts "pip install xformers"
+# 4. Build and Install vLLM
+# We explicit set TORCH_CUDA_ARCH_LIST=6.0 to force the compiler to generate Pascal (sm_60) binaries.
+# We pass the env var into sudo to ensure the build process sees it.
+parallel-ssh -t 0 -h block/config/pascal_hosts "cd vllm && sudo TORCH_CUDA_ARCH_LIST=6.0 pip install --editable ."
+# 5. Install Block Repo (Standard setup)
+parallel-ssh -t 0 -h block/config/pascal_hosts "git clone ${BLOCK_GITHUB_LINK} && cd Block && git checkout cara && pip install -r requirements.txt"
