@@ -36,6 +36,7 @@ backend_port_map = {
 }
 chat = False
 model_family = "Qwen"
+repetition_penalty = 1.0
 
 
 def to_ollama_tag(hf_name: str) -> str:
@@ -72,7 +73,7 @@ async def completion(request: Request) -> Response:
         request_json["prompt"] = system_prompt + user_part + assistant_trigger
 
         request_json["stop"] = [stop_word, "<|endoftext|>", start_word]
-        request_json["repetition_penalty"] = float(request_json.get("repetition_penalty", 1.0))
+        request_json["repetition_penalty"] = float(request_json.get("repetition_penalty", repetition_penalty))
     try:
         if scheduling == "random":
             selected_instance = random.choice(instances)
@@ -118,9 +119,10 @@ async def init_app(
         instances_list: Optional[List[Instance]] = None,
 ) -> FastAPI:
     app = build_app(args)
-    global instances, start_time, scheduling, chat, model_family
+    global instances, start_time, scheduling, chat, model_family, repetition_penalty
     chat = args.chat
     model_family = args.model_family
+    repetition_penalty = args.repetition_penalty
     model_config_path = args.model_config_path
 
     model_dict = json.load(open(model_config_path))
