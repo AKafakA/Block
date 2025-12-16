@@ -73,12 +73,17 @@ class OllamaInstance(Instance):
                         while not received_done_signal:
                             line = await response.content.readline()
 
-                            # Only break if we've truly reached EOF (empty bytes after stripping)
-                            # Don't break on temporary empty reads during slow generation
+                            # Handle empty reads - check if truly EOF or just temporary
                             if line == b'':
+                                # Check if connection is actually closed
+                                if response.content.at_eof():
+                                    # True EOF - stream ended
+                                    break
+
+                                # Not EOF yet - might be slow generation, wait briefly
                                 empty_read_count += 1
 
-                                # Safety check: if we've had too many consecutive empty reads, bail out
+                                # Safety check: prevent infinite waiting
                                 if empty_read_count >= MAX_EMPTY_READS_BEFORE_TIMEOUT:
                                     error = (
                                         f"Stream stalled: {MAX_EMPTY_READS_BEFORE_TIMEOUT} consecutive empty reads. "
@@ -87,13 +92,8 @@ class OllamaInstance(Instance):
                                     )
                                     break
 
-                                # Be more patient before checking EOF - wait a bit for data to arrive
-                                await asyncio.sleep(0.01)  # Small delay to avoid busy waiting
-
-                                # Only break on EOF if we've had multiple empty reads in a row
-                                # This handles race conditions where done chunk is in flight
-                                if response.content.at_eof() and empty_read_count > 10:
-                                    break
+                                # Small delay to avoid busy waiting
+                                await asyncio.sleep(0.001)  # 1ms instead of 10msBu
                                 continue
 
                             # Reset empty read counter when we get data

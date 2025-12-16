@@ -8,8 +8,8 @@ STOP_WORD_MAPS = {
 
 # Ollama stream reading configuration
 # Max consecutive empty reads before considering stream stalled
-# At 0.01s sleep per empty read: 1000 = 10s, 3000 = 30s, 10000 = 100s
-MAX_EMPTY_READS_BEFORE_TIMEOUT = 1000  # Default: 10 seconds
+# At 0.001s (1ms) sleep per empty read: 1000 = 1s, 10000 = 10s, 30000 = 30s
+MAX_EMPTY_READS_BEFORE_TIMEOUT = 1000  # Default: 1 second
 
 
 def set_ulimit(target_soft_limit: int = 65535):
