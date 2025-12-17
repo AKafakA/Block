@@ -213,15 +213,7 @@ async def run_server(args: Namespace,
 
         await shutdown_task
     finally:
-        # Cleanup: Close all instance HTTP sessions gracefully
-        logger.info("Shutting down instances and closing HTTP sessions...")
-        for instance in instances:
-            try:
-                await instance.close()
-                logger.info(f"  - Closed session for {instance._instance_id}")
-            except Exception as e:
-                logger.error(f"  - Error closing session for {instance._instance_id}: {e}")
-        logger.info("All instance sessions closed.")
+        logger.info("Server shutdown.")
 
 
 if __name__ == "__main__":

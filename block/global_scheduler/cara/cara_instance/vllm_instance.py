@@ -100,58 +100,58 @@ class VllmInstance(Instance):
             headers = {"Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}",
                        # required for the old version of vLLM server use the header to pass request ID
                        "X-Request-Id" : str(request_id)}
-        session = await self.get_session()
-        async with session.post(self.api_url, json=vllm_payload, ssl=False, headers=headers) as response:
-            if response.status == 200:
-                first_chunk_received = False
-                handler = StreamedResponseHandler()
-                async for chunk_bytes in response.content.iter_any():
-                    chunk_bytes = chunk_bytes.strip()
-                    if not chunk_bytes:
-                        continue
-                    messages = handler.add_chunk(chunk_bytes)
-                    for message in messages:
-                        # NOTE: SSE comments (often used as pings) start with
-                        # a colon. These are not JSON data payload and should
-                        # be skipped.
-                        if message.startswith(":"):
+        async with aiohttp.ClientSession(timeout=self._backend_timeout) as session:
+            async with session.post(self.api_url, json=vllm_payload, ssl=False, headers=headers) as response:
+                if response.status == 200:
+                    first_chunk_received = False
+                    handler = StreamedResponseHandler()
+                    async for chunk_bytes in response.content.iter_any():
+                        chunk_bytes = chunk_bytes.strip()
+                        if not chunk_bytes:
                             continue
-                        chunk = message.removeprefix("data: ")
+                        messages = handler.add_chunk(chunk_bytes)
+                        for message in messages:
+                            # NOTE: SSE comments (often used as pings) start with
+                            # a colon. These are not JSON data payload and should
+                            # be skipped.
+                            if message.startswith(":"):
+                                continue
+                            chunk = message.removeprefix("data: ")
 
-                        if chunk != "[DONE]":
-                            data = json.loads(chunk)
-                            # NOTE: Some completion API might have a last
-                            # usage summary response without a token so we
-                            # want to check a token was generated
-                            if choices := data.get("choices"):
-                                # Note that text could be empty here
-                                # e.g. for special tokens
-                                text = choices[0].get("text")
-                                timestamp = time.perf_counter()
-                                # First token
-                                if not first_chunk_received:
-                                    first_chunk_received = True
-                                    ttft = time.perf_counter() - st
-                                # Decoding phase
-                                else:
-                                    itl.append(timestamp - most_recent_timestamp)
+                            if chunk != "[DONE]":
+                                data = json.loads(chunk)
+                                # NOTE: Some completion API might have a last
+                                # usage summary response without a token so we
+                                # want to check a token was generated
+                                if choices := data.get("choices"):
+                                    # Note that text could be empty here
+                                    # e.g. for special tokens
+                                    text = choices[0].get("text")
+                                    timestamp = time.perf_counter()
+                                    # First token
+                                    if not first_chunk_received:
+                                        first_chunk_received = True
+                                        ttft = time.perf_counter() - st
+                                    # Decoding phase
+                                    else:
+                                        itl.append(timestamp - most_recent_timestamp)
 
-                                most_recent_timestamp = timestamp
-                                generated_text += text or ""
-                            elif usage := data.get("usage"):
-                                output_tokens = usage.get("completion_tokens")
-                if first_chunk_received:
-                    success = True
+                                    most_recent_timestamp = timestamp
+                                    generated_text += text or ""
+                                elif usage := data.get("usage"):
+                                    output_tokens = usage.get("completion_tokens")
+                    if first_chunk_received:
+                        success = True
+                    else:
+                        success = False
+                        error = (
+                            "Never received a valid chunk to calculate TTFT."
+                            "This response will be marked as failed!"
+                        )
+                    generated_text = generated_text
                 else:
+                    error = response.reason or ""
                     success = False
-                    error = (
-                        "Never received a valid chunk to calculate TTFT."
-                        "This response will be marked as failed!"
-                    )
-                generated_text = generated_text
-            else:
-                error = response.reason or ""
-                success = False
 
         # Calculate server-side E2E latency (total time from request start to completion)
         server_e2e_latency = time.perf_counter() - st

@@ -31,22 +31,6 @@ class Instance(ABC):
         self._backend_timeout = aiohttp.ClientTimeout(total=query_backend_timeout)
         self._session = None
 
-    async def get_session(self):
-        if self._session is None or self._session.closed:
-            # Optimized connector for high throughput
-            connector = aiohttp.TCPConnector(
-                limit=0,  # Unlimited parallel connections (no queueing delay)
-                ttl_dns_cache=300,  # Cache DNS for 5 minutes
-                use_dns_cache=True,
-                keepalive_timeout=60,  # Keep sockets open for 60s
-                enable_cleanup_closed=True  # Clean up closed connections
-            )
-            self._session = aiohttp.ClientSession(
-                timeout=self._backend_timeout,
-                connector=connector
-            )
-        return self._session
-
     async def query_predictor(self, request_id: int,
                               num_context_tokens: int,
                               predicted_num_context_tokens: dict):
@@ -57,12 +41,12 @@ class Instance(ABC):
         }
         predict_url = self._predictor_urls[request_id % len(self._predictor_urls)]
         # Use singleton session with predictor timeout override
-        session = await self.get_session()
-        async with session.post(predict_url, json=predict_parameters, ssl=False, timeout=self._predictor_timeout) as response:
-            response_dict = await response.json()
-            response_dict['instance_id'] = self._instance_id
-            self._predicted_latency[request_id] = response_dict['latency_prediction']
-            return response_dict
+        async with aiohttp.ClientSession(timeout=self._predictor_timeout) as session:
+            async with session.post(predict_url, json=predict_parameters, ssl=False, timeout=self._predictor_timeout) as response:
+                response_dict = await response.json()
+                response_dict['instance_id'] = self._instance_id
+                self._predicted_latency[request_id] = response_dict['latency_prediction']
+                return response_dict
 
     @abstractmethod
     async def query_backend(self, payload: dict, headers: dict = None):
@@ -96,11 +80,6 @@ class Instance(ABC):
         current_time = time.time()
         return sum([1 for time_of_request in self.request_timeline
                     if current_time - time_of_request <= 60])
-
-    async def close(self):
-        """Close the HTTP session gracefully"""
-        if self._session and not self._session.closed:
-            await self._session.close()
 
     @property
     def predicted_latency(self):
