@@ -57,7 +57,8 @@ async def completion(request: Request) -> Response:
     global num_requests
     request_json = await request.json()
     num_requests += 1
-    request_id = request_json.get("request_id")
+    request_id = request_json.get("request_id", str(num_requests))
+    request_json["request_id"] = request_id
     served_requests.append(request_id)
     selected_instance = None
     if chat:
@@ -146,7 +147,7 @@ async def init_app(
                 instance_id = f"{model}_{idx}"
                 if backend_type == "ollama":
                     from block.global_scheduler.cara.cara_instance.ollama_instance import OllamaInstance
-                    # Convert HF model name to Ollama tag format
+                    # Convert HF model name to Ollama tag format, not supposed to be used besides testing
                     ollama_model_name = to_ollama_tag(hf_model_name)
                     instance = OllamaInstance(
                         instance_id=instance_id,

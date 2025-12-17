@@ -78,6 +78,8 @@ class VllmInstance(Instance):
         error = ""
         server_e2e_latency = 0.0  # Total time from request start to response complete
 
+        request_id = payload["request_id"]
+
         vllm_payload = {
             "model": self._model_name,
             "prompt": payload["prompt"],
@@ -91,10 +93,13 @@ class VllmInstance(Instance):
             },
             # Add stop tokens if provided to prevent infinite repetition
             "stop": payload.get("stop", []),
+            "request_id": request_id,
         }
 
         if not headers:
-            headers = {"Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}"}
+            headers = {"Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}",
+                       # required for the old version of vLLM server use the header to pass request ID
+                       "X-Request-Id" : str(request_id)}
         session = await self.get_session()
         async with session.post(self.api_url, json=vllm_payload, ssl=False, headers=headers) as response:
             if response.status == 200:
