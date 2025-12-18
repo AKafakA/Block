@@ -204,40 +204,45 @@ def get_predictor_deployment_commands(
     predictor_type = predictor_config.get("predictor_type", "dummy")
     predictor_ports = host_config[hostname]["predictor_ports"]
 
-    # Get data collection settings from predictor config
-    enable_data_collection = predictor_config.get("enable_data_collection", False)
-    data_collection_sample_rate = predictor_config.get("data_collection_sample_rate", 1.0)
+    # Get data collection settings from predictor config (currently handled by config file)
+    _enable_data_collection = predictor_config.get("enable_data_collection", False)
+    _data_collection_sample_rate = predictor_config.get("data_collection_sample_rate", 1.0)
     data_output_dir = predictor_config.get("data_output_dir", "./training_data/cara")
-    save_batch_size = predictor_config.get("save_batch_size", 100)
+    _save_batch_size = predictor_config.get("save_batch_size", 100)
 
-    cmds = [
+    # Build a single aggregated command string to avoid "& &&" join issues.
+    header_parts = [
         "echo 'Deploying CARA Predictors...'",
-        # Kill existing predictors
         "pkill -f 'cara_predictor_api_server' || echo 'No existing predictors'",
         "sleep 2",
         "mkdir -p Block/experiment_output/logs",
         f"mkdir -p Block/{data_output_dir}",
     ]
+    header_cmd = " && ".join(header_parts)
 
-    # Deploy multiple predictors in parallel
+    # Start all predictors in background within one grouped command after cd
+    bg_cmds = []
     for predictor_port in predictor_ports:
-        deploy_cmd = (
-            f"cd Block && nohup python -m block.predictor.cara.cara_predictor_api_server "
-            f"--host 0.0.0.0 "
-            f"--port {predictor_port} "
-            f"--backend-port {backend_port} "
-            f"--hostname {hostname} "
-            f"--config-path block/config/cara/predictor_deployment_config.json "
-            f"> experiment_output/logs/predictor_{predictor_port}.log 2>&1 &"
+        bg_cmds.append(
+            (
+                f"nohup python -m block.predictor.cara.cara_predictor_api_server "
+                f"--host 0.0.0.0 "
+                f"--port {predictor_port} "
+                f"--backend-port {backend_port} "
+                f"--hostname {hostname} "
+                f"--config-path block/config/cara/predictor_deployment_config.json "
+                f"> experiment_output/logs/predictor_{predictor_port}.log 2>&1 < /dev/null &"
+            )
         )
-        cmds.append(deploy_cmd)
 
-    cmds.extend([
-        "sleep 5",  # Wait for predictors to start
-        f"echo 'Deployed {len(predictor_ports)} predictors on ports {predictor_ports}'"
-    ])
+    # Group background launches so the outer command does not end with '&'
+    group_cmd = "cd Block && ( " + " ".join(bg_cmds) + " true )"
 
-    return cmds
+    # Sleep and final echo
+    tail_cmd = f"sleep 5 && echo 'Deployed {len(predictor_ports)} predictors on ports {predictor_ports}'"
+
+    combined = " && ".join([header_cmd, group_cmd, tail_cmd])
+    return [combined]
 
 
 def get_ollama_commands(hf_name: str, num_parallel: int = 4, fresh_deploy: bool = False) -> List[str]:
@@ -291,7 +296,7 @@ def main():
     parser.add_argument("--output", default="block/config/cara/model_deployment.json",
                         help="Output config path")
 
-    parser.add_argument("--models", type=str, default="Qwen-2.5-3B",
+    parser.add_argument("--models", type=str, default=None,
                         help="Comma-separated list of models to deploy (e.g., 'Qwen-2.5-3B' or 'Qwen-2.5-3B,Qwen-2.5-7B'). Deploy all if not specified.")
 
     parser.add_argument("--ollama-num-parallel", type=int, default=4,
@@ -300,7 +305,7 @@ def main():
     parser.add_argument("--fresh-deploy", action="store_true",
                         help="If set, it usually need much longer time to download models from HF and golang packages for Ollama.")
 
-    parser.add_argument("--deploy-predictors", action="store_true",
+    parser.add_argument("--deploy-predictors", type=bool, default=True,
                         help="Deploy CARA predictors alongside backend instances")
     parser.add_argument("--predictor-config", type=str,
                         default="block/config/cara/predictor_deployment_config.json",
