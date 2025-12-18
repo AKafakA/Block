@@ -30,10 +30,6 @@ logging.basicConfig(level=logging.INFO,
                     filemode='a+',
                     filename='experiment_output/logs/predictor_output.log')
 logger = logging.getLogger(__name__)
-backend_port_map = {
-    "ollama": 11434,
-    "vllm": 8000
-}
 chat = False
 model_family = "Qwen"
 repetition_penalty = 1.0
@@ -76,6 +72,37 @@ async def completion(request: Request) -> Response:
         request_json["stop"] = [stop_word, "<|endoftext|>", start_word]
         request_json["repetition_penalty"] = float(request_json.get("repetition_penalty", repetition_penalty))
     try:
+        # CARA: Query predictors before scheduling (for training data collection)
+        # Get prompt length from request (sent by benchmark client)
+        num_prompt_tokens = request_json.get("prompt_len", 0)
+        max_output_tokens = request_json.get("max_tokens", 256)
+
+        # Build predicted_num_context_tokens dict for all models
+        predicted_num_context_tokens = {}
+        for instance in instances:
+            predicted_num_context_tokens[instance._model_name] = max_output_tokens
+
+        # Query all instance predictors (for training data collection)
+        prediction_tasks = []
+        for instance in instances:
+            prediction_task = instance.query_predictor(
+                request_id=request_id,
+                num_context_tokens=num_prompt_tokens,
+                predicted_num_context_tokens=predicted_num_context_tokens
+            )
+            prediction_tasks.append(prediction_task)
+
+        # Wait for all predictions (run in parallel)
+        try:
+            predictions = await asyncio.gather(*prediction_tasks, return_exceptions=True)
+            logger.debug(f"Request {request_id}: Collected {len(predictions)} predictions")
+        except Exception as e:
+            logger.warning(f"Request {request_id}: Predictor query failed: {e}")
+            predictions = []
+
+        # Continue with existing scheduling strategy (random/round-robin)
+        # NOTE: For now, we ignore predictions and just use random/round-robin
+        # The predictions are logged for training data collection only
         if scheduling == "random":
             selected_instance = random.choice(instances)
         elif scheduling == "round_robin":
@@ -85,8 +112,8 @@ async def completion(request: Request) -> Response:
 
         response_dict = await selected_instance.query_instance(
             request_json,
-            # useless for now, leave for future extension
-            predicted_num_decode_tokens=0
+            # Pass predicted output tokens for future extension
+            predicted_num_decode_tokens=max_output_tokens
         )
         return JSONResponse(content=response_dict)
     except Exception as e:
@@ -135,15 +162,12 @@ async def init_app(
             node_hosts = model_config["node_hosts"]
             backend_type = model_config["backend"]
             hf_model_name = model_config["hf_model_name"]
-            # use the hard-coded port here and ignore the one in host_config as it was generated for Block
-            # with homogeneous backend
-            # TODO: rewrite the config generation script for Cara later and merge the two configs
-            backend_port = backend_port_map.get(backend_type, 8000)
             for idx, host in enumerate(node_hosts):
                 # Extract hostname from "user@hostname" format
                 hostname = host.split("@")[-1] if "@" in host else host
                 ip_address = host_config[hostname]["ip_address"]
                 predictor_ports = host_config[hostname]["predictor_ports"]
+                backend_port = host_config[hostname]["backend_port"]
                 instance_id = f"{model}_{idx}"
                 if backend_type == "ollama":
                     from block.global_scheduler.cara.cara_instance.ollama_instance import OllamaInstance
@@ -155,7 +179,9 @@ async def init_app(
                         ip_address=ip_address,
                         predictor_ports=predictor_ports,
                         model_name=ollama_model_name,
-                        backend_port=backend_port
+                        backend_port=backend_port,
+                        enable_predictor_feedback=args.enable_predictor_feedback,
+                        feedback_sample_rate=args.feedback_sample_rate
                     )
                 elif backend_type == "vllm":
                     from block.global_scheduler.cara.cara_instance.vllm_instance import VllmInstance
@@ -165,7 +191,9 @@ async def init_app(
                         ip_address=ip_address,
                         predictor_ports=predictor_ports,
                         model_name=hf_model_name,
-                        backend_port=backend_port
+                        backend_port=backend_port,
+                        enable_predictor_feedback=args.enable_predictor_feedback,
+                        feedback_sample_rate=args.feedback_sample_rate
                     )
                 else:
                     raise ValueError(f"Unsupported backend type: {backend_type}")
@@ -252,6 +280,10 @@ if __name__ == "__main__":
                         help="Model family, used for append the stop words for chat models")
     parser.add_argument("--repetition-penalty", type=float, default=1.0,
                         help="Repetition penalty to use for generation to avoid repetition")
+    parser.add_argument("--enable-predictor-feedback", action="store_true",
+                        help="Enable sending actual metrics back to predictor for training data collection")
+    parser.add_argument("--feedback-sample-rate", type=float, default=1.0,
+                        help="Sampling rate for predictor feedback (0.0 to 1.0). Only applies when --enable-predictor-feedback is set")
     args = parser.parse_args()
     logger.info("Starting server with args: %s", str(args))
 

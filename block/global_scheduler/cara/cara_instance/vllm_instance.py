@@ -55,7 +55,9 @@ class VllmInstance(Instance):
                  model_name,
                  query_predictor_timeout=10,
                  query_backend_timeout=30 * 60,  # 30 minutes timeout for vLLM
-                 backend_port=8000):
+                 backend_port=8000,
+                 enable_predictor_feedback=False,
+                 feedback_sample_rate=1.0):
         super().__init__(instance_id,
                          hostname,
                          ip_address,
@@ -63,7 +65,9 @@ class VllmInstance(Instance):
                          model_name,
                          query_predictor_timeout,
                          query_backend_timeout,
-                         backend_port)
+                         backend_port,
+                         enable_predictor_feedback,
+                         feedback_sample_rate)
         self.api_url = f"http://{ip_address}:{backend_port}/v1/completions"
 
     async def query_backend(self, payload: dict, headers: dict = None):

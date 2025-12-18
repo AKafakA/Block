@@ -18,14 +18,17 @@ DEPLOYMENT_CONFIG="block/config/cara/model_deployment.json"
 
 SCHEDULING_STRATEGY="random"  # Scheduling strategy for CARA
 HF_TOKEN="${HF_TOKEN:-}"  # Set HF_TOKEN env var or pass as argument
+REPETITION_PENALTY=${3:-1.05}  # Repetition penalty for generation
+REQUEST_RATE=${4:-inf}  # Request rate for benchmark (requests per second, or 'inf' for unlimited)
+SAVE_DETAILED=${5:-"ttft itl e2el models hosts instance_ids"}  # Detailed metrics to save
 
-DOWNLOAD_DATASET=${2:-false}  # Pass 'true' as first argument to download dataset
+DOWNLOAD_DATASET=${2:-false}  # Pass 'true' as second argument to download dataset
 
 DATASET_NAME="sharegpt"
-DATRSET_PATH="~/dataset/sharegpt"
+DATASET_PATH="~/dataset/sharegpt"
 DATASET_LINK="https://huggingface.co/datasets/anon8231489123/ShareGPT_Vicuna_unfiltered/resolve/main/ShareGPT_V3_unfiltered_cleaned_split.json"
 
-REDEPLOY=${1:-false}  # Pass 'true' as second argument to force redeployment
+REDEPLOY=${1:-false}  # Pass 'true' as first argument to force redeployment
 
 echo "========================================"
 echo "CARA End-to-End Deployment & Test"
@@ -48,14 +51,11 @@ else
 fi
 
 if [ "$DOWNLOAD_DATASET" = "true" ]; then
-  echo "Downloading ShareGPT dataset to ${DATRSET_PATH}..."
+  echo "Downloading ShareGPT dataset to ${DATASET_PATH}..."
   ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     ${TARGET_HOST} \
-    "mkdir -p ${DATRSET_PATH} && wget -O ${DATRSET_PATH}/sharegpt_random_10k.jsonl ${DATASET_LINK}"
+    "mkdir -p ${DATASET_PATH} && wget -O ${DATASET_PATH}/sharegpt_random_10k.jsonl ${DATASET_LINK}"
   echo "Dataset download completed."
-fi
-else
-  echo "Skipping redeployment of backends. Using existing deployment config at ${DEPLOYMENT_CONFIG}."
 fi
 
 # Start CARA scheduler server
@@ -76,6 +76,7 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     --model_config_path ${DEPLOYMENT_CONFIG} \
     --host_config ${HOST_CONFIG} \
     --scheduling ${SCHEDULING_STRATEGY} \
+    --repetition-penalty ${REPETITION_PENALTY} \
     > experiment_output/logs/cara_server.log 2>&1 &"
 
 echo "Waiting 10 seconds for CARA server to start..."
@@ -110,12 +111,16 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "export PYTHONPATH=${PYTHONPATH} && \
    cd Block && \
    python block/benchmark/cara/benchmark_serving.py \
+     --backend cara \
+     --host 127.0.0.1 \
+     --port 8200 \
      --dataset-name ${DATASET_NAME} \
-     --dataset-path ${DATRSET_PATH}/sharegpt_random_10k.jsonl \
+     --dataset-path ${DATASET_PATH}/sharegpt_random_10k.jsonl \
      --num-prompts 50 \
-     --input-length 128 \
-     --output-length 64 \
-     --output-dir ${OUTPUT_DIR}"
+     --request-rate ${REQUEST_RATE} \
+     --save-detailed ${SAVE_DETAILED} \
+     --result-dir ${OUTPUT_DIR} \
+     --save-result"
 
 if [ $? -ne 0 ]; then
     echo "❌ Benchmark failed!"

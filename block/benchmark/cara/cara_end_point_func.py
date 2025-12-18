@@ -64,6 +64,7 @@ async def async_request_cara_openai_completions(
         # the model passing will be ignored and get resolved by Cara server side
         "model": "cara",
         "prompt": request_func_input.prompt,
+        "prompt_len": request_func_input.prompt_len,
         "temperature": 0.0,
         "repetition_penalty": 1.0,
         "max_tokens": request_func_input.output_len,

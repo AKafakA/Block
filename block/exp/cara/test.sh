@@ -16,7 +16,9 @@ CARA_URL="http://${CARA_HOST}:${CARA_PORT}"
 OUTPUT_DIR="experiment_output/cara_test_results"
 MODEL_CONFIG="block/config/cara/model_deployment.json"
 HOST_CONFIG="block/config/host_configs.json"
-VLLM_BENCH_SCRIPT="$HOME/vllm/benchmarks/serve.py"
+REPETITION_PENALTY=${1:-1.05}  # Repetition penalty for generation
+REQUEST_RATE=${2:-inf}  # Request rate for benchmark
+SAVE_DETAILED=${3:-"ttft itl e2el models hosts instance_ids"}  # Detailed metrics to save
 
 echo "========================================"
 echo "CARA Simple Test"
@@ -44,6 +46,7 @@ nohup python -m block.global_scheduler.cara.cara_serve \
   --model_config_path ${MODEL_CONFIG} \
   --host_config ${HOST_CONFIG} \
   --scheduling random \
+  --repetition-penalty ${REPETITION_PENALTY} \
   > experiment_output/logs/cara_server.log 2>&1 &
 
 CARA_PID=$!
@@ -69,19 +72,19 @@ echo "Sending 100 random requests to CARA..."
 # Add vllm to PYTHONPATH to use the customized version
 export PYTHONPATH="$HOME/vllm:$PYTHONPATH"
 
-python ${VLLM_BENCH_SCRIPT} \
+python block/benchmark/cara/benchmark_serving.py \
   --backend cara \
-  --base-url ${CARA_URL} \
-  --endpoint /v1/completions \
-  --model cara \
+  --host ${CARA_HOST} \
+  --port ${CARA_PORT} \
   --dataset-name random \
   --random-input-len 128 \
   --random-output-len 64 \
   --num-prompts 100 \
-  --request-rate inf \
-  --save-result \
+  --request-rate ${REQUEST_RATE} \
+  --save-detailed ${SAVE_DETAILED} \
   --result-dir ${OUTPUT_DIR} \
-  --result-filename cara_simple_test.json
+  --result-filename cara_simple_test.json \
+  --save-result
 
 echo ""
 echo "========================================"

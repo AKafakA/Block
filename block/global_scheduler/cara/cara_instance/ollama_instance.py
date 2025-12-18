@@ -17,7 +17,9 @@ class OllamaInstance(Instance):
                  model_name,
                  query_predictor_timeout=10,
                  query_backend_timeout=2 * 60 * 60,  # 60 minutes timeout for Ollama
-                 backend_port=11434):  # Default Ollama port
+                 backend_port=11434,  # Default Ollama port
+                 enable_predictor_feedback=False,
+                 feedback_sample_rate=1.0):
         super().__init__(instance_id,
                          hostname,
                          ip_address,
@@ -25,7 +27,9 @@ class OllamaInstance(Instance):
                          model_name,
                          query_predictor_timeout,
                          query_backend_timeout,
-                         backend_port)
+                         backend_port,
+                         enable_predictor_feedback,
+                         feedback_sample_rate)
         # Ollama native generation endpoint
         self.api_url = f"http://{ip_address}:{backend_port}/api/generate"
 

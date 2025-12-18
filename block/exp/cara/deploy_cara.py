@@ -184,6 +184,62 @@ def get_vllm_commands(model_path: str, hf_token: str, precision: str, vllm_param
     return cmds
 
 
+def get_predictor_deployment_commands(
+    hostname: str,
+    backend_port: int,
+    predictor_config: Dict,
+    host_config: Dict
+) -> List[str]:
+    """Generate commands to deploy CARA predictors on a host.
+
+    Args:
+        hostname: The hostname (without user@)
+        backend_port: Backend port from host_config
+        predictor_config: Predictor deployment configuration
+        host_config: Host configuration containing predictor_ports
+
+    Returns:
+        List of shell commands to deploy predictors
+    """
+    predictor_type = predictor_config.get("predictor_type", "dummy")
+    predictor_ports = host_config[hostname]["predictor_ports"]
+
+    # Get data collection settings from predictor config
+    enable_data_collection = predictor_config.get("enable_data_collection", False)
+    data_collection_sample_rate = predictor_config.get("data_collection_sample_rate", 1.0)
+    data_output_dir = predictor_config.get("data_output_dir", "./training_data/cara")
+    save_batch_size = predictor_config.get("save_batch_size", 100)
+
+    cmds = [
+        "echo 'Deploying CARA Predictors...'",
+        # Kill existing predictors
+        "pkill -f 'cara_predictor_api_server' || echo 'No existing predictors'",
+        "sleep 2",
+        "mkdir -p Block/experiment_output/logs",
+        f"mkdir -p Block/{data_output_dir}",
+    ]
+
+    # Deploy multiple predictors in parallel
+    for predictor_port in predictor_ports:
+        deploy_cmd = (
+            f"cd Block && nohup python -m block.predictor.cara.cara_predictor_api_server "
+            f"--host 0.0.0.0 "
+            f"--port {predictor_port} "
+            f"--backend-port {backend_port} "
+            f"--hostname {hostname} "
+            f"--config-path block/config/cara/predictor_deployment_config.json "
+            f"> experiment_output/logs/predictor_{predictor_port}.log 2>&1 &"
+        )
+        cmds.append(deploy_cmd)
+
+    cmds.extend([
+        "sleep 5",  # Wait for predictors to start
+        f"echo 'Deployed {len(predictor_ports)} predictors on ports {predictor_ports}'"
+    ])
+
+    return cmds
+
+
 def get_ollama_commands(hf_name: str, num_parallel: int = 4, fresh_deploy: bool = False) -> List[str]:
     ollama_tag = to_ollama_tag(hf_name)
 
@@ -241,9 +297,17 @@ def main():
     parser.add_argument("--ollama-num-parallel", type=int, default=4,
                         help="Number of parallel requests Ollama can handle (default: 4). Higher values increase GPU utilization.")
 
-
     parser.add_argument("--fresh-deploy", action="store_true",
                         help="If set, it usually need much longer time to download models from HF and golang packages for Ollama.")
+
+    parser.add_argument("--deploy-predictors", action="store_true",
+                        help="Deploy CARA predictors alongside backend instances")
+    parser.add_argument("--predictor-config", type=str,
+                        default="block/config/cara/predictor_deployment_config.json",
+                        help="Path to predictor deployment config")
+    parser.add_argument("--host-config", type=str,
+                        default="block/config/host_configs.json",
+                        help="Path to host config file (contains backend_port and predictor_ports)")
 
     args = parser.parse_args()
 
@@ -255,6 +319,26 @@ def main():
     except FileNotFoundError:
         print(f"Error: Config file '{args.config}' not found.")
         sys.exit(1)
+
+    # Load host config and predictor config if deploying predictors
+    host_config = None
+    predictor_config = None
+    if args.deploy_predictors:
+        try:
+            with open(args.host_config, 'r') as f:
+                host_config = json.load(f)
+            print(f"--- Loaded host config from {args.host_config} ---")
+        except FileNotFoundError:
+            print(f"Error: Host config file '{args.host_config}' not found.")
+            sys.exit(1)
+
+        try:
+            with open(args.predictor_config, 'r') as f:
+                predictor_config = json.load(f)
+            print(f"--- Loaded predictor config from {args.predictor_config} ---")
+        except FileNotFoundError:
+            print(f"Error: Predictor config file '{args.predictor_config}' not found.")
+            sys.exit(1)
 
     # Load existing deployment config if doing selective deployment
     final_config = {}
@@ -331,7 +415,7 @@ def main():
             if cleanup_cmds:
                 run_ssh_cmd(host, cleanup_cmds, f"Cleanup ({model_key})")
 
-            # Then deploy
+            # Then deploy backend
             if backend == "vllm":
                 if vllm_params:
                     print(f"  vLLM params: {vllm_params}")
@@ -343,6 +427,20 @@ def main():
                 cmds = get_ollama_commands(hf_name, num_parallel=args.ollama_num_parallel,
                                            fresh_deploy=args.fresh_deploy)
                 run_ssh_cmd(host, cmds, f"Deploying Ollama ({model_key})")
+
+            # Deploy predictors if requested
+            if args.deploy_predictors:
+                # Extract hostname from "user@hostname" format
+                hostname = host.split("@")[-1] if "@" in host else host
+                # Get backend_port from host_config (single source of truth!)
+                backend_port = host_config[hostname]["backend_port"]
+                predictor_cmds = get_predictor_deployment_commands(
+                    hostname=hostname,
+                    backend_port=backend_port,
+                    predictor_config=predictor_config,
+                    host_config=host_config
+                )
+                run_ssh_cmd(host, predictor_cmds, f"Deploying Predictors ({model_key})")
 
     # 3. Save Config
     with open(args.output, 'w') as f:
