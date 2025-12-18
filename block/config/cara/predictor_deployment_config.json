@@ -6,6 +6,6 @@
   "enable_data_collection": true,
   "data_collection_sample_rate": 1.0,
   "data_output_dir": "./training_data/cara",
-  "save_batch_size": 100,
+  "save_batch_size": 20,
   "heuristic_mode": "min_requests"
 }

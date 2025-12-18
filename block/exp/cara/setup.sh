@@ -16,6 +16,7 @@ parallel-ssh -t 0 -h block/config/hosts "sudo apt update && sudo apt full-upgrad
 parallel-ssh -t 0 -h block/config/hosts "sudo apt install -y python3-pip python3-venv ccache"
 parallel-ssh -t 0 -h block/config/hosts "pip install --upgrade pip"
 parallel-ssh -t 0 -h block/config/hosts "pip3 install torch torchvision"
+parallel-ssh -t 0 -h block/config/hosts "pip install dacite"
 parallel-ssh -t 0 -h block/config/hosts "wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-ubuntu2004.pin && sudo mv cuda-ubuntu2004.pin /etc/apt/preferences.d/cuda-repository-pin-600"
 parallel-ssh -t 0 -h block/config/hosts "wget https://developer.download.nvidia.com/compute/cuda/12.8.0/local_installers/cuda-repo-ubuntu2204-12-8-local_12.8.0-570.86.10-1_amd64.deb && sudo dpkg -i cuda-repo-ubuntu2204-12-8-local_12.8.0-570.86.10-1_amd64.deb"
 parallel-ssh -t 0 -h block/config/hosts "sudo cp /var/cuda-repo-ubuntu2204-12-8-local/cuda-*-keyring.gpg /usr/share/keyrings/ && sudo apt-get update"
