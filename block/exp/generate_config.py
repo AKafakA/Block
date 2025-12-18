@@ -26,7 +26,7 @@ def generate_configs(num_predictors, backend_port,
                      user_name):
     predictor_ports = []
     for i in range(num_predictors):
-        predictor_ports.append(backend_port + 100 * i)
+        predictor_ports.append(backend_port + 100 * (i + 3))
 
     tree = ET.parse(manifest_path)
     # get root element

@@ -5,7 +5,7 @@ Unlike Block's PredictorConfig (which is for simulation-based approaches),
 CARA configs are minimal and type-based for different predictor implementations.
 """
 from abc import ABC
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields as dataclass_fields
 from typing import Dict, Any
 import json
 
@@ -56,9 +56,13 @@ class CARABasePredictorConfig(ABC):
         predictor_type = config_dict.get("predictor_type", "dummy")
 
         if predictor_type == "dummy":
-            return DummyPredictorConfig(**config_dict)
+            allowed = {f.name for f in dataclass_fields(DummyPredictorConfig)}
+            filtered = {k: v for k, v in config_dict.items() if k in allowed}
+            return DummyPredictorConfig(**filtered)
         elif predictor_type == "lstm":
-            return LSTMPredictorConfig(**config_dict)
+            allowed = {f.name for f in dataclass_fields(LSTMPredictorConfig)}
+            filtered = {k: v for k, v in config_dict.items() if k in allowed}
+            return LSTMPredictorConfig(**filtered)
         else:
             raise ValueError(f"Unknown predictor_type: {predictor_type}")
 

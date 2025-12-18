@@ -87,7 +87,8 @@ def get_cleanup_commands(backend: str) -> List[str]:
     if backend == "vllm":
         cmds = [
             "echo 'Cleaning up existing vLLM processes...'",
-            "pkill -f 'vllm.entrypoints.openai.api_server' || echo 'No existing vLLM process found'",
+            # Anchor to python so we don't kill the current remote shell running 'sh -c "... pkill ..."'
+            "pkill -f '^python.*vllm\\.entrypoints\\.openai\\.api_server' || echo 'No existing vLLM process found'",
             "sleep 2"
         ]
     elif backend == "ollama":
@@ -96,9 +97,11 @@ def get_cleanup_commands(backend: str) -> List[str]:
             # Kill any process using port 11434 first
             "fuser -k 11434/tcp 2>/dev/null || echo 'Port 11434 not in use'",
             # Kill Go processes related to ollama
-            "pkill -9 -f 'go run . serve' || echo 'No go run process found'",
+            # Anchor to 'go' to avoid matching the current 'sh -c' command string
+            "pkill -9 -f '^go .*run .*\\. .*serve' || echo 'No go run process found'",
             # Kill any ollama-related processes
-            "pkill -9 -f 'ollama' || echo 'No ollama process found'",
+            # Anchor to 'ollama' binary name if present
+            "pkill -9 -f '^ollama( |$)' || echo 'No ollama process found'",
             # Wait longer for port to be released
             "sleep 5",
             # Verify port is free
@@ -203,6 +206,8 @@ def get_predictor_deployment_commands(
     """
     predictor_type = predictor_config.get("predictor_type", "dummy")
     predictor_ports = host_config[hostname]["predictor_ports"]
+    # Avoid port collision with backend by skipping backend_port if present
+    predictor_ports = [p for p in predictor_ports if p != backend_port]
 
     # Get data collection settings from predictor config (currently handled by config file)
     _enable_data_collection = predictor_config.get("enable_data_collection", False)
@@ -213,7 +218,8 @@ def get_predictor_deployment_commands(
     # Build a single aggregated command string to avoid "& &&" join issues.
     header_parts = [
         "echo 'Deploying CARA Predictors...'",
-        "pkill -f 'cara_predictor_api_server' || echo 'No existing predictors'",
+        # Anchor to python to avoid killing the remote 'sh -c' that contains this string in its command line
+        "pkill -f '^python.*block\\.predictor\\.cara\\.cara_predictor_api_server' || echo 'No existing predictors'",
         "sleep 2",
         "mkdir -p Block/experiment_output/logs",
         f"mkdir -p Block/{data_output_dir}",
@@ -225,7 +231,7 @@ def get_predictor_deployment_commands(
     for predictor_port in predictor_ports:
         bg_cmds.append(
             (
-                f"nohup python -m block.predictor.cara.cara_predictor_api_server "
+                f"nohup $PYTHON_BIN -u -m block.predictor.cara.cara_predictor_api_server "
                 f"--host 0.0.0.0 "
                 f"--port {predictor_port} "
                 f"--backend-port {backend_port} "
@@ -235,13 +241,32 @@ def get_predictor_deployment_commands(
             )
         )
 
-    # Group background launches so the outer command does not end with '&'
-    group_cmd = "cd Block && ( " + " ".join(bg_cmds) + " true )"
+    # Group background launches so the outer command does not end with '&'.
+    # Detect usable python binary inside the group.
+    group_cmd = (
+        "cd Block && ( "
+        "export PYTHONUNBUFFERED=1; "
+        "PYTHON_BIN=${PREDICTOR_PYTHON_BIN:-$(command -v python3 || command -v python)}; "
+        + " ".join(bg_cmds) +
+        " true )"
+    )
 
-    # Sleep and final echo
-    tail_cmd = f"sleep 5 && echo 'Deployed {len(predictor_ports)} predictors on ports {predictor_ports}'"
+    # Verify processes are up; fail if any did not start
+    ports_list = " ".join(str(p) for p in predictor_ports)
+    verify_cmd = (
+        "sleep 5 && "
+        "fail=0; "
+        f"for p in {ports_list}; do "
+        "if pgrep -f \"block.predictor.cara.cara_predictor_api_server.*--port $p\" >/dev/null; then "
+        "echo \"OK: predictor on $p\"; "
+        "else echo \"FAIL: predictor on $p\"; fail=1; fi; done; "
+        "if [ $fail -ne 0 ]; then echo 'One or more predictors failed to start' 1>&2; exit 1; fi"
+    )
 
-    combined = " && ".join([header_cmd, group_cmd, tail_cmd])
+    # Final echo
+    tail_cmd = f"echo 'Deployed {len(predictor_ports)} predictors on ports {predictor_ports}'"
+
+    combined = " && ".join([header_cmd, group_cmd, verify_cmd, tail_cmd])
     return [combined]
 
 
@@ -296,7 +321,7 @@ def main():
     parser.add_argument("--output", default="block/config/cara/model_deployment.json",
                         help="Output config path")
 
-    parser.add_argument("--models", type=str, default=None,
+    parser.add_argument("--models", type=str, default='Qwen-2.5-72B',
                         help="Comma-separated list of models to deploy (e.g., 'Qwen-2.5-3B' or 'Qwen-2.5-3B,Qwen-2.5-7B'). Deploy all if not specified.")
 
     parser.add_argument("--ollama-num-parallel", type=int, default=4,
