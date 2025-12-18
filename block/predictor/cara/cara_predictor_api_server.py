@@ -121,6 +121,17 @@ async def stats() -> Response:
         return JSONResponse({"error": "Data collection not enabled"}, status_code=400)
 
 
+@app.post("/flush")
+async def flush() -> Response:
+    """Force flush buffered training data to disk (for testing)."""
+    if hasattr(predictor, 'data_collector') and predictor.data_collector:
+        await predictor.data_collector.flush()
+        stats_dict = predictor.data_collector.get_stats()
+        return JSONResponse({"status": "flushed", **stats_dict})
+    else:
+        return JSONResponse({"error": "Data collection not enabled"}, status_code=400)
+
+
 def build_app(args: Namespace) -> FastAPI:
     global app
     app.root_path = args.root_path

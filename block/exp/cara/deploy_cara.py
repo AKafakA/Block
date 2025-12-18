@@ -31,6 +31,9 @@ def parse_host_file(filepath: str) -> Dict[str, List[str]]:
     return node_pool
 
 
+    
+
+
 def run_ssh_cmd(host: str, commands: List[str], description: str):
     print(f"[{description}] Connecting to {host}...")
 
@@ -251,20 +254,19 @@ def get_predictor_deployment_commands(
         " true )"
     )
 
-    # Verify processes are up; fail if any did not start
+    # Verify processes are up; fail if any did not start. Print concise summary only.
     ports_list = " ".join(str(p) for p in predictor_ports)
     verify_cmd = (
         "sleep 5 && "
-        "fail=0; "
+        "fail=0; failed_ports=''; "
         f"for p in {ports_list}; do "
-        "if pgrep -f \"block.predictor.cara.cara_predictor_api_server.*--port $p\" >/dev/null; then "
-        "echo \"OK: predictor on $p\"; "
-        "else echo \"FAIL: predictor on $p\"; fail=1; fi; done; "
-        "if [ $fail -ne 0 ]; then echo 'One or more predictors failed to start' 1>&2; exit 1; fi"
+        "if pgrep -f \"block.predictor.cara.cara_predictor_api_server.*--port $p\" >/dev/null; then :; "
+        "else echo \"Predictor failed on port $p\" 1>&2; failed_ports=\"$failed_ports $p\"; fail=1; fi; done; "
+        "if [ $fail -ne 0 ]; then echo \"Failed predictor ports:$failed_ports\" 1>&2; exit 1; fi"
     )
 
-    # Final echo
-    tail_cmd = f"echo 'Deployed {len(predictor_ports)} predictors on ports {predictor_ports}'"
+    # Final echo (concise)
+    tail_cmd = f"echo 'Predictors OK: {len(predictor_ports)}/{len(predictor_ports)}'"
 
     combined = " && ".join([header_cmd, group_cmd, verify_cmd, tail_cmd])
     return [combined]
@@ -321,7 +323,7 @@ def main():
     parser.add_argument("--output", default="block/config/cara/model_deployment.json",
                         help="Output config path")
 
-    parser.add_argument("--models", type=str, default='Qwen-2.5-72B',
+    parser.add_argument("--models", type=str, default=None,
                         help="Comma-separated list of models to deploy (e.g., 'Qwen-2.5-3B' or 'Qwen-2.5-3B,Qwen-2.5-7B'). Deploy all if not specified.")
 
     parser.add_argument("--ollama-num-parallel", type=int, default=4,
@@ -338,6 +340,15 @@ def main():
     parser.add_argument("--host-config", type=str,
                         default="block/config/host_configs.json",
                         help="Path to host config file (contains backend_port and predictor_ports)")
+    parser.add_argument(
+        "-d", "--deploy-services",
+        nargs="+",
+        default=["model_instance", "predictor"],
+        help=(
+            "Services to deploy as a list: model_instance predictor. "
+            "Default: model_instance predictor"
+        )
+    )
 
     args = parser.parse_args()
 
@@ -350,10 +361,15 @@ def main():
         print(f"Error: Config file '{args.config}' not found.")
         sys.exit(1)
 
+    # Determine which services to deploy (list of strings)
+    deploy_services = [s.lower() for s in (args.deploy_services or [])]
+    deploy_model_instances = "model_instance" in deploy_services
+    deploy_predictors_flag = ("predictor" in deploy_services) and args.deploy_predictors
+
     # Load host config and predictor config if deploying predictors
     host_config = None
     predictor_config = None
-    if args.deploy_predictors:
+    if deploy_predictors_flag:
         try:
             with open(args.host_config, 'r') as f:
                 host_config = json.load(f)
@@ -440,26 +456,28 @@ def main():
         precision = details.get('precision', 'fp16')
 
         for host in assigned_hosts:
-            # First, cleanup existing processes
-            cleanup_cmds = get_cleanup_commands(backend)
-            if cleanup_cmds:
-                run_ssh_cmd(host, cleanup_cmds, f"Cleanup ({model_key})")
+            # Optionally cleanup and deploy model instances
+            if deploy_model_instances:
+                # First, cleanup existing processes
+                cleanup_cmds = get_cleanup_commands(backend)
+                if cleanup_cmds:
+                    run_ssh_cmd(host, cleanup_cmds, f"Cleanup ({model_key})")
 
-            # Then deploy backend
-            if backend == "vllm":
-                if vllm_params:
-                    print(f"  vLLM params: {vllm_params}")
-                cmds = get_vllm_commands(hf_name, args.hf_token, precision, vllm_params,
-                                         fresh_deploy=args.fresh_deploy)
-                run_ssh_cmd(host, cmds, f"Deploying vLLM ({model_key})")
-            elif backend == "ollama":
-                print(f"  Ollama parallel requests: {args.ollama_num_parallel}")
-                cmds = get_ollama_commands(hf_name, num_parallel=args.ollama_num_parallel,
-                                           fresh_deploy=args.fresh_deploy)
-                run_ssh_cmd(host, cmds, f"Deploying Ollama ({model_key})")
+                # Then deploy backend
+                if backend == "vllm":
+                    if vllm_params:
+                        print(f"  vLLM params: {vllm_params}")
+                    cmds = get_vllm_commands(hf_name, args.hf_token, precision, vllm_params,
+                                             fresh_deploy=args.fresh_deploy)
+                    run_ssh_cmd(host, cmds, f"Deploying vLLM ({model_key})")
+                elif backend == "ollama":
+                    print(f"  Ollama parallel requests: {args.ollama_num_parallel}")
+                    cmds = get_ollama_commands(hf_name, num_parallel=args.ollama_num_parallel,
+                                               fresh_deploy=args.fresh_deploy)
+                    run_ssh_cmd(host, cmds, f"Deploying Ollama ({model_key})")
 
             # Deploy predictors if requested
-            if args.deploy_predictors:
+            if deploy_predictors_flag:
                 # Extract hostname from "user@hostname" format
                 hostname = host.split("@")[-1] if "@" in host else host
                 # Get backend_port from host_config (single source of truth!)

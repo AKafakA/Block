@@ -46,6 +46,9 @@ class Instance(ABC):
         # Track which predictor was used for each request (for feedback)
         self._request_to_predictor_index = {}
 
+    def get_predictor_flush_urls(self):
+        return [url.replace("/log_actual", "/flush") for url in self._predictor_log_urls]
+
     async def query_predictor(self, request_id: int,
                               num_context_tokens: int,
                               predicted_num_context_tokens: dict):
@@ -67,7 +70,11 @@ class Instance(ABC):
             async with session.post(predict_url, json=predict_parameters, ssl=False, timeout=self._predictor_timeout) as response:
                 response_dict = await response.json()
                 response_dict['instance_id'] = self._instance_id
-                self._predicted_latency[request_id] = response_dict['latency_prediction']
+                # Store known fields defensively; CARA dummy predictor returns 'target_metric'
+                if 'latency_prediction' in response_dict:
+                    self._predicted_latency[request_id] = response_dict['latency_prediction']
+                elif 'target_metric' in response_dict:
+                    self._predicted_latency[request_id] = response_dict['target_metric']
                 return response_dict
 
     @abstractmethod
@@ -166,8 +173,6 @@ class Instance(ABC):
     @property
     def model_name(self):
         return self._model_name
-
-
 
 
 

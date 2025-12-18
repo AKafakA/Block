@@ -5,6 +5,7 @@ import random
 import ssl
 import time
 from argparse import Namespace
+import aiohttp
 from typing import Any, Optional, List
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
@@ -168,6 +169,8 @@ async def init_app(
                 ip_address = host_config[hostname]["ip_address"]
                 predictor_ports = host_config[hostname]["predictor_ports"]
                 backend_port = host_config[hostname]["backend_port"]
+                # Avoid including the backend port in predictor ports
+                predictor_ports = [p for p in predictor_ports if p != backend_port]
                 instance_id = f"{model}_{idx}"
                 if backend_type == "ollama":
                     from block.global_scheduler.cara.cara_instance.ollama_instance import OllamaInstance
@@ -242,6 +245,30 @@ async def run_server(args: Namespace,
         await shutdown_task
     finally:
         logger.info("Server shutdown.")
+        # Flush training data from all predictors across instances
+        try:
+            flush_urls = []
+            for inst in instances:
+                flush_urls.extend(inst.get_predictor_flush_urls())
+
+            if flush_urls:
+                timeout = aiohttp.ClientTimeout(total=15)
+
+                async def _post_flush(session, url):
+                    try:
+                        async with session.post(url, ssl=False) as resp:
+                            await resp.text()
+                            return resp.status
+                    except Exception:
+                        return None
+
+                async with aiohttp.ClientSession(timeout=timeout) as session:
+                    results = await asyncio.gather(*[_post_flush(session, u) for u in flush_urls], return_exceptions=True)
+                success = sum(1 for r in results if isinstance(r, int) and 200 <= r < 300)
+                failed = len(flush_urls) - success
+                logger.info(f"Flushed predictors: {success} ok, {failed} failed")
+        except Exception as e:
+            logger.warning(f"Error flushing predictors on shutdown: {e}")
 
 
 if __name__ == "__main__":

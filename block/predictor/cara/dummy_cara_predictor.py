@@ -80,19 +80,14 @@ class DummyCARAPredictor(CARABasePredictor):
         # Fetch current schedule state
         schedule_state = await self.schedule_client.fetch_schedule_trace()
 
-        # Handle fetch failure
+        # Handle fetch failure: still collect data with a minimal state
         if schedule_state is None:
+            from block.predictor.cara.data_structures import ScheduleState
             logger.warning(
                 f"Failed to fetch schedule_trace for request {target_request.request_id}, "
-                "using fallback values"
+                "proceeding with minimal state for data collection"
             )
-            return {
-                "target_metric": 999999.0,  # High penalty
-                "gpu_blocks": -1,
-                "num_requests": -1,
-                "num_preempted": -1,
-                "predictor_type": "dummy_cara"
-            }
+            schedule_state = ScheduleState(running=[], waiting=[], free_gpu_blocks=0, num_preempted=0)
 
         # Log prediction context for training data collection
         if self.data_collector:
@@ -110,11 +105,20 @@ class DummyCARAPredictor(CARABasePredictor):
         # Compute heuristic-based metric
         target_metric = self._compute_heuristic(schedule_state)
 
+        num_requests = 0
+        try:
+            num_requests = schedule_state.total_requests
+        except Exception:
+            try:
+                num_requests = len(schedule_state.running) + len(schedule_state.waiting)
+            except Exception:
+                num_requests = 0
+
         return {
             "target_metric": target_metric,
-            "gpu_blocks": schedule_state.free_gpu_blocks,
-            "num_requests": schedule_state.total_requests,
-            "num_preempted": schedule_state.num_preempted,
+            "gpu_blocks": getattr(schedule_state, 'free_gpu_blocks', 0),
+            "num_requests": num_requests,
+            "num_preempted": getattr(schedule_state, 'num_preempted', 0),
             "predictor_type": "dummy_cara"
         }
 
