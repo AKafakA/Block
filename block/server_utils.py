@@ -11,9 +11,6 @@ from fastapi import FastAPI
 import aiohttp
 
 from vidur.entities import Request as VidurRequest, Request
-from block.predictor.predictor_config import PredictorConfig
-from block.predictor.dummy_predictor import DummyPredictor
-from block.predictor.simulate_predictor import SimulatePredictor
 
 AIOHTTP_TIMEOUT = aiohttp.ClientTimeout(total=6 * 60 * 60)
 
@@ -75,10 +72,17 @@ async def serve_http(app: FastAPI, **uvicorn_kwargs: Any):
         return server.shutdown()
 
 
-def get_predictor(type_str: str, predictor_config: PredictorConfig, instance_port: int == -1):
+def get_predictor(type_str: str, predictor_config, instance_port: int = -1):
+    """Factory to create a predictor instance.
+
+    Lazy-imports heavy modules to avoid pulling optional dependencies
+    (e.g., sklearn) when not needed.
+    """
     if type_str == "dummy":
+        from block.predictor.dummy_predictor import DummyPredictor
         return DummyPredictor(predictor_config, instance_port)
     elif type_str == "simulate":
+        from block.predictor.simulate_predictor import SimulatePredictor
         return SimulatePredictor(predictor_config, instance_port)
 
 
