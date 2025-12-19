@@ -29,7 +29,7 @@ scheduling = "random"
 served_requests = []
 logging.basicConfig(level=logging.INFO,
                     filemode='a+',
-                    filename='experiment_output/logs/predictor_output.log')
+                    filename='experiment_output/logs/cara_serve.log')
 logger = logging.getLogger(__name__)
 chat = False
 model_family = "Qwen"
@@ -144,9 +144,10 @@ async def completion(request: Request) -> Response:
                     broadcast_results = [res for res in broadcast_results if not isinstance(res, Exception)]
 
                     if broadcast_results:
-                        # Randomly pick one as the main response
-                        response_dict = random.choice(broadcast_results)
-                        # Include all results (including the selected one) in broadcast_results
+                        # Randomly pick one as the main response (make a copy to avoid circular reference)
+                        selected_response = random.choice(broadcast_results)
+                        response_dict = dict(selected_response)
+                        # Include all results in broadcast_results
                         response_dict["broadcast_results"] = broadcast_results
                     else:
                         # All broadcast queries failed
