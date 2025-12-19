@@ -1680,7 +1680,18 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
         )
         label = label or args.backend
         # Include dataset name and size in filename for better tracking
-        dataset_str = f"{args.dataset_name}-{args.num_prompts}" if args.dataset_name else ""
+        # For custom datasets, extract name from path
+        if args.dataset_name == "custom" and args.dataset_path:
+            # Get the last part of the path
+            dataset_basename = args.dataset_path.rstrip('/').split('/')[-1]
+            # Remove file extension if present
+            dataset_name_for_file = os.path.splitext(dataset_basename)[0]
+        elif args.dataset_name:
+            dataset_name_for_file = args.dataset_name
+        else:
+            dataset_name_for_file = ""
+
+        dataset_str = f"{dataset_name_for_file}-{args.num_prompts}" if dataset_name_for_file else ""
         dataset_prefix = f"{dataset_str}-" if dataset_str else ""
 
         if args.ramp_up_strategy is not None:

@@ -125,7 +125,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "-o",
         "--output",
-        default="data/mixed_dataset.jsonl",
+        default="data/best_route.jsonl",
         help="Output path. Defaults to JSONL: data/mixed_dataset.jsonl",
     )
     p.add_argument(
