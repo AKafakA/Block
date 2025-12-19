@@ -61,19 +61,22 @@ async def completion(request: Request) -> Response:
     served_requests.append(request_id)
     selected_instance = None
     if chat:
-        # Append stop words based on model family
-        start_word = STOP_WORD_MAPS[model_family][0]
-        stop_word = STOP_WORD_MAPS[model_family][1]
+        # Use /v1/chat/completions endpoint with messages format
+        # This is cleaner and lets vLLM handle chat template automatically
+        original_prompt = request_json.get("prompt", "")
+        request_json["messages"] = [
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": original_prompt}
+        ]
+        # Signal to vllm_instance to use chat endpoint
+        request_json["use_chat_endpoint"] = True
+        # Remove prompt since we're using messages
+        if "prompt" in request_json:
+            del request_json["prompt"]
 
-        system_prompt = f"{start_word}system\nYou are a helpful assistant.{stop_word}\n"
-        user_part = f"{start_word}user\n{request_json['prompt']}{stop_word}\n"
-        assistant_trigger = f"{start_word}assistant\n"
-
-        # Combine them
-        request_json["prompt"] = system_prompt + user_part + assistant_trigger
-
-        request_json["stop"] = [stop_word, "<|endoftext|>", start_word]
-        request_json["repetition_penalty"] = float(request_json.get("repetition_penalty", repetition_penalty))
+        # Force the server-side repetition_penalty to prevent infinite repetition
+        # Override any client-provided value
+        request_json["repetition_penalty"] = float(repetition_penalty)
     try:
         # CARA: Query predictors before scheduling (for training data collection)
         # Get prompt length from request (sent by benchmark client)

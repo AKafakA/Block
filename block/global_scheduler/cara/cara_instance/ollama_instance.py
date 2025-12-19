@@ -1,6 +1,7 @@
 import asyncio
 import json
 import time
+import codecs
 
 import aiohttp
 
@@ -30,8 +31,9 @@ class OllamaInstance(Instance):
                          backend_port,
                          enable_predictor_feedback,
                          feedback_sample_rate)
-        # Ollama native generation endpoint
-        self.api_url = f"http://{ip_address}:{backend_port}/api/generate"
+        # Store base URLs for both endpoints
+        self.generate_url = f"http://{ip_address}:{backend_port}/api/generate"
+        self.chat_url = f"http://{ip_address}:{backend_port}/api/chat"
 
     async def query_backend(self, payload: dict, headers: dict = None):
 
@@ -45,29 +47,48 @@ class OllamaInstance(Instance):
         error = ""
         server_e2e_latency = 0.0  # Total time from request start to response complete
 
-        # Adapt payload for Ollama API
-        ollama_payload = {
-            "model": self._model_name,
-            "prompt": payload["prompt"],
-            "stream": True,
-            "raw": True,
-            # Add stop tokens at top level (not in options) to prevent infinite repetition
-            "options": {
-                "temperature": 0.0,
-                "repeat_penalty": payload.get("repetition_penalty", 1.0),
-                # Ollama uses 'num_predict' instead of 'max_tokens'
-                "num_predict": min(payload["max_tokens"], 8192),
-                "stop": payload.get("stop", []),
+        # Determine which endpoint to use based on payload
+        use_chat = payload.get("use_chat_endpoint", False)
+        api_url = self.chat_url if use_chat else self.generate_url
+
+        # Build appropriate payload based on endpoint type
+        if use_chat:
+            # Chat endpoint - use messages format
+            ollama_payload = {
+                "model": self._model_name,
+                "messages": payload["messages"],
+                "stream": True,
+                "options": {
+                    "temperature": 0.0,
+                    "repeat_penalty": payload.get("repetition_penalty", 1.0),
+                    "num_predict": min(payload["max_tokens"], 8192),
+                }
             }
-        }
+        else:
+            # Generate endpoint - use prompt format
+            ollama_payload = {
+                "model": self._model_name,
+                "prompt": payload["prompt"],
+                "stream": True,
+                "raw": True,
+                "options": {
+                    "temperature": 0.0,
+                    "repeat_penalty": payload.get("repetition_penalty", 1.0),
+                    "num_predict": min(payload["max_tokens"], 8192),
+                    "stop": payload.get("stop", []),
+                }
+            }
 
         # Ollama generally doesn't require an API key, but we keep headers logic flexible
         if not headers:
             headers = {}
 
+        # Create incremental UTF-8 decoder for robust handling of multi-byte characters
+        decoder = codecs.getincrementaldecoder('utf-8')(errors='strict')
+
         async with aiohttp.ClientSession(timeout=self._backend_timeout) as session:
             try:
-                async with session.post(self.api_url, json=ollama_payload, headers=headers) as response:
+                async with session.post(api_url, json=ollama_payload, headers=headers) as response:
                     if response.status == 200:
                         first_token_with_text_received = False  # Track first token with actual text for TTFT
                         received_done_signal = False  # Track if we got the final done: true chunk
@@ -106,22 +127,24 @@ class OllamaInstance(Instance):
                                 # Reset empty read counter when we get data
                                 empty_read_count = 0
 
-                                line = line.strip()
-                                if not line:
+                                # Use incremental decoder for safe UTF-8 handling
+                                line_str = decoder.decode(line, final=False).strip()
+                                if not line_str:
                                     continue
 
                                 chunks_received += 1
 
                                 # Parse the JSON line
                                 try:
-                                    data = json.loads(line)
+                                    data = json.loads(line_str)
                                     last_chunk_data = data  # Keep track of last valid chunk
                                 except json.JSONDecodeError as je:
                                     # Log the decode error but continue
                                     continue
 
-                                # Process the JSON object
-                                # Ollama response format: {"response": "token", "done": false, ...}
+                                # Process the JSON object based on endpoint type
+                                # Generate format: {"response": "token", "done": false, ...}
+                                # Chat format: {"message": {"content": "token"}, "done": false, ...}
                                 # Final response: {"done": true, "eval_count": 100, ...}
 
                                 if data.get("done"):
@@ -132,7 +155,14 @@ class OllamaInstance(Instance):
                                     success = True  # Successfully received the completion signal
                                     break
                                 else:
-                                    text = data.get("response", "")
+                                    # Extract text based on endpoint type
+                                    if use_chat:
+                                        # Chat format: message.content
+                                        text = data.get("message", {}).get("content", "")
+                                    else:
+                                        # Generate format: response
+                                        text = data.get("response", "")
+
                                     timestamp = time.perf_counter()
 
                                     # TTFT (Time To First Token) - only count if we got actual text

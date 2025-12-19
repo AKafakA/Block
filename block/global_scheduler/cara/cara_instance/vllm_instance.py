@@ -1,6 +1,7 @@
 import json
 import os
 import time
+import codecs
 
 from block.global_scheduler.cara.cara_instance.Instance import Instance
 import aiohttp
@@ -11,11 +12,16 @@ class StreamedResponseHandler:
 
     def __init__(self):
         self.buffer = ""
+        # Use incremental decoder to handle partial UTF-8 sequences correctly
+        # This prevents UnicodeDecodeError when chunks split multi-byte characters
+        self.decoder = codecs.getincrementaldecoder('utf-8')(errors='strict')
 
     def add_chunk(self, chunk_bytes: bytes) -> list[str]:
         """Add a chunk of bytes to the buffer and return any complete
         messages."""
-        chunk_str = chunk_bytes.decode("utf-8")
+        # Incremental decoder handles partial UTF-8 sequences across chunks
+        # It will buffer incomplete byte sequences internally
+        chunk_str = self.decoder.decode(chunk_bytes, final=False)
         self.buffer += chunk_str
 
         messages = []
@@ -68,7 +74,9 @@ class VllmInstance(Instance):
                          backend_port,
                          enable_predictor_feedback,
                          feedback_sample_rate)
-        self.api_url = f"http://{ip_address}:{backend_port}/v1/completions"
+        # Store base URLs for both endpoints
+        self.completions_url = f"http://{ip_address}:{backend_port}/v1/completions"
+        self.chat_completions_url = f"http://{ip_address}:{backend_port}/v1/chat/completions"
 
     async def query_backend(self, payload: dict, headers: dict = None):
 
@@ -84,33 +92,56 @@ class VllmInstance(Instance):
 
         request_id = payload["request_id"]
 
-        vllm_payload = {
-            "model": self._model_name,
-            "prompt": payload["prompt"],
-            "temperature": 0.0,
-            "repetition_penalty": payload.get("repetition_penalty", 1.0),
-            "max_tokens": payload["max_tokens"],
-            "logprobs": None,
-            "stream": True,
-            "stream_options": {
-                "include_usage": True,
-            },
-            # Add stop tokens if provided to prevent infinite repetition
-            "stop": payload.get("stop", []),
-            "request_id": request_id,
-        }
+        # Determine which endpoint to use based on payload
+        use_chat = payload.get("use_chat_endpoint", False)
+        api_url = self.chat_completions_url if use_chat else self.completions_url
+
+        # Build appropriate payload based on endpoint type
+        if use_chat:
+            # Chat completions endpoint - use messages format
+            vllm_payload = {
+                "model": self._model_name,
+                "messages": payload["messages"],
+                "temperature": 0.0,
+                "repetition_penalty": payload.get("repetition_penalty", 1.0),
+                "max_tokens": payload["max_tokens"],
+                "logprobs": None,
+                "stream": True,
+                "stream_options": {
+                    "include_usage": True,
+                },
+                "request_id": request_id,
+            }
+        else:
+            # Completions endpoint - use prompt format
+            vllm_payload = {
+                "model": self._model_name,
+                "prompt": payload["prompt"],
+                "temperature": 0.0,
+                "repetition_penalty": payload.get("repetition_penalty", 1.0),
+                "max_tokens": payload["max_tokens"],
+                "logprobs": None,
+                "stream": True,
+                "stream_options": {
+                    "include_usage": True,
+                },
+                # Add stop tokens if provided to prevent infinite repetition
+                "stop": payload.get("stop", []),
+                "request_id": request_id,
+            }
 
         if not headers:
             headers = {"Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}",
                        # required for the old version of vLLM server use the header to pass request ID
                        "X-Request-Id" : str(request_id)}
         async with aiohttp.ClientSession(timeout=self._backend_timeout) as session:
-            async with session.post(self.api_url, json=vllm_payload, ssl=False, headers=headers) as response:
+            async with session.post(api_url, json=vllm_payload, ssl=False, headers=headers) as response:
                 if response.status == 200:
                     first_chunk_received = False
                     handler = StreamedResponseHandler()
                     async for chunk_bytes in response.content.iter_any():
-                        chunk_bytes = chunk_bytes.strip()
+                        # Only strip leading whitespace to preserve SSE delimiters (\n\n)
+                        chunk_bytes = chunk_bytes.lstrip()
                         if not chunk_bytes:
                             continue
                         messages = handler.add_chunk(chunk_bytes)
@@ -128,9 +159,16 @@ class VllmInstance(Instance):
                                 # usage summary response without a token so we
                                 # want to check a token was generated
                                 if choices := data.get("choices"):
-                                    # Note that text could be empty here
-                                    # e.g. for special tokens
-                                    text = choices[0].get("text")
+                                    # Extract text based on endpoint type
+                                    # Chat: choices[0]["delta"]["content"]
+                                    # Completions: choices[0]["text"]
+                                    if use_chat:
+                                        # Chat completions format
+                                        text = choices[0].get("delta", {}).get("content", "")
+                                    else:
+                                        # Completions format
+                                        text = choices[0].get("text", "")
+
                                     timestamp = time.perf_counter()
                                     # First token
                                     if not first_chunk_received:

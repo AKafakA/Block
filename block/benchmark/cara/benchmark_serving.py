@@ -858,22 +858,8 @@ async def benchmark(
             "request_goodput": metrics.request_goodput if goodput_config_dict else None,
             "output_throughput": metrics.output_throughput,
             "total_token_throughput": metrics.total_token_throughput,
-            "prompts": [request.prompt for request in input_requests],
-            "input_lens": [output.prompt_len for output in outputs],
-            "output_lens": actual_output_lens,
-            "ttfts": [output.ttft for output in outputs],
-            "itls": [output.itl for output in outputs],
-            "e2els": [output.latency for output in outputs],
-            "generated_texts": [output.generated_text for output in outputs],
-            "errors": [output.error for output in outputs],
             "max_output_tokens_per_s": metrics.max_output_tokens_per_s,
             "max_concurrent_requests": metrics.max_concurrent_requests,
-            # CARA-specific: scheduling overhead (network + routing overhead)
-            "scheduling_overheads": [output.scheduling_overhead for output in outputs],
-            # CARA-specific: heterogeneous model environment tracking
-            "models": [output.model for output in outputs],
-            "hosts": [output.host for output in outputs],
-            "instance_ids": [output.instance_id for output in outputs],
         }
         # CARA-specific: add unified per-request records for easier analysis
         # Map save_detailed metric names to per-request keys
@@ -906,7 +892,7 @@ async def benchmark(
             for k in per_req_keys:
                 req.setdefault(k, None)
             reqs.append(req)
-        result["requests"] = reqs
+        result["response_details"] = reqs
     else:
         result = {
             "duration": benchmark_duration,
@@ -1283,13 +1269,12 @@ def add_cli_args(parser: argparse.ArgumentParser):
     )
     parser.add_argument(
         "--save-detailed",
-        nargs="*",
-        default=["prompts", "response", "models"],
-        help="When saving the results, specify which per-requests detailed metrics to save. "
-        "Available metrics: prompts, response, ttft, itl, e2el, input_lens, "
-        "output_lens, scheduling_overheads, errors, models, hosts, instance_ids. "
-        "Example: --save-detailed ttft itl response models hosts. "
-        "If not specified, detailed metrics are not saved.",
+        action="store_true",
+        help="When saving the results, include the response_details field "
+        "containing all per-request metrics (request_id, prompt, input_len, "
+        "output_len, response, ttft, itl, e2el, scheduling_overhead, model, "
+        "host, instance_id, error, broadcast_results). "
+        "If not specified, only summary metrics are saved.",
     )
     parser.add_argument(
         "--append-result",
@@ -1497,10 +1482,6 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
     random.seed(args.seed)
     np.random.seed(args.seed)
 
-    # Auto-enable save_result if save_detailed is specified
-    if args.save_detailed is not None and len(args.save_detailed) > 0:
-        args.save_result = True
-
     # Validate ramp-up arguments
     if args.ramp_up_strategy is not None:
         if args.request_rate != float("inf"):
@@ -1683,83 +1664,10 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
     # Merge with benchmark result
     result_json = {**result_json, **benchmark_result}
 
-    # Handle selective saving of detailed metrics
-    # Map metric names to their corresponding field names in the result
-    metric_to_field = {
-        "prompts": "prompts",
-        "response": "generated_texts",
-        "ttft": "ttfts",
-        "itl": "itls",
-        "e2el": "e2els",
-        "input_lens": "input_lens",
-        "output_lens": "output_lens",
-        "scheduling_overheads": "scheduling_overheads",
-        "errors": "errors",
-        # CARA-specific: heterogeneous model environment tracking
-        "models": "models",
-        "hosts": "hosts",
-        "instance_ids": "instance_ids",
-        "broadcast_results": "broadcast_results"
-    }
-    # Mapping to per-request dict keys
-    detailed_to_request_key = {
-        "prompts": "prompt",
-        "response": "response",
-        "ttft": "ttft",
-        "itl": "itl",
-        "e2el": "e2el",
-        "input_lens": "input_len",
-        "output_lens": "output_len",
-        "scheduling_overheads": "scheduling_overhead",
-        "errors": "error",
-        "models": "model",
-        "hosts": "host",
-        "instance_ids": "instance_id",
-        "broadcast_results": "broadcast_result"
-    }
-
-    # All possible detailed fields
-    all_detailed_fields = set(metric_to_field.values())
-
-    # Determine which fields to keep
-    if args.save_detailed is None or len(args.save_detailed) == 0:
-        # If --save-detailed is not specified or empty, remove all detailed fields
-        fields_to_remove = all_detailed_fields
-        selected_detailed = set()
-    else:
-        # Validate specified metrics
-        valid_metrics = set(metric_to_field.keys())
-        for metric in args.save_detailed:
-            if metric not in valid_metrics:
-                raise ValueError(
-                    f"Invalid metric '{metric}' specified in --save-detailed. "
-                    f"Valid metrics are: {', '.join(sorted(valid_metrics))}"
-                )
-
-        # Keep only specified metrics, remove all others
-        fields_to_keep = {metric_to_field[m] for m in args.save_detailed}
-        fields_to_remove = all_detailed_fields - fields_to_keep
-        selected_detailed = set(args.save_detailed)
-
-    # Remove unwanted fields
-    for field in fields_to_remove:
-        if field in result_json:
-            del result_json[field]
-        if field in benchmark_result:
-            del benchmark_result[field]
-
-    # Also prune per-request dicts according to save_detailed, leaving keys with None for non-selected metrics
-    if "requests" in result_json:
-        req_key_set = set(detailed_to_request_key.values())
-        for req in result_json["requests"]:
-            for metric_name, key in detailed_to_request_key.items():
-                if args.save_detailed is None or len(args.save_detailed) == 0:
-                    # No detailed fields selected: set all per-request keys to None
-                    if key in req:
-                        req[key] = None
-                else:
-                    if metric_name not in selected_detailed and key in req:
-                        req[key] = None
+    # If --save-detailed is not set, remove the response_details field
+    if not args.save_detailed:
+        if "response_details" in result_json:
+            del result_json["response_details"]
 
     # Save to file
     if args.save_result or args.append_result:
