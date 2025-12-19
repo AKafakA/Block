@@ -1699,6 +1699,7 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
         "models": "models",
         "hosts": "hosts",
         "instance_ids": "instance_ids",
+        "broadcast_results": "broadcast_results"
     }
     # Mapping to per-request dict keys
     detailed_to_request_key = {
@@ -1714,6 +1715,7 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
         "models": "model",
         "hosts": "host",
         "instance_ids": "instance_id",
+        "broadcast_results": "broadcast_result"
     }
 
     # All possible detailed fields
