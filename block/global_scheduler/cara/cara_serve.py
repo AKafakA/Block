@@ -63,10 +63,6 @@ async def completion(request: Request) -> Response:
     if chat:
         # Use /v1/chat/completions endpoint with messages format
         # This is cleaner and lets vLLM handle chat template automatically
-        original_prompt = request_json.get("prompt", "")
-        request_json["messages"] = [
-            {"role": "user", "content": original_prompt}
-        ]
         # Signal to vllm_instance to use chat endpoint
         request_json["use_chat_endpoint"] = True
         # Remove prompt since we're using messages
