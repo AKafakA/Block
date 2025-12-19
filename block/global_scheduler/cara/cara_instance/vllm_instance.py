@@ -105,12 +105,12 @@ class VllmInstance(Instance):
                     {"role": "user", "content": payload["prompt"]},
                 ],
                 "temperature": 0.0,
+                "repetition_penalty": payload.get("repetition_penalty", 1.0),
                 "max_completion_tokens": payload["max_tokens"],
                 "stream": True,
                 "stream_options": {
                     "include_usage": True,
                 },
-                "request_id": request_id,
             }
         else:
             # Completions endpoint - use prompt format
