@@ -141,7 +141,7 @@ class VllmInstance(Instance):
                     handler = StreamedResponseHandler()
                     async for chunk_bytes in response.content.iter_any():
                         # Only strip leading whitespace to preserve SSE delimiters (\n\n)
-                        # chunk_bytes = chunk_bytes.lstrip()
+                        chunk_bytes = chunk_bytes.strip()
                         if not chunk_bytes:
                             continue
                         messages = handler.add_chunk(chunk_bytes)
