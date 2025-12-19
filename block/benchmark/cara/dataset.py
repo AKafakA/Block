@@ -52,6 +52,7 @@ class LmsysDataset(BenchmarkDataset):
         enable_multimodal_chat: bool = False,
         request_id_prefix: str = "",
         no_oversample: bool = False,
+        max_total_len: int = 2048,
         **kwargs,
     ) -> list:
         samples: list = []
@@ -71,6 +72,7 @@ class LmsysDataset(BenchmarkDataset):
             if not is_valid_sequence(
                 prompt_len,
                 new_output_len,
+                max_total_len=max_total_len,
                 skip_min_output_len_check=output_len is not None,
             ):
                 continue
