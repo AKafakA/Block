@@ -26,7 +26,7 @@ import aiohttp
 import numpy as np
 from tqdm.asyncio import tqdm
 
-from vllm.benchmarks.datasets import SampleRequest, add_dataset_parser, get_samples
+from vllm.benchmarks.datasets import SampleRequest, add_dataset_parser
 from vllm.benchmarks.lib.endpoint_request_func import (
     ASYNC_REQUEST_FUNCS,
     OPENAI_COMPATIBLE_BACKENDS,
@@ -42,6 +42,7 @@ from transformers import PreTrainedTokenizerBase
 
 
 from block.benchmark.cara.cara_end_point_func import RequestFuncOutput, CARA_ASYNC_REQUEST_FUNCS
+from block.benchmark.cara.dataset import get_samples
 from block.global_scheduler.cara.utils import set_ulimit
 
 # Merge CARA async request functions with vLLM's request functions
