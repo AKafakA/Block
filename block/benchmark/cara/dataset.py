@@ -5,7 +5,7 @@ import os
 import random
 
 import pandas as pd
-from vllm.benchmarks.datasets import BenchmarkDataset, is_valid_sequence, SampleRequest
+from vllm.benchmarks.datasets import BenchmarkDataset, is_valid_sequence, SampleRequest, CustomDataset
 from transformers import PreTrainedTokenizerBase
 
 # -----------------------------------------------------------------------------
@@ -93,7 +93,7 @@ class LmsysDataset(BenchmarkDataset):
 # Add the new Lmsys dataset to the dataset loader without modifying vLLM code.
 # -----------------------------------------------------------------------------
 def get_samples(args, tokenizer) -> list[SampleRequest]:
-    if args.dataset_name == "lmsys":
+    if args.dataset_name == "custom" and args.dataset_path.endswith("lmsys"):
         dataset = LmsysDataset(
             dataset_path=args.dataset_path,
             random_seed=args.random_seed,
