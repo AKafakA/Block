@@ -107,6 +107,7 @@ def get_samples(args, tokenizer) -> list[SampleRequest]:
             skip_chat_template=args.skip_chat_template,
             request_id_prefix=args.request_id_prefix,
             no_oversample=args.no_oversample,
+            max_total_len=args.max_total_len,
         )
         return input_requests
     else:
