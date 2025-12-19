@@ -29,8 +29,8 @@ class LmsysDataset(BenchmarkDataset):
         dataset_list = []
         for file in os.listdir(dataset_path):
             path = os.path.join(dataset_path, file)
-            assert file.endswith('.parquet'), "Only parquet files are supported."
-            dataset_list.extend(pd.read_parquet(path).to_dict(orient='records'))
+            if file.endswith('.parquet'):
+                dataset_list.extend(pd.read_parquet(path).to_dict(orient='records'))
 
         self.data = [
             data for data in dataset_list
