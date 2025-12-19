@@ -35,7 +35,7 @@ class LmsysDataset(BenchmarkDataset):
         self.data = [
             data for data in dataset_list
             if (
-                    ("conversation" in data and len(data["conversations"]) >= 2)
+                    ("conversation" in data and len(data["conversation"]) >= 2)
             )
         ]
         random.seed(self.random_seed)
