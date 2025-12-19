@@ -100,16 +100,16 @@ class VllmInstance(Instance):
         if use_chat:
             # Chat completions endpoint - use messages format
             vllm_payload = {
-                "model": self._model_name,
-                "messages": payload["messages"],
+                "model":self._model_name,
+                "messages": [
+                    {"role": "user", "content": payload["prompt"]},
+                ],
                 "temperature": 0.0,
-                "repetition_penalty": payload.get("repetition_penalty", 1.0),
                 "max_completion_tokens": payload["max_tokens"],
                 "stream": True,
                 "stream_options": {
                     "include_usage": True,
                 },
-                "request_id": request_id,
             }
         else:
             # Completions endpoint - use prompt format
