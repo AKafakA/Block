@@ -119,14 +119,11 @@ class VllmInstance(Instance):
                 "prompt": payload["prompt"],
                 "temperature": 0.0,
                 "repetition_penalty": payload.get("repetition_penalty", 1.0),
-                "max_tokens": payload["max_tokens"],
-                "logprobs": None,
+                "max_completion_tokens": payload["max_tokens"],
                 "stream": True,
                 "stream_options": {
                     "include_usage": True,
                 },
-                # Add stop tokens if provided to prevent infinite repetition
-                "stop": payload.get("stop", []),
                 "request_id": request_id,
             }
 
@@ -141,7 +138,7 @@ class VllmInstance(Instance):
                     handler = StreamedResponseHandler()
                     async for chunk_bytes in response.content.iter_any():
                         # Only strip leading whitespace to preserve SSE delimiters (\n\n)
-                        chunk_bytes = chunk_bytes.strip()
+                        chunk_bytes = chunk_bytes.lstrip()
                         if not chunk_bytes:
                             continue
                         messages = handler.add_chunk(chunk_bytes)
