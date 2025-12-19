@@ -34,6 +34,8 @@ logger = logging.getLogger(__name__)
 chat = False
 model_family = "Qwen"
 repetition_penalty = 1.0
+broadcasting_enabled = False
+broadcast_model_list: list[str] = []
 
 
 def to_ollama_tag(hf_name: str) -> str:
@@ -101,21 +103,85 @@ async def completion(request: Request) -> Response:
             logger.warning(f"Request {request_id}: Predictor query failed: {e}")
             predictions = []
 
-        # Continue with existing scheduling strategy (random/round-robin)
-        # NOTE: For now, we ignore predictions and just use random/round-robin
-        # The predictions are logged for training data collection only
-        if scheduling == "random":
-            selected_instance = random.choice(instances)
-        elif scheduling == "round_robin":
-            selected_instance = instances[num_requests % len(instances)]
-        else:
-            selected_instance = random.choice(instances)
+        # Broadcasting mode: query one instance per selected model, pick one as main response
+        # Non-broadcasting mode: use random/round-robin selection
+        if broadcasting_enabled and broadcast_model_list:
+            # Normalize model names for matching (support HF name or Ollama tag)
+            def _norm(name: str) -> str:
+                return name.strip().lower()
 
-        response_dict = await selected_instance.query_instance(
-            request_json,
-            # Pass predicted output tokens for future extension
-            predicted_num_decode_tokens=max_output_tokens
-        )
+            # Build a set of normalized targets including possible tag forms
+            target_norms = set()
+            for m in broadcast_model_list:
+                try:
+                    tag = to_ollama_tag(m)
+                except Exception:
+                    tag = m
+                target_norms.add(_norm(m))
+                target_norms.add(_norm(tag))
+
+            # Pick at most one instance per requested model
+            chosen: dict[str, Instance] = {}
+            for inst in instances:
+                model_key = _norm(inst._model_name)
+                if model_key in target_norms and inst._model_name not in chosen:
+                    chosen[inst._model_name] = inst
+
+            # Launch queries to all chosen instances in parallel
+            tasks = []
+            for model_name, inst in chosen.items():
+                # Avoid mutating original payload across concurrent requests
+                payload_copy = json.loads(json.dumps(request_json))
+                tasks.append(inst.query_instance(
+                    payload_copy,
+                    predicted_num_decode_tokens=max_output_tokens
+                ))
+
+            if tasks:
+                try:
+                    broadcast_results = await asyncio.gather(*tasks, return_exceptions=True)
+                    # Filter out exceptions
+                    broadcast_results = [res for res in broadcast_results if not isinstance(res, Exception)]
+
+                    if broadcast_results:
+                        # Randomly pick one as the main response
+                        response_dict = random.choice(broadcast_results)
+                        # Include all results (including the selected one) in broadcast_results
+                        response_dict["broadcast_results"] = broadcast_results
+                    else:
+                        # All broadcast queries failed
+                        response_dict = {
+                            "success": False,
+                            "error": "All broadcast queries failed",
+                            "request_id": request_id,
+                        }
+                except Exception as e:
+                    response_dict = {
+                        "success": False,
+                        "error": f"Broadcasting failed: {str(e)}",
+                        "request_id": request_id,
+                    }
+            else:
+                # No instances matched the broadcast model list
+                response_dict = {
+                    "success": False,
+                    "error": f"No instances found for broadcast models: {broadcast_model_list}",
+                    "request_id": request_id,
+                }
+        else:
+            # Non-broadcasting mode: use existing random/round-robin selection
+            if scheduling == "random":
+                selected_instance = random.choice(instances)
+            elif scheduling == "round_robin":
+                selected_instance = instances[num_requests % len(instances)]
+            else:
+                selected_instance = random.choice(instances)
+
+            response_dict = await selected_instance.query_instance(
+                request_json,
+                predicted_num_decode_tokens=max_output_tokens
+            )
+
         return JSONResponse(content=response_dict)
     except Exception as e:
         logger.error(f"Error processing request {request_id}: {e}")
@@ -148,11 +214,13 @@ async def init_app(
         instances_list: Optional[List[Instance]] = None,
 ) -> FastAPI:
     app = build_app(args)
-    global instances, start_time, scheduling, chat, model_family, repetition_penalty
+    global instances, start_time, scheduling, chat, model_family, repetition_penalty, broadcasting_enabled, broadcast_model_list
     chat = args.chat
     model_family = args.model_family
     repetition_penalty = args.repetition_penalty
     model_config_path = args.model_config_path
+    broadcasting_enabled = bool(getattr(args, "broadcasting", False))
+    broadcast_model_list = list(getattr(args, "selected_broadcasted_models", []) or [])
 
     model_dict = json.load(open(model_config_path))
     host_config = json.load(open(args.host_config))
@@ -311,6 +379,10 @@ if __name__ == "__main__":
                         help="Enable sending actual metrics back to predictor for training data collection")
     parser.add_argument("--feedback-sample-rate", type=float, default=1.0,
                         help="Sampling rate for predictor feedback (0.0 to 1.0). Only applies when --enable-predictor-feedback is set")
+    parser.add_argument("--broadcasting", action="store_true",
+                        help="Enable broadcasting to one instance per selected model for data collection")
+    parser.add_argument("--selected-broadcasted-models", nargs='+', default=[],
+                        help="List of model names/tags to broadcast to when broadcasting is enabled")
     args = parser.parse_args()
     logger.info("Starting server with args: %s", str(args))
 

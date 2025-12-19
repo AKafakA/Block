@@ -875,6 +875,38 @@ async def benchmark(
             "hosts": [output.host for output in outputs],
             "instance_ids": [output.instance_id for output in outputs],
         }
+        # CARA-specific: add unified per-request records for easier analysis
+        # Map save_detailed metric names to per-request keys
+        per_req_keys = [
+            "request_id", "prompt", "input_len", "output_len", "response",
+            "ttft", "itl", "e2el", "scheduling_overhead", "model", "host",
+            "instance_id", "error", "broadcast_results"
+        ]
+        # Build per-request dicts (fill None for non-selected fields later)
+        reqs = []
+        for i in range(len(outputs)):
+            out = outputs[i]
+            req = {
+                "request_id": getattr(out, "request_id", str(i)),
+                "prompt": input_requests[i].prompt if i < len(input_requests) else None,
+                "input_len": out.prompt_len,
+                "output_len": actual_output_lens[i] if i < len(actual_output_lens) else None,
+                "response": out.generated_text,
+                "ttft": out.ttft,
+                "itl": out.itl,
+                "e2el": out.latency,
+                "scheduling_overhead": out.scheduling_overhead,
+                "model": out.model,
+                "host": out.host,
+                "instance_id": out.instance_id,
+                "error": out.error,
+                "broadcast_results": getattr(out, "broadcast_results", []),
+            }
+            # Ensure all expected keys exist
+            for k in per_req_keys:
+                req.setdefault(k, None)
+            reqs.append(req)
+        result["requests"] = reqs
     else:
         result = {
             "duration": benchmark_duration,
@@ -1668,6 +1700,21 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
         "hosts": "hosts",
         "instance_ids": "instance_ids",
     }
+    # Mapping to per-request dict keys
+    detailed_to_request_key = {
+        "prompts": "prompt",
+        "response": "response",
+        "ttft": "ttft",
+        "itl": "itl",
+        "e2el": "e2el",
+        "input_lens": "input_len",
+        "output_lens": "output_len",
+        "scheduling_overheads": "scheduling_overhead",
+        "errors": "error",
+        "models": "model",
+        "hosts": "host",
+        "instance_ids": "instance_id",
+    }
 
     # All possible detailed fields
     all_detailed_fields = set(metric_to_field.values())
@@ -1676,6 +1723,7 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
     if args.save_detailed is None or len(args.save_detailed) == 0:
         # If --save-detailed is not specified or empty, remove all detailed fields
         fields_to_remove = all_detailed_fields
+        selected_detailed = set()
     else:
         # Validate specified metrics
         valid_metrics = set(metric_to_field.keys())
@@ -1689,6 +1737,7 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
         # Keep only specified metrics, remove all others
         fields_to_keep = {metric_to_field[m] for m in args.save_detailed}
         fields_to_remove = all_detailed_fields - fields_to_keep
+        selected_detailed = set(args.save_detailed)
 
     # Remove unwanted fields
     for field in fields_to_remove:
@@ -1696,6 +1745,19 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
             del result_json[field]
         if field in benchmark_result:
             del benchmark_result[field]
+
+    # Also prune per-request dicts according to save_detailed, leaving keys with None for non-selected metrics
+    if "requests" in result_json:
+        req_key_set = set(detailed_to_request_key.values())
+        for req in result_json["requests"]:
+            for metric_name, key in detailed_to_request_key.items():
+                if args.save_detailed is None or len(args.save_detailed) == 0:
+                    # No detailed fields selected: set all per-request keys to None
+                    if key in req:
+                        req[key] = None
+                else:
+                    if metric_name not in selected_detailed and key in req:
+                        req[key] = None
 
     # Save to file
     if args.save_result or args.append_result:

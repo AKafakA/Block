@@ -42,6 +42,7 @@ class RequestFuncOutput:
     scheduling_overhead: float = 0.0  # CARA-specific: client E2E - server E2E = network + CARA routing
     instance_id: str = ""  # Instance that handled the request
     host: str = ""  # Host IP address of the instance
+    broadcast_results: list[dict] = field(default_factory=list)  # Broadcasting: responses from all queried models
 
 
 async def async_request_cara_openai_completions(
@@ -102,6 +103,9 @@ async def async_request_cara_openai_completions(
                     output.model = response_map.get("model", "")
                     output.instance_id = response_map.get("instance_id", "")
                     output.host = response_map.get("host", "")
+
+                    # Extract broadcast results if present (when broadcasting is enabled)
+                    output.broadcast_results = response_map.get("broadcast_results", [])
 
                     # Get server-side E2E latency (reported by backend instance)
                     server_latency = response_map.get("server_latency", 0.0)
