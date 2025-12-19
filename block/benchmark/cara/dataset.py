@@ -96,8 +96,7 @@ def get_samples(args, tokenizer) -> list[SampleRequest]:
     if args.dataset_name == "custom" and args.dataset_path.endswith("lmsys"):
         dataset = LmsysDataset(
             dataset_path=args.dataset_path,
-            random_seed=args.random_seed,
-            disable_shuffle=args.disable_shuffle,
+            random_seed=args.seed
         )
         input_requests = dataset.sample(
             num_requests=args.num_prompts,
