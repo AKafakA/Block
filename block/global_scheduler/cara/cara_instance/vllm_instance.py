@@ -111,6 +111,7 @@ class VllmInstance(Instance):
                 "stream_options": {
                     "include_usage": True,
                 },
+                "request_id": str(request_id),
             }
         else:
             # Completions endpoint - use prompt format
@@ -125,7 +126,7 @@ class VllmInstance(Instance):
                 "stream_options": {
                     "include_usage": True,
                 },
-                "request_id": request_id,
+                "request_id": str(request_id),
             }
 
         if not headers:
