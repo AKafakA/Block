@@ -15,6 +15,7 @@ echo "Install CUDA and dependencies on all hosts..."
 parallel-ssh -t 0 -h block/config/hosts "sudo apt update && sudo apt full-upgrade -y"
 parallel-ssh -t 0 -h block/config/hosts "sudo apt install -y python3-pip python3-venv ccache"
 parallel-ssh -t 0 -h block/config/hosts "pip install --upgrade pip"
+parallel-ssh -t 0 -h block/config/hosts "git clone ${BLOCK_GITHUB_LINK} && cd Block && git checkout cara  && pip install -r requirements.txt"
 parallel-ssh -t 0 -h block/config/hosts "pip3 install torch torchvision"
 parallel-ssh -t 0 -h block/config/hosts "pip install dacite"
 parallel-ssh -t 0 -h block/config/hosts "wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-ubuntu2004.pin && sudo mv cuda-ubuntu2004.pin /etc/apt/preferences.d/cuda-repository-pin-600"
@@ -40,7 +41,7 @@ parallel-ssh -t 0 -h block/config/ampere_hosts  "cd vllm && sudo VLLM_USE_PRECOM
 parallel-ssh -t 0 -h block/config/ampere_hosts "git clone ${BLOCK_GITHUB_LINK} && cd Block && git checkout cara  && pip install -r requirements.txt"
 parallel-ssh -t 0 -h block/config/volta_hosts "git clone ${VLLM_GITHUB_LINK} && cd vllm && git checkout cara_v_11"
 parallel-ssh -t 0 -h block/config/volta_hosts  "cd vllm && sudo VLLM_USE_PRECOMPILED=1 pip install --editable ."
-parallel-ssh -t 0 -h block/config/volta_hosts "git clone ${BLOCK_GITHUB_LINK} && cd Block && git checkout cara  && pip install -r requirements.txt"
+
 
 
 
@@ -58,5 +59,3 @@ parallel-ssh -t 0 -h block/config/pascal_hosts "pip install xformers"
 # We explicit set TORCH_CUDA_ARCH_LIST=6.0 to force the compiler to generate Pascal (sm_60) binaries.
 # We pass the env var into sudo to ensure the build process sees it.
 parallel-ssh -t 0 -h block/config/pascal_hosts "cd vllm && sudo CUDACXX=/usr/local/cuda-12.8/bin/nvcc TORCH_CUDA_ARCH_LIST=6.0 MAX_JOBS=7 CMAKE_BUILD_PARALLEL_LEVEL=7 pip install --editable ."
-# 5. Install Block Repo (Standard setup)
-parallel-ssh -t 0 -h block/config/pascal_hosts "git clone ${BLOCK_GITHUB_LINK} && cd Block && git checkout cara && pip install -r requirements.txt"
