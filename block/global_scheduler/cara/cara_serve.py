@@ -36,6 +36,7 @@ model_family = "Qwen"
 repetition_penalty = 1.0
 broadcasting_enabled = False
 broadcast_model_list: list[str] = []
+enable_predictor_feedback = False
 
 
 def to_ollama_tag(hf_name: str) -> str:
@@ -72,32 +73,35 @@ async def completion(request: Request) -> Response:
         request_json["repetition_penalty"] = float(repetition_penalty)
     try:
         # CARA: Query predictors before scheduling (for training data collection)
-        # Get prompt length from request (sent by benchmark client)
+        # Only query predictors if feedback is enabled
         num_prompt_tokens = request_json.get("prompt_len", 0)
         max_output_tokens = request_json.get("max_tokens", 256)
 
-        # Build predicted_num_context_tokens dict for all models
-        predicted_num_context_tokens = {}
-        for instance in instances:
-            predicted_num_context_tokens[instance._model_name] = max_output_tokens
+        if enable_predictor_feedback:
+            # Build predicted_num_context_tokens dict for all models
+            predicted_num_context_tokens = {}
+            for instance in instances:
+                predicted_num_context_tokens[instance._model_name] = max_output_tokens
 
-        # Query all instance predictors (for training data collection)
-        prediction_tasks = []
-        for instance in instances:
-            prediction_task = instance.query_predictor(
-                request_id=request_id,
-                num_context_tokens=num_prompt_tokens,
-                predicted_num_context_tokens=predicted_num_context_tokens
-            )
-            prediction_tasks.append(prediction_task)
+            # Query all instance predictors (for training data collection)
+            prediction_tasks = []
+            for instance in instances:
+                prediction_task = instance.query_predictor(
+                    request_id=request_id,
+                    num_context_tokens=num_prompt_tokens,
+                    predicted_num_context_tokens=predicted_num_context_tokens
+                )
+                prediction_tasks.append(prediction_task)
 
-        # Wait for all predictions (run in parallel)
-        try:
-            predictions = await asyncio.gather(*prediction_tasks, return_exceptions=True)
-            logger.debug(f"Request {request_id}: Collected {len(predictions)} predictions")
-        except Exception as e:
-            logger.warning(f"Request {request_id}: Predictor query failed: {e}")
-            predictions = []
+            # Wait for all predictions (run in parallel)
+            try:
+                predictions = await asyncio.gather(*prediction_tasks, return_exceptions=True)
+                logger.debug(f"Request {request_id}: Collected {len(predictions)} predictions")
+            except Exception as e:
+                logger.warning(f"Request {request_id}: Predictor query failed: {e}")
+                predictions = []
+        else:
+            logger.debug(f"Request {request_id}: Skipping predictor queries (feedback disabled)")
 
         # Broadcasting mode: query one instance per selected model, pick one as main response
         # Non-broadcasting mode: use random/round-robin selection
@@ -211,13 +215,14 @@ async def init_app(
         instances_list: Optional[List[Instance]] = None,
 ) -> FastAPI:
     app = build_app(args)
-    global instances, start_time, scheduling, chat, model_family, repetition_penalty, broadcasting_enabled, broadcast_model_list
+    global instances, start_time, scheduling, chat, model_family, repetition_penalty, broadcasting_enabled, broadcast_model_list, enable_predictor_feedback
     chat = args.chat
     model_family = args.model_family
     repetition_penalty = args.repetition_penalty
     model_config_path = args.model_config_path
     broadcasting_enabled = bool(getattr(args, "broadcasting", False))
     broadcast_model_list = list(getattr(args, "selected_broadcasted_models", []) or [])
+    enable_predictor_feedback = args.enable_predictor_feedback
 
     model_dict = json.load(open(model_config_path))
     host_config = json.load(open(args.host_config))
@@ -310,7 +315,11 @@ async def run_server(args: Namespace,
         await shutdown_task
     finally:
         logger.info("Server shutdown.")
-        # Flush training data from all predictors across instances
+        # Flush training data from all predictors across instances (only if feedback is enabled)
+        if not args.enable_predictor_feedback:
+            logger.info("Predictor feedback disabled, skipping flush on shutdown.")
+            return
+
         try:
             flush_urls = []
             for inst in instances:
