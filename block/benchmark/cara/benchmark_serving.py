@@ -26,14 +26,17 @@ import aiohttp
 import numpy as np
 from tqdm.asyncio import tqdm
 
-from vllm.benchmarks.datasets import SampleRequest, add_dataset_parser
-from vllm.benchmarks.lib.endpoint_request_func import (
+# Use compatibility layer for vLLM benchmarks (supports both old and new vLLM versions)
+from block.benchmark.cara.vllm_compat import (
+    SampleRequest,
+    add_dataset_parser,
     ASYNC_REQUEST_FUNCS,
     OPENAI_COMPATIBLE_BACKENDS,
-    RequestFuncInput
+    RequestFuncInput,
+    wait_for_endpoint,
+    convert_to_pytorch_benchmark_format,
+    write_to_json,
 )
-from vllm.benchmarks.lib.ready_checker import wait_for_endpoint
-from vllm.benchmarks.lib.utils import convert_to_pytorch_benchmark_format, write_to_json
 from vllm.transformers_utils.tokenizer import get_tokenizer
 from vllm.utils.gc_utils import freeze_gc_heap
 from vllm.utils.network_utils import join_host_port
@@ -1187,7 +1190,7 @@ def add_cli_args(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--model",
         type=str,
-        default="Qwen/Qwen2.5-72B",
+        default="Qwen/Qwen2.5-3B",
         help="Name of the model running at cara service also, so we can use its tokenizer to avoid redownloading.",
     )
     parser.add_argument(

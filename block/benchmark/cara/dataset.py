@@ -5,7 +5,14 @@ import os
 import random
 
 import pandas as pd
-from vllm.benchmarks.datasets import BenchmarkDataset, is_valid_sequence, SampleRequest, CustomDataset
+
+# Use compatibility layer for vLLM benchmarks (supports both old and new vLLM versions)
+from block.benchmark.cara.vllm_compat import (
+    BenchmarkDataset,
+    is_valid_sequence,
+    SampleRequest,
+    CustomDataset,
+)
 from transformers import PreTrainedTokenizerBase
 
 # -----------------------------------------------------------------------------
@@ -111,6 +118,6 @@ def get_samples(args, tokenizer) -> list[SampleRequest]:
         )
         return input_requests
     else:
-        from vllm.benchmarks.datasets import get_samples
-        return get_samples(args, tokenizer)
+        from block.benchmark.cara.vllm_compat import vllm_get_samples
+        return vllm_get_samples(args, tokenizer)
 

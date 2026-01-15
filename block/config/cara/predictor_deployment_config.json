@@ -1,6 +1,4 @@
 {
-  "predictor_start_port": 8100,
-  "num_predictors_per_instance": 4,
   "predictor_type": "dummy",
   "schedule_trace_timeout": 5,
   "enable_data_collection": true,
