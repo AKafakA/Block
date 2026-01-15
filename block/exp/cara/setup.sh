@@ -32,6 +32,7 @@ parallel-ssh -t 0 -h block/config/hosts "pip install --upgrade "ray[cgraph]""
 parallel-ssh -t 0 -h block/config/hosts "echo 'export PATH=$PATH:/usr/local/cuda-12.8/bin:$PATH' >> ~/.bashrc && echo 'export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda-12.8/lib64:$LD_LIBRARY_PATH' >> ~/.bashrc && source ~/.bashrc"
 
 echo "cuda installation completed on all hosts and now tested with nvidia-smi..."
+echo "If error, please consider to reboot the hosts and re-run nvidia-smi to verify cuda installation."
 parallel-ssh -t 0 -h block/config/hosts "sudo nvidia-smi -mig 0"
 parallel-ssh -t 0 -h block/config/hosts  "rm -r ~/cuda-repo-*.deb"
 

@@ -350,6 +350,9 @@ def main():
         )
     )
 
+    parser.add_argument("--no-distribute-config", dest="distribute_config", action="store_false", default=True,
+                        help="Skip distributing config to remote nodes (default: config IS distributed)")
+
     args = parser.parse_args()
 
     # 1. Load Data
@@ -494,6 +497,49 @@ def main():
     with open(args.output, 'w') as f:
         json.dump(final_config, f, indent=2)
     print(f"\nDone! Final configuration saved to {args.output}")
+
+    # 4. Distribute config to all nodes (so scheduler can access it)
+    if args.distribute_config:
+        print(f"\n--- Distributing config to remote nodes ---")
+        all_hosts = []
+        for hosts in available_nodes.values():
+            all_hosts.extend(hosts)
+
+        # Add back the hosts we used for deployment
+        for model_key, details in final_config.items():
+            if 'node_hosts' in details:
+                all_hosts.extend(details['node_hosts'])
+
+        # Remove duplicates
+        all_hosts = list(set(all_hosts))
+
+        if not all_hosts:
+            print("Warning: No hosts found for config distribution")
+        else:
+            print(f"Distributing {args.output} to {len(all_hosts)} nodes...")
+            for host in all_hosts:
+                try:
+                    # Create remote directory if needed and copy config
+                    remote_path = f"~/Block/{args.output}"
+                    remote_dir = os.path.dirname(remote_path)
+
+                    scp_cmd = [
+                        "scp",
+                        "-o", "StrictHostKeyChecking=no",
+                        "-o", "UserKnownHostsFile=/dev/null",
+                        args.output,
+                        f"{host}:{remote_path}"
+                    ]
+
+                    result = subprocess.run(scp_cmd, capture_output=True, text=True, timeout=30)
+                    if result.returncode == 0:
+                        print(f"  ✓ {host}")
+                    else:
+                        print(f"  ✗ {host}: {result.stderr.strip()}")
+                except Exception as e:
+                    print(f"  ✗ {host}: {str(e)}")
+
+            print(f"Config distribution complete!")
 
 
 if __name__ == "__main__":
