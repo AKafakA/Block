@@ -1346,13 +1346,9 @@ def add_cli_args(parser: argparse.ArgumentParser):
         "goodput, refer to DistServe paper: https://arxiv.org/pdf/2401.09670 "
         "and the blog: https://hao-ai-lab.github.io/blogs/distserve",
     )
-    parser.add_argument(
-        "--request-id-prefix",
-        type=str,
-        required=False,
-        default=f"bench-{uuid.uuid4().hex[:8]}-",
-        help="Specify the prefix of request id.",
-    )
+    # NOTE: --request-id-prefix is added by add_dataset_parser (from vLLM or
+    # our compatibility layer). Avoid redefining it here to prevent argparse
+    # conflicts on older/newer vLLM versions.
 
     sampling_group = parser.add_argument_group("sampling parameters")
     sampling_group.add_argument(

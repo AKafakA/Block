@@ -18,6 +18,7 @@ from dataclasses import dataclass, field, asdict
 from typing import Any, Optional, Protocol
 
 import aiohttp
+import uuid
 from transformers import AutoTokenizer
 
 
@@ -226,7 +227,7 @@ except ImportError:
         parser.add_argument(
             "--request-id-prefix",
             type=str,
-            default="",
+            default=f"bench-{uuid.uuid4().hex[:8]}-",
             help="Prefix for request IDs",
         )
         parser.add_argument(
