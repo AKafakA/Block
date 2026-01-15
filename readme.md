@@ -66,7 +66,7 @@ vidur # Same as original vidur repo but with new replica scheduler/revised simul
    If using cloudlab, just download its manifest.xml and moved to block/prediction
    
    ```
-   python block/exp/generate_config.py --username USERNAME_SSH_TO_HOST
+   python block/exp/generate_config.py --username USERNAME_SSH_TO_HOST --num_predictors NUMBER_OF_PREDICTORS
    ```
    
    Otherwise, need to manually generate configration and hostname listing files as examples under block/config.

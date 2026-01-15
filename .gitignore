@@ -7,6 +7,8 @@ __pycache__/
 .github
 .run
 
+/.claude
+
 tmp/experiment_output_plot/
 
 # C extensions
@@ -190,3 +192,5 @@ experiments_analysis/stats/
 experiments_analysis/tombstone/
 
 /cara_paper
+
+/data/cara/training_data

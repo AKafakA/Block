@@ -1,0 +1,206 @@
+"""
+LLM-as-a-judge model scorer.
+
+Uses a separate LLM to evaluate response quality.
+"""
+
+import logging
+from typing import List, Dict, Tuple, Optional
+import torch
+
+from block.predictor.cara.offline_training.model_scorer import ModelScorer
+
+logger = logging.getLogger(__name__)
+
+
+class LLMJudgeScorer(ModelScorer):
+    """Score using an LLM as a judge.
+
+    Uses a separate LLM to evaluate response quality based on:
+    - Correctness
+    - Helpfulness
+    - Harmlessness
+    - Coherence
+    """
+
+    DEFAULT_JUDGE_PROMPT = """You are a helpful assistant evaluating the quality of AI responses.
+
+Given the following prompt and response, rate the response quality on a scale of 0-10.
+
+Consider:
+- Correctness: Is the response factually accurate?
+- Helpfulness: Does it address the prompt effectively?
+- Harmlessness: Is it safe and appropriate?
+- Coherence: Is it well-written and clear?
+
+Prompt: {prompt}
+
+Response: {response}
+
+Provide ONLY a single number between 0 and 10 as your rating.
+Rating:"""
+
+    def __init__(self,
+                 judge_model: str = "Unbabel/M-Prometheus-7B",
+                 judge_prompt_template: Optional[str] = None,
+                 batch_size: int = 1,
+                 device: str = "auto"):
+        """
+        Args:
+            judge_model: HuggingFace model name or local path for judge LLM
+            judge_prompt_template: Custom prompt template for judging.
+                                  Must contain {prompt} and {response} placeholders.
+            batch_size: Batch size for judge model inference
+            device: Device for judge model ("auto", "cuda", "cpu")
+        """
+        self.judge_model_name = judge_model
+        self.batch_size = batch_size
+        self.device = device
+
+        # Use provided template or default
+        self.judge_prompt_template = (
+            judge_prompt_template or self.DEFAULT_JUDGE_PROMPT
+        )
+
+        # Validate template
+        if "{prompt}" not in self.judge_prompt_template or \
+           "{response}" not in self.judge_prompt_template:
+            raise ValueError(
+                "judge_prompt_template must contain {prompt} and {response} placeholders"
+            )
+
+        # Lazy load judge model
+        self._judge_model = None
+        self._judge_tokenizer = None
+
+        logger.info(
+            f"LLMJudgeScorer initialized: model={judge_model}, "
+            f"batch_size={batch_size}, device={device}"
+        )
+
+    def _load_judge_model(self):
+        """Lazy load judge model and tokenizer."""
+        if self._judge_model is not None:
+            return
+
+        logger.info(f"Loading judge model: {self.judge_model_name}")
+
+        try:
+            from transformers import AutoModelForCausalLM, AutoTokenizer
+
+            self._judge_tokenizer = AutoTokenizer.from_pretrained(
+                self.judge_model_name,
+                trust_remote_code=True
+            )
+
+            # Load model with appropriate dtype
+            self._judge_model = AutoModelForCausalLM.from_pretrained(
+                self.judge_model_name,
+                trust_remote_code=True,
+                torch_dtype=torch.float16,
+                device_map=self.device
+            )
+
+            self._judge_model.eval()
+
+            logger.info(f"Judge model loaded successfully on {self._judge_model.device}")
+
+        except Exception as e:
+            logger.error(f"Failed to load judge model: {e}")
+            raise
+
+    def score(self,
+              prompt: str,
+              responses: List[Tuple[str, str]]) -> Dict[str, float]:
+        """Compute LLM-judge quality scores.
+
+        Args:
+            prompt: Input prompt
+            responses: List of (model_name, generated_text) tuples
+
+        Returns:
+            Dict mapping model_name -> quality_score (0.0-1.0)
+        """
+        if not responses:
+            return {}
+
+        # Load judge model if needed
+        self._load_judge_model()
+
+        scores = {}
+
+        # Process in batches
+        for i in range(0, len(responses), self.batch_size):
+            batch = responses[i:i + self.batch_size]
+            batch_scores = self._score_batch(prompt, batch)
+            scores.update(batch_scores)
+
+        return scores
+
+    def _score_batch(self,
+                     prompt: str,
+                     batch: List[Tuple[str, str]]) -> Dict[str, float]:
+        """Score a batch of responses.
+
+        Args:
+            prompt: Input prompt
+            batch: Batch of (model_name, generated_text) tuples
+
+        Returns:
+            Dict mapping model_name -> quality_score (0.0-1.0)
+        """
+        scores = {}
+
+        for model_name, generated_text in batch:
+            # Format judge prompt
+            judge_prompt = self.judge_prompt_template.format(
+                prompt=prompt,
+                response=generated_text
+            )
+
+            # Tokenize
+            inputs = self._judge_tokenizer(
+                judge_prompt,
+                return_tensors="pt",
+                truncation=True,
+                max_length=2048
+            ).to(self._judge_model.device)
+
+            # Generate rating
+            with torch.no_grad():
+                outputs = self._judge_model.generate(
+                    **inputs,
+                    max_new_tokens=10,
+                    temperature=0.0,
+                    do_sample=False
+                )
+
+            # Decode output
+            rating_text = self._judge_tokenizer.decode(
+                outputs[0][inputs['input_ids'].shape[1]:],
+                skip_special_tokens=True
+            ).strip()
+
+            # Parse rating (expect single number 0-10)
+            try:
+                # Try to extract first number from response
+                import re
+                numbers = re.findall(r'\d+(?:\.\d+)?', rating_text)
+                if numbers:
+                    rating = float(numbers[0])
+                    # Normalize to [0, 1]
+                    normalized_score = max(0.0, min(10.0, rating)) / 10.0
+                    scores[model_name] = normalized_score
+                    logger.debug(
+                        f"{model_name}: rating={rating}/10 ({normalized_score:.2f})"
+                    )
+                else:
+                    raise ValueError(f"No number found in: {rating_text}")
+            except (ValueError, IndexError) as e:
+                logger.warning(
+                    f"Failed to parse rating for {model_name}: '{rating_text}'. "
+                    f"Error: {e}. Using default score 0.5"
+                )
+                scores[model_name] = 0.5
+
+        return scores

@@ -26,3 +26,6 @@ jsonlines
 certifi
 orjson
 shapely==2.1.1
+datasets~=2.18.0
+transformers~=4.45.0
+pyarrow~=15.0.0

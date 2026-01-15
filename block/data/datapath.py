@@ -33,3 +33,18 @@ BEAVER_TAILS_30K_TRAIN_PATH = (
     "hf://datasets/PKU-Alignment/BeaverTails/round0/30k/train.jsonl.gz"
 )
 
+# Additional general-purpose instruction/chat datasets
+# These loaders use the Hugging Face Datasets library via dataset names
+# to avoid depending on fixed file layouts. They are referenced by name
+# in collect_data.py, not by file path.
+
+# HuggingFaceH4/ultrachat_200k: multi-turn benign chat dataset
+ULTRACHAT_DATASET_NAME = "HuggingFaceH4/ultrachat_200k"
+
+# google-research-datasets/gsm8k: grade-school math word problems
+GSM8K_DATASET_NAME = "gsm8k"
+
+# Widely adopted QA/summarization/MC benchmarks
+SQUAD_DATASET_NAME = "squad"
+CNN_DAILYMAIL_DATASET_NAME = "cnn_dailymail"
+AI2_ARC_DATASET_NAME = "ai2_arc"

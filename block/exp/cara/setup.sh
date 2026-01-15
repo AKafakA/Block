@@ -1,8 +1,9 @@
 BLOCK_GITHUB_LINK="https://github.com/AKafakA/Block"
 VLLM_GITHUB_LINK="https://github.com/AKafakA/vllm.git"
 OLLAMA_GITHUB_LINK="https://github.com/AKafakA/ollama.git"
+BRANCH_NAME="cara-small"
 
- general setup for all hosts
+# general setup for all hosts
 echo "Install CUDA and dependencies on all hosts..."
 
 
@@ -15,7 +16,7 @@ echo "Install CUDA and dependencies on all hosts..."
 parallel-ssh -t 0 -h block/config/hosts "sudo apt update && sudo apt full-upgrade -y"
 parallel-ssh -t 0 -h block/config/hosts "sudo apt install -y python3-pip python3-venv ccache"
 parallel-ssh -t 0 -h block/config/hosts "pip install --upgrade pip"
-parallel-ssh -t 0 -h block/config/hosts "git clone ${BLOCK_GITHUB_LINK} && cd Block && git checkout cara  && pip install -r requirements.txt"
+parallel-ssh -t 0 -h block/config/hosts "git clone ${BLOCK_GITHUB_LINK} && cd Block && git checkout ${BRANCH_NAME}  && pip install -r requirements.txt"
 parallel-ssh -t 0 -h block/config/hosts "pip3 install torch torchvision"
 parallel-ssh -t 0 -h block/config/hosts "pip install dacite"
 parallel-ssh -t 0 -h block/config/hosts "wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-ubuntu2004.pin && sudo mv cuda-ubuntu2004.pin /etc/apt/preferences.d/cuda-repository-pin-600"
