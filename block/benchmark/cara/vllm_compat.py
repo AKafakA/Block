@@ -258,12 +258,26 @@ except ImportError:
 
     @dataclass
     class RequestFuncInput:
-        """Input for request function."""
+        """Input for request function (fallback, accepts superset of fields).
+
+        We include optional fields used by newer benchmark code so that older
+        environments (P100) can accept the same constructor call signature
+        without errors, even if those fields are unused by the CARA client.
+        """
+        # Required
         prompt: str
         api_url: str
         prompt_len: int
         output_len: int
         model: str
+        # Optional/newer fields (kept for compatibility)
+        model_name: Optional[str] = None
+        logprobs: Optional[int] = None
+        multi_modal_content: Optional[Any] = None
+        ignore_eos: bool = False
+        extra_headers: Optional[dict] = None
+        extra_body: Optional[dict] = None
+        # Legacy fields
         best_of: int = 1
         use_beam_search: bool = False
         request_id: str = ""
@@ -289,31 +303,42 @@ except ImportError:
     # -------------------------------------------------------------------------
 
     async def wait_for_endpoint(
-        endpoint_url: str,
-        timeout: int = 300,
+        request_func,
+        request_func_input,
+        session,
+        timeout_seconds: int = 600,
         check_interval: int = 5,
-    ) -> bool:
-        """Wait for endpoint to become ready."""
-        print(f"Waiting for endpoint {endpoint_url} to become ready...")
+    ):
+        """Fallback endpoint readiness check compatible with newer benchmark code.
+
+        Repeatedly issues a lightweight request using the provided request_func
+        until it succeeds or the timeout elapses. Uses a short-timeout
+        temporary ClientSession to avoid hanging if the main session has a
+        very long timeout configured.
+        """
         start_time = time.time()
+        print("Waiting for endpoint to become ready (sending test request)...")
 
-        async with aiohttp.ClientSession() as session:
-            while time.time() - start_time < timeout:
+        temp_timeout = aiohttp.ClientTimeout(total=min(15, max(5, check_interval)))
+        async with aiohttp.ClientSession(timeout=temp_timeout) as temp_session:
+            while time.time() - start_time < timeout_seconds:
                 try:
-                    async with session.get(
-                        f"{endpoint_url}/health",
-                        timeout=aiohttp.ClientTimeout(total=check_interval)
-                    ) as response:
-                        if response.status == 200:
-                            print(f"Endpoint {endpoint_url} is ready!")
-                            return True
-                except (aiohttp.ClientError, Exception):
+                    output = await request_func(
+                        request_func_input=request_func_input,
+                        session=temp_session,
+                        pbar=None,
+                    )
+                    if getattr(output, "success", False):
+                        print("Endpoint is ready")
+                        return output
+                except Exception:
+                    # Ignore and retry
                     pass
-
                 await asyncio.sleep(check_interval)
 
-        print(f"Endpoint {endpoint_url} did not become ready within {timeout}s")
-        return False
+        raise TimeoutError(
+            f"Endpoint did not become ready within {timeout_seconds} seconds"
+        )
 
 
     # -------------------------------------------------------------------------
@@ -321,25 +346,31 @@ except ImportError:
     # -------------------------------------------------------------------------
 
     def convert_to_pytorch_benchmark_format(
-        benchmark_result: dict,
-        model_id: str,
-    ) -> dict:
-        """Convert benchmark results to PyTorch format."""
-        # Simple passthrough for compatibility
-        return {
-            "model_id": model_id,
-            **benchmark_result,
+        *, args: argparse.Namespace, metrics: dict, extra_info: dict
+    ):
+        """Fallback implementation that mirrors the newer API.
+
+        Returns a simple record compatible with downstream consumers.
+        """
+        record = {
+            "label": getattr(args, "label", None) or getattr(args, "backend", None),
+            "model_id": getattr(args, "model", None),
+            "num_prompts": getattr(args, "num_prompts", None),
+            "metrics": metrics,
+            "extra_info": extra_info,
         }
+        return [record]
 
 
-    def write_to_json(data: dict, filename: str) -> None:
-        """Write data to JSON file."""
+    def write_to_json(filename: str, data) -> None:
+        """Write data to JSON file (filename-first to match newer API)."""
         with open(filename, 'w') as f:
             json.dump(data, f, indent=2)
 
 
 # =============================================================================
 # Additional vLLM utilities (for old vLLM versions without these modules)
+# and cross-version compatibility shims.
 # =============================================================================
 
 # Try importing from new vLLM utils
@@ -389,6 +420,43 @@ except ImportError:
         if ':' in host and not host.startswith('['):
             host = f'[{host}]'
         return f"{host}:{port}"
+
+
+# =============================================================================
+# Unified RequestFuncInput compatible with both new and old environments
+# =============================================================================
+
+try:
+    # If already imported from vLLM, we still override with a superset to
+    # accept extra fields used by the CARA benchmark code.
+    from dataclasses import dataclass as _dataclass
+    from typing import Any as _Any, Optional as _Optional
+
+    @_dataclass
+    class _CompatRequestFuncInput:
+        # Required
+        prompt: str
+        api_url: str
+        prompt_len: int
+        output_len: int
+        model: str
+        # Optional/newer fields
+        model_name: _Optional[str] = None
+        logprobs: _Optional[int] = None
+        multi_modal_content: _Optional[_Any] = None
+        ignore_eos: bool = False
+        extra_headers: _Optional[dict] = None
+        extra_body: _Optional[dict] = None
+        # Legacy fields
+        best_of: int = 1
+        use_beam_search: bool = False
+        request_id: str = ""
+
+    # Override exported name with the compat version
+    RequestFuncInput = _CompatRequestFuncInput  # type: ignore
+except Exception:
+    # If anything goes wrong, we keep whatever was defined above.
+    pass
 
 
 # =============================================================================
