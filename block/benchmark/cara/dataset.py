@@ -102,22 +102,57 @@ class LmsysDataset(BenchmarkDataset):
 # Add the new Lmsys dataset to the dataset loader without modifying vLLM code.
 # -----------------------------------------------------------------------------
 def get_samples(args, tokenizer) -> list[SampleRequest]:
-    if args.dataset_name == "custom" and args.dataset_path.endswith("lmsys"):
-        dataset = LmsysDataset(
-            dataset_path=args.dataset_path,
-            random_seed=args.seed
-        )
-        input_requests = dataset.sample(
-            num_requests=args.num_prompts,
-            tokenizer=tokenizer,
-            output_len=args.custom_output_len,
-            skip_chat_template=args.skip_chat_template,
-            request_id_prefix=args.request_id_prefix,
-            no_oversample=args.no_oversample,
-            max_total_len=args.max_total_len,
-        )
-        return input_requests
+    """
+    Load samples from dataset based on args.dataset_name.
+
+    Supports:
+    - "custom" with lmsys path: LMSYS dataset (parquet files)
+    - "custom" (other): JSONL custom dataset
+    - Other types: Try vLLM's get_samples if available (A100 nodes only)
+    """
+    if args.dataset_name == "custom":
+        # Check if it's LMSYS dataset (directory with parquet files)
+        if args.dataset_path and args.dataset_path.endswith("lmsys"):
+            dataset = LmsysDataset(
+                dataset_path=args.dataset_path,
+                random_seed=args.seed
+            )
+            input_requests = dataset.sample(
+                num_requests=args.num_prompts,
+                tokenizer=tokenizer,
+                output_len=args.custom_output_len,
+                skip_chat_template=args.skip_chat_template,
+                request_id_prefix=args.request_id_prefix,
+                no_oversample=args.no_oversample,
+                max_total_len=args.max_total_len,
+            )
+            return input_requests
+        else:
+            # Standard custom dataset (JSONL file)
+            dataset = CustomDataset(
+                dataset_path=args.dataset_path,
+                random_seed=args.seed
+            )
+            input_requests = dataset.sample(
+                num_requests=args.num_prompts,
+                tokenizer=tokenizer,
+                output_len=args.custom_output_len,
+                request_id_prefix=args.request_id_prefix,
+                no_oversample=args.no_oversample,
+                max_total_len=args.max_total_len,
+            )
+            return input_requests
     else:
-        from block.benchmark.cara.vllm_compat import vllm_get_samples
+        # For non-custom datasets (sharegpt, sonnet, etc), try vLLM's implementation
+        # This will only work on A100 nodes with new vLLM
+        from block.benchmark.cara.vllm_compat import vllm_get_samples, VLLM_BENCHMARKS_AVAILABLE
+
+        if not VLLM_BENCHMARKS_AVAILABLE:
+            raise ValueError(
+                f"Dataset '{args.dataset_name}' requires vLLM benchmarks module, "
+                f"which is not available on this node (old vLLM version). "
+                f"Please use --dataset-name custom --dataset-path <path_to_jsonl> instead."
+            )
+
         return vllm_get_samples(args, tokenizer)
 

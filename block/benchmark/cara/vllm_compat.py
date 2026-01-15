@@ -212,6 +212,34 @@ except ImportError:
             default=0,
             help="Random seed for reproducibility",
         )
+        parser.add_argument(
+            "--custom-output-len",
+            type=int,
+            default=None,
+            help="Custom output length for generation (overrides dataset default)",
+        )
+        parser.add_argument(
+            "--skip-chat-template",
+            action="store_true",
+            help="Skip applying chat template to prompts",
+        )
+        parser.add_argument(
+            "--request-id-prefix",
+            type=str,
+            default="",
+            help="Prefix for request IDs",
+        )
+        parser.add_argument(
+            "--no-oversample",
+            action="store_true",
+            help="Do not oversample requests if dataset is smaller than num-prompts",
+        )
+        parser.add_argument(
+            "--max-total-len",
+            type=int,
+            default=2048,
+            help="Maximum total sequence length (prompt + output)",
+        )
         return parser
 
 
