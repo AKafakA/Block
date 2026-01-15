@@ -207,10 +207,10 @@ except ImportError:
             help="Number of prompts to process",
         )
         parser.add_argument(
-            "--random-seed",
+            "--seed",
             type=int,
             default=0,
-            help="Random seed for dataset sampling",
+            help="Random seed for reproducibility",
         )
         return parser
 
