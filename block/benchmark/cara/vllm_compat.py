@@ -10,12 +10,15 @@ For older versions, it provides minimal implementations to maintain compatibilit
 
 import argparse
 import asyncio
+import contextlib
+import gc
 import json
 import time
 from dataclasses import dataclass, field, asdict
 from typing import Any, Optional, Protocol
 
 import aiohttp
+from transformers import AutoTokenizer
 
 
 # =============================================================================
@@ -307,22 +310,84 @@ except ImportError:
 
 
 # =============================================================================
+# Additional vLLM utilities (for old vLLM versions without these modules)
+# =============================================================================
+
+# Try importing from new vLLM utils
+try:
+    from vllm.transformers_utils.tokenizer import get_tokenizer
+except ImportError:
+    # Fallback for old vLLM
+    def get_tokenizer(
+        tokenizer_name: str,
+        *args,
+        trust_remote_code: bool = False,
+        tokenizer_mode: str = "auto",
+        **kwargs
+    ):
+        """Fallback tokenizer loader using HuggingFace transformers."""
+        return AutoTokenizer.from_pretrained(
+            tokenizer_name,
+            trust_remote_code=trust_remote_code,
+            **kwargs
+        )
+
+try:
+    from vllm.utils.gc_utils import freeze_gc_heap
+except ImportError:
+    # Fallback for old vLLM
+    @contextlib.contextmanager
+    def freeze_gc_heap():
+        """Fallback GC heap freezer (no-op context manager)."""
+        # Disable GC during the context
+        gc_enabled = gc.isenabled()
+        try:
+            if gc_enabled:
+                gc.collect()
+                gc.disable()
+            yield
+        finally:
+            if gc_enabled:
+                gc.enable()
+
+try:
+    from vllm.utils.network_utils import join_host_port
+except ImportError:
+    # Fallback for old vLLM
+    def join_host_port(host: str, port: int) -> str:
+        """Join host and port into URL format."""
+        # Handle IPv6 addresses
+        if ':' in host and not host.startswith('['):
+            host = f'[{host}]'
+        return f"{host}:{port}"
+
+
+# =============================================================================
 # Export unified interface
 # =============================================================================
 
 __all__ = [
+    # Dataset utilities
     "SampleRequest",
     "BenchmarkDataset",
     "CustomDataset",
     "is_valid_sequence",
     "add_dataset_parser",
     "vllm_get_samples",
+    # Request function utilities
     "RequestFuncInput",
     "RequestFunc",
     "ASYNC_REQUEST_FUNCS",
     "OPENAI_COMPATIBLE_BACKENDS",
+    # Endpoint utilities
     "wait_for_endpoint",
+    # Result utilities
     "convert_to_pytorch_benchmark_format",
     "write_to_json",
+    # vLLM utilities
+    "get_tokenizer",
+    "freeze_gc_heap",
+    "join_host_port",
+    # Compatibility flag
     "VLLM_BENCHMARKS_AVAILABLE",
 ]

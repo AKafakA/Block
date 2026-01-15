@@ -36,10 +36,10 @@ from block.benchmark.cara.vllm_compat import (
     wait_for_endpoint,
     convert_to_pytorch_benchmark_format,
     write_to_json,
+    get_tokenizer,
+    freeze_gc_heap,
+    join_host_port,
 )
-from vllm.transformers_utils.tokenizer import get_tokenizer
-from vllm.utils.gc_utils import freeze_gc_heap
-from vllm.utils.network_utils import join_host_port
 
 from transformers import PreTrainedTokenizerBase
 
