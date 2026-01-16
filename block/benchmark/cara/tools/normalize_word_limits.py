@@ -8,7 +8,7 @@ from block.benchmark.cara.vllm_compat import get_tokenizer
 
 
 # Soft guidance template used when no explicit counts are present
-SOFT_GUIDANCE_TEMPLATE = "Try to answer within {n} words instead."
+SOFT_GUIDANCE_TEMPLATE = "Try to answer within {n} words if possible."
 
 
 def _calc_budget_words(prompt: str, tokenizer, max_total_len: int, output_cap: int, tokens_per_word: float, round_bucket: int) -> int:
