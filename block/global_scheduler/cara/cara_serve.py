@@ -38,6 +38,11 @@ broadcasting_enabled = False
 broadcast_model_list: list[str] = []
 enable_predictor_feedback = False
 
+# Lightweight health endpoint for readiness probes
+@app.get("/health")
+async def health() -> Response:
+    return JSONResponse(content={"status": "ok"})
+
 
 def to_ollama_tag(hf_name: str) -> str:
     """Convert HuggingFace model name to Ollama tag format.

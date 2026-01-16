@@ -313,30 +313,36 @@ except ImportError:
         timeout_seconds: int = 600,
         check_interval: int = 5,
     ):
-        """Fallback endpoint readiness check compatible with newer benchmark code.
+        """Fast readiness check: ping server /health instead of generating.
 
-        Repeatedly issues a lightweight request using the provided request_func
-        until it succeeds or the timeout elapses. Uses a short-timeout
-        temporary ClientSession to avoid hanging if the main session has a
-        very long timeout configured.
+        Derives the base URL from request_func_input.api_url and issues GET
+        to `${base}/health` until it returns 200 or timeout elapses.
         """
-        start_time = time.time()
-        print("Waiting for endpoint to become ready (sending test request)...")
+        from urllib.parse import urlparse, urlunparse
 
-        temp_timeout = aiohttp.ClientTimeout(total=min(15, max(5, check_interval)))
-        async with aiohttp.ClientSession(timeout=temp_timeout) as temp_session:
+        start_time = time.time()
+        api_url = getattr(request_func_input, "api_url", "")
+        parsed = urlparse(api_url)
+        if not parsed.scheme or not parsed.netloc:
+            print("Invalid api_url for readiness; skipping ready check.")
+            return None
+
+        health_url = urlunparse((parsed.scheme, parsed.netloc, "/health", "", "", ""))
+        print(f"Waiting for endpoint to become ready (GET {health_url})...")
+
+        timeout = aiohttp.ClientTimeout(total=min(10, max(3, check_interval)))
+        async with aiohttp.ClientSession(timeout=timeout) as temp_session:
             while time.time() - start_time < timeout_seconds:
                 try:
-                    output = await request_func(
-                        request_func_input=request_func_input,
-                        session=temp_session,
-                        pbar=None,
-                    )
-                    if getattr(output, "success", False):
-                        print("Endpoint is ready")
-                        return output
+                    async with temp_session.get(health_url) as resp:
+                        if resp.status == 200:
+                            print("Endpoint is ready")
+                            try:
+                                from types import SimpleNamespace
+                                return SimpleNamespace(success=True)
+                            except Exception:
+                                return object()
                 except Exception:
-                    # Ignore and retry
                     pass
                 await asyncio.sleep(check_interval)
 

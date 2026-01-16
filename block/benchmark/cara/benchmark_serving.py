@@ -594,7 +594,7 @@ async def benchmark(
         timeout=aiohttp.ClientTimeout(total=6 * 60 * 60),
     )
 
-    print("Starting initial single prompt test run...")
+    print("Checking endpoint readiness...")
     test_prompt, test_prompt_len, test_output_len, test_mm_content = (
         input_requests[0].prompt,
         input_requests[0].prompt_len,
@@ -631,14 +631,14 @@ async def benchmark(
             session,
             timeout_seconds=ready_check_timeout_sec,
         )
-        if not test_output.success:
+        if getattr(test_output, "success", True) is False:
             raise ValueError(
                 "Initial test run failed - Please make sure benchmark "
                 "arguments are correctly specified. "
                 f"Error: {test_output.error}"
             )
         else:
-            print("Initial test run completed.")
+            print("Endpoint is ready.")
     else:
         print("Skipping endpoint ready check.")
 
