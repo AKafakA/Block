@@ -1277,11 +1277,13 @@ def add_cli_args(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--save-detailed",
         action="store_true",
-        help="When saving the results, include the response_details field "
-        "containing all per-request metrics (request_id, prompt, input_len, "
-        "output_len, response, ttft, itl, e2el, scheduling_overhead, model, "
-        "host, instance_id, error, broadcast_results). "
-        "If not specified, only summary metrics are saved.",
+        help=(
+            "Save results and include per-request response_details "
+            "(request_id, prompt, input_len, output_len, response, ttft, itl, "
+            "e2el, scheduling_overhead, model, host, instance_id, error, "
+            "broadcast_results). Equivalent to enabling --save-result and "
+            "adding detailed fields."
+        ),
     )
     parser.add_argument(
         "--append-result",
@@ -1673,7 +1675,8 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
             del result_json["response_details"]
 
     # Save to file
-    if args.save_result or args.append_result:
+    # Also save when --save-detailed is specified (implies saving results)
+    if args.save_result or args.append_result or args.save_detailed:
         base_model_id = model_id.split("/")[-1]
         max_concurrency_str = (
             f"-concurrency{args.max_concurrency}"
