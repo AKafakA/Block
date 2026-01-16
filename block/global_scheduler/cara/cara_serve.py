@@ -384,7 +384,7 @@ if __name__ == "__main__":
                         help="Whether the model is a chat model to decide if stop words are appended")
     parser.add_argument("--model-family", type=str, default="Qwen",
                         help="Model family, used for append the stop words for chat models")
-    parser.add_argument("--repetition-penalty", type=float, default=1.0,
+    parser.add_argument("--repetition-penalty", type=float, default=1.1,
                         help="Repetition penalty to use for generation to avoid repetition")
     parser.add_argument("--enable-predictor-feedback", action="store_true",
                         help="Enable sending actual metrics back to predictor for training data collection")
