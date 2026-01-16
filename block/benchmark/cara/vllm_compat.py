@@ -152,7 +152,8 @@ except ImportError:
                 prompt_ids = tokenizer(prompt).input_ids
                 prompt_len = len(prompt_ids)
 
-                expected_len = entry.get("output_len", output_len or 128)
+                # Prefer per-sample override; otherwise use CLI default, else fallback to 1024
+                expected_len = entry.get("output_len", output_len or 1024)
 
                 if prompt_len + expected_len > max_total_len:
                     continue
@@ -216,8 +217,11 @@ except ImportError:
         parser.add_argument(
             "--custom-output-len",
             type=int,
-            default=None,
-            help="Custom output length for generation (overrides dataset default)",
+            default=1024,
+            help=(
+                "Custom output length for generation (default: 1024). "
+                "Overrides per-sample output_len if provided in the dataset."
+            ),
         )
         parser.add_argument(
             "--skip-chat-template",

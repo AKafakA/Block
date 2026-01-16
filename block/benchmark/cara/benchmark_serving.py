@@ -387,7 +387,9 @@ def calculate_metrics(
     if failed_outputs:
         from datetime import datetime
         from collections import Counter
-        error_log_filename = f"failed_requests_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+        error_log_filename = os.path.abspath(os.path.expanduser(
+            f"failed_requests_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+        ))
 
         # Analyze failure patterns
         failures_by_instance = Counter(f.instance_id or 'Unknown' for f in failed_outputs)
@@ -438,6 +440,7 @@ def calculate_metrics(
 
         print(f"\n⚠️  {len(failed_outputs)} failed requests detected!")
         print(f"📝 Detailed error logs written to: {error_log_filename}")
+        print(f"   Open in vim: vim {error_log_filename}")
         print(f"    Summary: {dict(failures_by_instance.most_common(3))}\n")
 
     if successful_outputs:
@@ -1699,9 +1702,13 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
             file_name = f"{label}-{dataset_prefix}{args.request_rate}qps{max_concurrency_str}-{base_model_id}-{current_dt}.json"  # noqa
         if args.result_filename:
             file_name = args.result_filename
+        # Expand and absolutize result_dir and filename for copy-paste friendliness
         if args.result_dir:
-            os.makedirs(args.result_dir, exist_ok=True)
-            file_name = os.path.join(args.result_dir, file_name)
+            result_dir = os.path.abspath(os.path.expanduser(args.result_dir))
+            os.makedirs(result_dir, exist_ok=True)
+            file_name = os.path.join(result_dir, file_name)
+        # Always store and print an absolute path
+        file_name = os.path.abspath(os.path.expanduser(file_name))
         with open(
             file_name, mode="a+" if args.append_result else "w", encoding="utf-8"
         ) as outfile:
@@ -1714,6 +1721,14 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
         # Print the saved filename for easy tracking
         print("\n" + "=" * 50)
         print(f"Results saved to: {file_name}")
+        # Print companion PyTorch benchmark file as well
+        pt_file = f"{os.path.splitext(file_name)[0]}.pytorch.json"
+        if os.path.exists(pt_file):
+            print(f"PyTorch benchmark saved to: {pt_file}")
+        # Quick copy-paste commands for convenience
+        print(f"Open in vim: vim {file_name}")
+        if os.path.exists(pt_file):
+            print(f"Open PT file in vim: vim {pt_file}")
         print("=" * 50 + "\n")
 
     return result_json
