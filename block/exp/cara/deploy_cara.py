@@ -289,7 +289,28 @@ def get_vllm_commands(model_path: str, hf_token: str, precision: str, vllm_param
     sleep_time = FRESH_DEPLOY_SLEEP_SECONDS if fresh_deploy else NORMAL_DEPLOY_SLEEP_SECONDS
 
     cmds.extend([
-        "export LD_LIBRARY_PATH=/usr/local/lib/python3.10/dist-packages/nvidia/nvshmem/lib:$LD_LIBRARY_PATH",
+        # Ensure CUDA env and common library locations (covers CUDA 12.x + pip-installed NVIDIA libs)
+        "export CUDA_HOME=${CUDA_HOME:-/usr/local/cuda}",
+        # Dynamically add all nvidia lib paths from user's pip site-packages
+        (
+            "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:" \
+            "$CUDA_HOME/lib64:" \
+            "$CUDA_HOME/targets/x86_64-linux/lib:" \
+            "/usr/local/cuda-12.8/lib64:" \
+            "/usr/lib/x86_64-linux-gnu:" \
+            "$(python3 -c 'import site; print(site.getusersitepackages())')/nvidia/cudnn/lib:" \
+            "$(python3 -c 'import site; print(site.getusersitepackages())')/nvidia/cusparselt/lib:" \
+            "$(python3 -c 'import site; print(site.getusersitepackages())')/nvidia/nccl/lib:" \
+            "$(python3 -c 'import site; print(site.getusersitepackages())')/nvidia/nvjitlink/lib:" \
+            "$(python3 -c 'import site; print(site.getusersitepackages())')/nvidia/nvshmem/lib:" \
+            "$(python3 -c 'import site; print(site.getusersitepackages())')/nvidia/cublas/lib:" \
+            "$(python3 -c 'import site; print(site.getusersitepackages())')/nvidia/cuda_runtime/lib:" \
+            "/usr/local/lib/python3.10/dist-packages/nvidia/cudnn/lib:" \
+            "/usr/local/lib/python3.10/dist-packages/nvidia/cusparselt/lib:" \
+            "/usr/local/lib/python3.10/dist-packages/nvidia/nccl/lib:" \
+            "/usr/local/lib/python3.10/dist-packages/nvidia/nvshmem/lib"
+        ),
+        "export PATH=$PATH:$CUDA_HOME/bin:/usr/local/cuda-12.8/bin",
         "echo 'Step 4: Detecting GPU count...'",
         "export GPU_COUNT=$(python3 -c 'import torch; print(torch.cuda.device_count())')",
         "echo \"GPU_COUNT=$GPU_COUNT\"",
@@ -392,8 +413,18 @@ def get_ollama_commands(hf_name: str, num_parallel: int = 4, fresh_deploy: bool 
         "cd ~/ollama",
         "echo 'Setting environment variables...'",
         # Export PATH to include Go and CUDA (same as in setup.sh)
-        "export PATH=$PATH:/usr/local/go/bin:/usr/local/cuda-12.8/bin:/usr/local/cuda/bin",
-        "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda-12.8/lib64",
+        "export CUDA_HOME=${CUDA_HOME:-/usr/local/cuda}",
+        "export PATH=$PATH:/usr/local/go/bin:$CUDA_HOME/bin:/usr/local/cuda-12.8/bin",
+        (
+            "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:" \
+            "$CUDA_HOME/lib64:" \
+            "$CUDA_HOME/targets/x86_64-linux/lib:" \
+            "/usr/local/cuda-12.8/lib64:" \
+            "/usr/lib/x86_64-linux-gnu:" \
+            "/usr/local/lib/python3.10/dist-packages/nvidia/cudnn/lib:" \
+            "/usr/local/lib/python3.10/dist-packages/nvidia/nccl/lib:" \
+            "/usr/local/lib/python3.10/dist-packages/cusparselt/lib"
+        ),
         # CRITICAL: Set OLLAMA_HOST to listen on all interfaces, not just localhost
         "export OLLAMA_HOST=0.0.0.0:11434",
         # Enable parallel request processing to maximize GPU utilization

@@ -8,7 +8,11 @@ parallel-ssh -t 0 -h block/config/hosts "wget https://developer.download.nvidia.
 parallel-ssh -t 0 -h block/config/hosts "wget https://developer.download.nvidia.com/compute/cuda/12.6.3/local_installers/cuda-repo-ubuntu2004-12-6-local_12.6.3-560.35.05-1_amd64.deb && sudo dpkg -i cuda-repo-ubuntu2004-12-6-local_12.6.3-560.35.05-1_amd64.deb"
 parallel-ssh -t 0 -h block/config/hosts "sudo cp /var/cuda-repo-ubuntu2004-12-6-local/cuda-*-keyring.gpg /usr/share/keyrings/ && sudo apt-get update"
 parallel-ssh -t 0 -h block/config/hosts "sudo dpkg --configure -a && sudo apt-get -y install cuda-toolkit-12-6 && sudo apt-get install -y nvidia-open"
-parallel-ssh -t 0 -h block/config/hosts "echo 'export PATH=$PATH:/usr/local/cuda-12.6/bin:$PATH' >> ~/.bashrc && echo 'export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda-12.6/lib64:$LD_LIBRARY_PATH' >> ~/.bashrc && source ~/.bashrc"
+parallel-ssh -t 0 -h block/config/hosts "\
+  echo 'export CUDA_HOME=/usr/local/cuda' >> ~/.bashrc && \
+  echo 'export PATH=\$PATH:\$CUDA_HOME/bin:/usr/local/cuda-12.6/bin:/usr/local/cuda-12.8/bin' >> ~/.bashrc && \
+  echo 'export LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:\$CUDA_HOME/lib64:/usr/local/cuda-12.6/lib64:/usr/local/cuda-12.8/lib64:\$CUDA_HOME/targets/x86_64-linux/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib/python3.10/dist-packages/nvidia/cudnn/lib:/usr/local/lib/python3.10/dist-packages/nvidia/nccl/lib:/usr/local/lib/python3.10/dist-packages/cusparselt/lib' >> ~/.bashrc && \
+  source ~/.bashrc"
 parallel-ssh -t 0 -h block/config/hosts "sudo nvidia-smi -mig 0"
 parallel-ssh -t 0 -h block/config/hosts "git clone ${VLLM_GITHUB_LINK} && cd vllm && sudo VLLM_USE_PRECOMPILED=1 pip install --editable ."
 parallel-ssh -t 0 -h block/config/hosts "git clone ${BLOCK_GITHUB_LINK} && cd Block && git checkout main  && pip install -r requirements.txt"
