@@ -58,6 +58,7 @@
       "c240g5": {
         "count": 2,
         "serve_with_v0": true,
+        "max-model-len": 8192,
         "dtype": "float16",
         "attention_backend": "XFORMERS"
       }

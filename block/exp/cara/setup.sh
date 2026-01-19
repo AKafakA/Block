@@ -29,7 +29,13 @@ parallel-ssh -t 0 -h block/config/pascal_hosts "sudo apt-get install -y cuda-dri
 parallel-ssh -t 0 -h block/config/ampere_hosts "pip install --upgrade torch"
 parallel-ssh -t 0 -h block/config/volta_hosts "pip install --upgrade torch"
 parallel-ssh -t 0 -h block/config/hosts "pip install --upgrade "ray[cgraph]""
-parallel-ssh -t 0 -h block/config/hosts "echo 'export PATH=$PATH:/usr/local/cuda-12.8/bin:$PATH' >> ~/.bashrc && echo 'export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda-12.8/lib64:$LD_LIBRARY_PATH' >> ~/.bashrc && source ~/.bashrc"
+parallel-ssh -t 0 -h block/config/hosts "\
+  echo 'export CUDA_HOME=/usr/local/cuda' >> ~/.bashrc && \
+  echo 'export PATH=\$PATH:\$CUDA_HOME/bin:/usr/local/cuda-12.8/bin' >> ~/.bashrc && \
+  echo 'export LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:\$CUDA_HOME/lib64:/usr/local/cuda-12.8/lib64:\$CUDA_HOME/targets/x86_64-linux/lib:/usr/lib/x86_64-linux-gnu' >> ~/.bashrc && \
+  echo '# Auto-discover all nvidia pip library paths' >> ~/.bashrc && \
+  echo 'for dir in \$HOME/.local/lib/python3.10/site-packages/nvidia/*/lib /usr/local/lib/python3.10/dist-packages/nvidia/*/lib; do [ -d \"\$dir\" ] && export LD_LIBRARY_PATH=\$dir:\$LD_LIBRARY_PATH; done' >> ~/.bashrc && \
+  source ~/.bashrc"
 
 echo "cuda installation completed on all hosts and now tested with nvidia-smi..."
 echo "If error, please consider to reboot the hosts and re-run nvidia-smi to verify cuda installation."
@@ -41,6 +47,11 @@ echo "Starting setup for vllm hosts..."
 parallel-ssh -t 0 -h block/config/ampere_hosts "git clone ${VLLM_GITHUB_LINK} && cd vllm && git checkout cara_v_11"
 parallel-ssh -t 0 -h block/config/ampere_hosts  "cd vllm && sudo VLLM_USE_PRECOMPILED=1 pip install --editable ."
 parallel-ssh -t 0 -h block/config/ampere_hosts "git clone ${BLOCK_GITHUB_LINK} && cd Block && git checkout cara  && pip install -r requirements.txt"
+
+# Fix NumPy 2.x compatibility issues with sklearn, pandas, pyarrow
+echo "Upgrading scikit-learn, pandas, pyarrow for NumPy 2.x compatibility..."
+parallel-ssh -t 0 -h block/config/ampere_hosts "pip install --upgrade scikit-learn pandas pyarrow"
+
 parallel-ssh -t 0 -h block/config/volta_hosts "git clone ${VLLM_GITHUB_LINK} && cd vllm && git checkout cara_v_11"
 parallel-ssh -t 0 -h block/config/volta_hosts  "cd vllm && sudo VLLM_USE_PRECOMPILED=1 pip install --editable ."
 

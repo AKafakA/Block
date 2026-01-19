@@ -182,8 +182,10 @@ except ImportError:
     ) -> bool:
         """Check if sequence length is valid."""
         if prompt_len + output_len > max_total_len:
+            print(f"Skipping: prompt_len {prompt_len} + output_len {output_len} > max_total_len {max_total_len}")
             return False
         if not skip_min_output_len_check and output_len < min_output_len:
+            print(f"Skipping: output_len {output_len} < min_output_len {min_output_len}")
             return False
         return True
 

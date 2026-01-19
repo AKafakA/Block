@@ -28,7 +28,6 @@ from tqdm.asyncio import tqdm
 
 # Use compatibility layer for vLLM benchmarks (supports both old and new vLLM versions)
 from block.benchmark.cara.vllm_compat import (
-    SampleRequest,
     add_dataset_parser,
     ASYNC_REQUEST_FUNCS,
     OPENAI_COMPATIBLE_BACKENDS,
@@ -45,7 +44,8 @@ from transformers import PreTrainedTokenizerBase
 
 
 from block.benchmark.cara.cara_end_point_func import RequestFuncOutput, CARA_ASYNC_REQUEST_FUNCS
-from block.benchmark.cara.dataset import get_samples
+# Import SampleRequest from dataset.py (local canonical implementation)
+from block.benchmark.cara.dataset import get_samples, SampleRequest
 from block.global_scheduler.cara.utils import set_ulimit
 
 # Merge CARA async request functions with vLLM's request functions
@@ -625,20 +625,44 @@ async def benchmark(
     )
 
     if ready_check_timeout_sec > 0:
-        test_output = await wait_for_endpoint(
-            request_func,
-            test_input,
-            session,
-            timeout_seconds=ready_check_timeout_sec,
-        )
-        if getattr(test_output, "success", True) is False:
-            raise ValueError(
-                "Initial test run failed - Please make sure benchmark "
-                "arguments are correctly specified. "
-                f"Error: {test_output.error}"
-            )
-        else:
+        if endpoint_type == "cara":
+            # Fast health-check for CARA server to avoid long warmup generation
+            from urllib.parse import urlparse, urlunparse
+            parsed = urlparse(api_url)
+            base = urlunparse((parsed.scheme, parsed.netloc, "", "", "", ""))
+            health_url = base.rstrip("/") + "/health"
+            deadline = time.time() + ready_check_timeout_sec
+            ok = False
+            print(f"Waiting for endpoint to become ready (GET {health_url})...")
+            while time.time() < deadline:
+                try:
+                    async with session.get(health_url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                        if resp.status == 200:
+                            ok = True
+                            break
+                except Exception:
+                    pass
+                await asyncio.sleep(1)
+            if not ok:
+                raise TimeoutError(
+                    f"Endpoint did not become ready within {ready_check_timeout_sec} seconds"
+                )
             print("Endpoint is ready.")
+        else:
+            test_output = await wait_for_endpoint(
+                request_func,
+                test_input,
+                session,
+                timeout_seconds=ready_check_timeout_sec,
+            )
+            if getattr(test_output, "success", True) is False:
+                raise ValueError(
+                    "Initial test run failed - Please make sure benchmark "
+                    "arguments are correctly specified. "
+                    f"Error: {test_output.error}"
+                )
+            else:
+                print("Endpoint is ready.")
     else:
         print("Skipping endpoint ready check.")
 
@@ -765,13 +789,18 @@ async def benchmark(
             req_lora_module = next(lora_modules)
             req_model_id, req_model_name = req_lora_module, req_lora_module
 
+        # Enforce client-side cap so prompt_len + output_len <= args.max_total_len
+        # This keeps requests within backend max-model-len (commonly 1024 in our deployments)
+        allowed_output_len = max(0, (args.max_total_len or 1024) - (prompt_len or 0))
+        capped_output_len = min(output_len or 0, allowed_output_len)
+
         request_func_input = RequestFuncInput(
             model=req_model_id,
             model_name=req_model_name,
             prompt=prompt,
             api_url=api_url,
             prompt_len=prompt_len,
-            output_len=output_len,
+            output_len=capped_output_len,
             logprobs=logprobs,
             multi_modal_content=mm_content,
             ignore_eos=ignore_eos,
@@ -1138,6 +1167,27 @@ def save_to_pytorch_benchmark_format(
 
 def add_cli_args(parser: argparse.ArgumentParser):
     add_dataset_parser(parser)
+    # # Normalize default for custom datasets across environments (A100/P100)
+    # # vLLM's parser on some nodes may default to 256; override to 1024 for consistency.
+    # parser.set_defaults(custom_output_len=1024)
+    # # Align dataset sampling with backend cap defaults (commonly 1024 on CARA deployments)
+    # parser.set_defaults(max_total_len=1024)
+    parser.add_argument(
+        "--custom-output-len",
+        type=int,
+        default=1024,
+        help="Custom maximal output length for each input",
+    )
+
+    parser.add_argument(
+        "--max-total-len",
+        type=int,
+        default=None,
+        help="Maximum total length (prompt + output) for each request. "
+        "If specified, the benchmark client will cap output lengths "
+        "so that prompt_len + output_len <= max_total_len.",
+    )
+
     parser.add_argument(
         "--label",
         type=str,
@@ -1215,6 +1265,12 @@ def add_cli_args(parser: argparse.ArgumentParser):
         - Other custom values can be supported via plugins.""",
     )
     parser.add_argument("--use-beam-search", action="store_true")
+    parser.add_argument(
+        "--request-id-prefix",
+        type=str,
+        default="",
+        help="Prefix for request IDs.",
+    )
     parser.add_argument(
         "--logprobs",
         type=int,
@@ -1469,6 +1525,7 @@ def add_cli_args(parser: argparse.ArgumentParser):
         type=json.loads,
         default=None,
     )
+
 
 
 def main(args: argparse.Namespace) -> dict[str, Any]:
