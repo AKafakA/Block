@@ -593,7 +593,8 @@ def sample_requests(
         max_seqlen: int,
         use_estimated_response_lens: bool,
         start_idx: int,
-        task: str = 'chat'
+        task: str = 'chat',
+        min_prompt_len: int = 4,
 ):
     prompts = []
     prompt_lens = []
@@ -640,7 +641,7 @@ def sample_requests(
         prompt_len = len(prompt_token_ids)
         completion_len = len(completion_token_ids)
 
-        if (prompt_len > 0 and completion_len > 0
+        if (prompt_len >= min_prompt_len and completion_len > 0
                 and max_seqlen > prompt_len + completion_len):
             prompts.append(prompt)
             prompt_lens.append(prompt_len)
@@ -713,9 +714,13 @@ def main():
     parser.add_argument('--data_start_index', type=int, default=0,
                         help="Start index of the dataset to sample from.")
     parser.add_argument('--max_request_len', type=int, default=4096)
+    parser.add_argument('--min_prompt_len', type=int, default=4,
+                        help='Minimum prompt token length to include')
     parser.add_argument(
         '--distribution', choices=["uniform", "gamma", "exponential"], default="gamma")
     parser.add_argument('--qps', type=float, default=4.0)
+    parser.add_argument('--seed', type=int, default=0xCADE,
+                        help='Random seed for request sampling/shuffle')
     parser.add_argument('--burstiness', type=float, default=1.0)
     parser.add_argument('--fail_on_response_failure', type=bool, default=False,
                         help="Whether or not to fail the benchmarking script if any request fails")
@@ -743,8 +748,8 @@ def main():
     backend = GenerationBackend[args.backend]
     tokenizer = AutoTokenizer.from_pretrained(args.tokenizer, trust_remote_code=args.trust_remote_code)
 
-    random.seed(0xCADE)
-    np.random.seed(0xCADE)
+    random.seed(args.seed)
+    np.random.seed(args.seed)
     if args.dataset_type == "sharegpt" or args.dataset_type == "lmsys":
         prompts, prompt_lens, max_response_lens, estimated_response_lens = sample_requests(
             args.dataset_path,
@@ -753,7 +758,8 @@ def main():
             args.max_request_len,
             args.use_estimated_response_lens,
             args.data_start_index,
-            task='chat'
+            task='chat',
+            min_prompt_len=args.min_prompt_len,
         )
     elif args.dataset_type == "arxiv" or args.dataset_type == "burstgpt" or args.dataset_type == "code":
         prompts, prompt_lens, max_response_lens, estimated_response_lens = sample_requests(
@@ -763,7 +769,8 @@ def main():
             args.max_request_len,
             args.use_estimated_response_lens,
             args.data_start_index,
-            task=args.dataset_type
+            task=args.dataset_type,
+            min_prompt_len=args.min_prompt_len,
         )
     else:
         raise ValueError(f"Unknown dataset type {args.dataset_type}")

@@ -51,6 +51,73 @@ from block.global_scheduler.cara.utils import set_ulimit
 # Merge CARA async request functions with vLLM's request functions
 ASYNC_REQUEST_FUNCS = {**ASYNC_REQUEST_FUNCS, **CARA_ASYNC_REQUEST_FUNCS}
 
+
+def parse_length_constraints_from_filename(filepath: str) -> dict:
+    """Parse length constraints from dataset filename.
+
+    Expected format: {name}-p{max_prompt}-o{max_output}-t{max_total}.jsonl
+    Example: best-route-p1024-o1024-t2048.jsonl
+
+    Returns dict with keys: max_prompt_len, max_output_len (optional), max_total_len
+    Values are None if not found in filename.
+    """
+    import re
+    import os
+
+    basename = os.path.basename(filepath)
+    constraints = {
+        "max_prompt_len": None,
+        "max_output_len": None,
+        "max_total_len": None,
+    }
+
+    # Match patterns like -p1024, -o1024, -t2048
+    prompt_match = re.search(r'-p(\d+)', basename)
+    output_match = re.search(r'-o(\d+)', basename)
+    total_match = re.search(r'-t(\d+)', basename)
+
+    if prompt_match:
+        constraints["max_prompt_len"] = int(prompt_match.group(1))
+    if output_match:
+        constraints["max_output_len"] = int(output_match.group(1))
+    if total_match:
+        constraints["max_total_len"] = int(total_match.group(1))
+
+    return constraints
+
+
+def apply_filename_constraints_to_args(args) -> None:
+    """Apply length constraints from dataset filename to args if not explicitly set.
+
+    Only applies constraints if the corresponding arg was not provided (uses default).
+    """
+    if not args.dataset_path:
+        return
+
+    constraints = parse_length_constraints_from_filename(args.dataset_path)
+
+    applied = []
+    # Apply max_prompt_len if found and not explicitly set (check against default 1024)
+    if constraints["max_prompt_len"] is not None:
+        if not hasattr(args, '_max_prompt_len_set') or not args._max_prompt_len_set:
+            args.max_prompt_len = constraints["max_prompt_len"]
+            applied.append(f"max_prompt_len={constraints['max_prompt_len']}")
+
+    # Apply max_output_len -> custom_output_len if found
+    if constraints["max_output_len"] is not None:
+        if not hasattr(args, '_custom_output_len_set') or not args._custom_output_len_set:
+            args.custom_output_len = constraints["max_output_len"]
+            applied.append(f"custom_output_len={constraints['max_output_len']}")
+
+    # Apply max_total_len if found
+    if constraints["max_total_len"] is not None:
+        if not hasattr(args, '_max_total_len_set') or not args._max_total_len_set:
+            args.max_total_len = constraints["max_total_len"]
+            applied.append(f"max_total_len={constraints['max_total_len']}")
+
+    if applied:
+        print(f"Auto-detected length constraints from filename: {', '.join(applied)}")
+
 MILLISECONDS_TO_SECONDS_CONVERSION = 1000
 
 TERM_PLOTLIB_AVAILABLE = (importlib.util.find_spec("termplotlib") is not None) and (
@@ -1180,12 +1247,18 @@ def add_cli_args(parser: argparse.ArgumentParser):
     )
 
     parser.add_argument(
+        "--max-prompt-len",
+        type=int,
+        default=1024,
+        help="Maximum prompt length in tokens (default: 1024). "
+        "Matches vLLM's is_valid_sequence max_prompt_len parameter.",
+    )
+    parser.add_argument(
         "--max-total-len",
         type=int,
-        default=None,
-        help="Maximum total length (prompt + output) for each request. "
-        "If specified, the benchmark client will cap output lengths "
-        "so that prompt_len + output_len <= max_total_len.",
+        default=2048,
+        help="Maximum total length (prompt + output) for each request (default: 2048). "
+        "The benchmark client will cap output lengths so that prompt_len + output_len <= max_total_len.",
     )
 
     parser.add_argument(
@@ -1800,5 +1873,9 @@ if __name__ == "__main__":
     )
     add_cli_args(parser)
     args = parser.parse_args()
+
+    # Auto-detect and apply length constraints from dataset filename if not explicitly set
+    apply_filename_constraints_to_args(args)
+
     result = main(args)
     print("\nBenchmark completed successfully!")

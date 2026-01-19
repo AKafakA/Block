@@ -38,9 +38,6 @@ BEAVER_TAILS_30K_TRAIN_PATH = (
 # to avoid depending on fixed file layouts. They are referenced by name
 # in collect_data.py, not by file path.
 
-# HuggingFaceH4/ultrachat_200k: multi-turn benign chat dataset
-ULTRACHAT_DATASET_NAME = "HuggingFaceH4/ultrachat_200k"
-
 # google-research-datasets/gsm8k: grade-school math word problems
 GSM8K_DATASET_NAME = "gsm8k"
 
@@ -48,3 +45,7 @@ GSM8K_DATASET_NAME = "gsm8k"
 SQUAD_DATASET_NAME = "squad"
 CNN_DAILYMAIL_DATASET_NAME = "cnn_dailymail"
 AI2_ARC_DATASET_NAME = "ai2_arc"
+
+# ShareGPT (first human→assistant turn)
+# You may change this to a preferred ShareGPT mirror if needed.
+SHAREGPT_DATASET_NAME = "shibing624/sharegpt_gpt4"

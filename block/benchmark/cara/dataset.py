@@ -30,16 +30,27 @@ class SampleRequest:
 def is_valid_sequence(
     prompt_len: int,
     output_len: int,
+    min_len: int = 4,
+    max_prompt_len: int = 1024,
     max_total_len: int = 2048,
-    min_output_len: int = 4,
     skip_min_output_len_check: bool = False,
 ) -> bool:
-    """Check if sequence length is valid (local implementation)."""
-    if prompt_len + output_len > max_total_len:
-        return False
-    if not skip_min_output_len_check and output_len < min_output_len:
-        return False
-    return True
+    """Check if sequence length is valid (matches vLLM's is_valid_sequence).
+
+    Args:
+        prompt_len: Length of prompt in tokens
+        output_len: Length of output in tokens
+        min_len: Minimum length for both prompt and output (default 4)
+        max_prompt_len: Maximum prompt length (default 1024)
+        max_total_len: Maximum total length prompt + output (default 2048)
+        skip_min_output_len_check: Skip minimum output length check
+    """
+    prompt_too_short = prompt_len < min_len
+    output_too_short = (not skip_min_output_len_check) and (output_len < min_len)
+    prompt_too_long = prompt_len > max_prompt_len
+    combined_too_long = (prompt_len + output_len) > max_total_len
+
+    return not (prompt_too_short or output_too_short or prompt_too_long or combined_too_long)
 
 
 class BenchmarkDataset:
@@ -103,6 +114,8 @@ class LmsysDataset(BenchmarkDataset):
     """
 
     def __init__(self, **kwargs) -> None:
+        # Accept disable_shuffle from kwargs (default False)
+        self.disable_shuffle = bool(kwargs.pop("disable_shuffle", False))
         super().__init__(**kwargs)
         self.load_data()
 
@@ -136,6 +149,8 @@ class LmsysDataset(BenchmarkDataset):
         enable_multimodal_chat: bool = False,
         request_id_prefix: str = "",
         no_oversample: bool = False,
+        min_prompt_len: int = 4,
+        max_prompt_len: int = 1024,
         max_total_len: int = 2048,
         **kwargs,
     ) -> list:
@@ -156,6 +171,8 @@ class LmsysDataset(BenchmarkDataset):
             if not is_valid_sequence(
                 prompt_len,
                 new_output_len,
+                min_len=min_prompt_len,
+                max_prompt_len=max_prompt_len,
                 max_total_len=max_total_len,
                 skip_min_output_len_check=output_len is not None,
             ):
@@ -186,6 +203,7 @@ class CaraCustomDataset(BenchmarkDataset):
     """
 
     def __init__(self, **kwargs) -> None:
+        self.disable_shuffle = bool(kwargs.pop("disable_shuffle", False))
         super().__init__(**kwargs)
         self.load_data()
 
@@ -198,6 +216,10 @@ class CaraCustomDataset(BenchmarkDataset):
             for line in f:
                 if line.strip():
                     self.data.append(json.loads(line))
+        # Shuffle by default for randomized request order
+        random.seed(self.random_seed)
+        if not getattr(self, "disable_shuffle", False):
+            random.shuffle(self.data)
 
     def sample(
         self,
@@ -206,6 +228,8 @@ class CaraCustomDataset(BenchmarkDataset):
         output_len: int | None = None,
         request_id_prefix: str = "",
         no_oversample: bool = False,
+        min_prompt_len: int = 4,
+        max_prompt_len: int = 1024,
         max_total_len: int = 2048,
         **kwargs,
     ) -> list:
@@ -220,6 +244,8 @@ class CaraCustomDataset(BenchmarkDataset):
             if not is_valid_sequence(
                 prompt_len,
                 expected_len,
+                min_len=min_prompt_len,
+                max_prompt_len=max_prompt_len,
                 max_total_len=max_total_len,
                 skip_min_output_len_check=(output_len is not None),
             ):
@@ -255,7 +281,8 @@ def get_samples(args, tokenizer) -> list[SampleRequest]:
         if args.dataset_path and args.dataset_path.endswith("lmsys"):
             dataset = LmsysDataset(
                 dataset_path=args.dataset_path,
-                random_seed=args.seed
+                random_seed=args.seed,
+                disable_shuffle=getattr(args, 'disable_shuffle', False),
             )
             return dataset.sample(
                 num_requests=args.num_prompts,
@@ -264,12 +291,15 @@ def get_samples(args, tokenizer) -> list[SampleRequest]:
                 skip_chat_template=args.skip_chat_template,
                 request_id_prefix=args.request_id_prefix,
                 no_oversample=args.no_oversample,
+                min_prompt_len=args.min_prompt_len,
+                max_prompt_len=args.max_prompt_len,
                 max_total_len=args.max_total_len,
             )
         # Standard custom dataset (JSONL file) — force local implementation
         dataset = CaraCustomDataset(
             dataset_path=args.dataset_path,
-            random_seed=args.seed
+            random_seed=args.seed,
+            disable_shuffle=getattr(args, 'disable_shuffle', False),
         )
         return dataset.sample(
             num_requests=args.num_prompts,
@@ -277,6 +307,8 @@ def get_samples(args, tokenizer) -> list[SampleRequest]:
             output_len=args.custom_output_len,
             request_id_prefix=args.request_id_prefix,
             no_oversample=args.no_oversample,
+            min_prompt_len=args.min_prompt_len,
+            max_prompt_len=args.max_prompt_len,
             max_total_len=args.max_total_len,
         )
     else:

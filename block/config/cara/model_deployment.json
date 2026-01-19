@@ -6,7 +6,7 @@
     "node_hosts": []
   },
   "Qwen-2.5-32B": {
-    "documentation": "Model deployment for Qwen-2.5-32B is currently disabled due to unexpected repeatation cursors.",
+    "documentation": "Model deployment for Qwen-2.5-32B is currently disabled due to unexpected repetition cursors.",
     "hf_model_name": "Qwen/Qwen2.5-32B",
     "precision": "fp16",
     "backend": "vllm",

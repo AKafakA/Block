@@ -170,7 +170,7 @@ Plase checking requirments.txt and `block/exp/setup.sh`
 Use the mixer to collect and blend prompts from several public datasets (Best-Route style) into a single file for model routing and training.
 
 Script
-- `block/data/collect_data.py` mixes: reward_bench, mix_instruct, beaver_tails, code_ultra_feedback
+- `block/data/collect_data.py` mixes: reward_bench, mix_instruct, beaver_tails, code_ultra_feedback, sharegpt
 - HF paths centralized in `block/data/datapath.py`
 
 Output format
@@ -187,14 +187,16 @@ python block/data/collect_data.py \
 
 # Custom mix with ratios, minimums, and floors; still JSONL
 python block/data/collect_data.py \
-  --datasets reward_bench mix_instruct beaver_tails code_ultra_feedback \
+  --datasets reward_bench mix_instruct beaver_tails code_ultra_feedback sharegpt \
   --total-n 10000 \
-  --ratios 0.25 0.25 0.25 0.25 \
-  --min-per 2000 1016 6000 1260 \
+  --ratios 0.2 0.25 0.15 0.2 0.2 \
+  --min-per 1000 1016 1500 1000 1000 \
   -o data/mixed_dataset.jsonl
 
 # Write a JSON array instead (not JSONL)
 python block/data/collect_data.py --use-json -o data/mixed_dataset.json
+
+Tip: If you need a chat-style dataset, use ShareGPT first-turns (`--datasets sharegpt`) to avoid ultra-long responses.
 ```
 
 Key flags

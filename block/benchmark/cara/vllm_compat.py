@@ -242,10 +242,27 @@ except ImportError:
             help="Do not oversample requests if dataset is smaller than num-prompts",
         )
         parser.add_argument(
+            "--disable-shuffle",
+            action="store_true",
+            help="Disable shuffling of dataset samples (default: shuffle using --seed)",
+        )
+        parser.add_argument(
+            "--max-prompt-len",
+            type=int,
+            default=1024,
+            help="Maximum prompt length in tokens (default: 1024)",
+        )
+        parser.add_argument(
+            "--min-prompt-len",
+            type=int,
+            default=4,
+            help="Minimum prompt length in tokens (default: 4)",
+        )
+        parser.add_argument(
             "--max-total-len",
             type=int,
             default=2048,
-            help="Maximum total sequence length (prompt + output)",
+            help="Maximum total sequence length (prompt + output, default: 2048)",
         )
         return parser
 

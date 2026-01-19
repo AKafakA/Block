@@ -34,7 +34,7 @@ def load_reward_bench(
             ["xstest-", "refusals-", "donotanswer", "hep-"]
 
     Returns:
-        DataFrame with columns ["id", "prompt"].
+        DataFrame with columns ["id", "prompt", "response"].
     """
     if include_prefixes is None:
         include_prefixes = datapath.REWARD_BENCH_DEFAULT_PREFIXES
@@ -50,19 +50,22 @@ def load_reward_bench(
         mask = mask | df["subset"].str.startswith(p)
     selected = df.loc[mask].copy()
     selected["id"] = selected["subset"] + "/" + selected["id"].astype(str)
-    return selected[["id", "prompt"]]
+    selected["response"] = selected["chosen"]  # Use chosen response for length filtering
+    return selected[["id", "prompt", "response"]]
 
 
 def load_code_ultra_feedback(sample_n: Optional[int] = None, seed: int = 1) -> pd.DataFrame:
     """Load CodeUltraFeedback and sample instructions as prompts.
 
-    Returns DataFrame with ["id", "prompt"].
+    Returns DataFrame with ["id", "prompt", "response"].
     """
     path = datapath.CODE_ULTRA_FEEDBACK_PATH
     df = pd.read_parquet(path)
-    sdf = df[["instruction"]].reset_index().copy()
+    sdf = df[["instruction", "responses"]].reset_index().copy()
     sdf["id"] = "code_ultra_feedback/" + sdf["index"].astype(str)
-    sdf = sdf[["id", "instruction"]].rename(columns={"instruction": "prompt"})
+    # Use first response for length filtering
+    sdf["response"] = sdf["responses"].apply(lambda x: x[0] if isinstance(x, list) and len(x) > 0 else "")
+    sdf = sdf[["id", "instruction", "response"]].rename(columns={"instruction": "prompt"})
     if sample_n is not None and sample_n > 0:
         sdf = sdf.sample(n=sample_n, random_state=seed)
     return sdf
@@ -71,14 +74,15 @@ def load_code_ultra_feedback(sample_n: Optional[int] = None, seed: int = 1) -> p
 def load_mix_instruct(sample_n: Optional[int] = None, seed: int = 1) -> pd.DataFrame:
     """Load mix-instruct and form prompt as instruction + input.
 
-    Returns DataFrame with ["id", "prompt"].
+    Returns DataFrame with ["id", "prompt", "response"].
     """
     path: str = datapath.MIX_INSTRUCT_TRAIN_PATH
     df = pd.read_json(path, lines=True)
-    sdf = df[["id", "instruction", "input"]].copy()
+    sdf = df[["id", "instruction", "input", "output"]].copy()
     # Concatenate with a space like the notebook
     sdf["prompt"] = sdf["instruction"].fillna("") + " " + sdf["input"].fillna("")
-    sdf = sdf[["id", "prompt"]]
+    sdf["response"] = sdf["output"].fillna("")
+    sdf = sdf[["id", "prompt", "response"]]
     if sample_n is not None and sample_n > 0:
         sdf = sdf.sample(n=sample_n, random_state=seed)
     return sdf
@@ -87,7 +91,7 @@ def load_mix_instruct(sample_n: Optional[int] = None, seed: int = 1) -> pd.DataF
 def load_beaver_tails(sample_n: Optional[int] = None, seed: int = 1) -> pd.DataFrame:
     """Load BeaverTails harmful prompts only and sample.
 
-    Returns DataFrame with ["id", "prompt"].
+    Returns DataFrame with ["id", "prompt", "response"].
     """
     path: str = datapath.BEAVER_TAILS_30K_TRAIN_PATH
     df = pd.read_json(path, lines=True)
@@ -100,62 +104,12 @@ def load_beaver_tails(sample_n: Optional[int] = None, seed: int = 1) -> pd.DataF
         return False
 
     harmful = df[df["category"].apply(is_prompt_harmful)].copy()
-    harmful = harmful[["prompt"]].drop_duplicates().reset_index()
+    harmful = harmful[["prompt", "response"]].drop_duplicates(subset=["prompt"]).reset_index()
     harmful["id"] = "beaver_tails/" + harmful["index"].astype(str)
-    harmful = harmful[["id", "prompt"]]
+    harmful = harmful[["id", "prompt", "response"]]
     if sample_n is not None and sample_n > 0:
         harmful = harmful.sample(n=sample_n, random_state=seed)
     return harmful
-
-
-def load_ultrachat(sample_n: Optional[int] = None, seed: int = 1, split: str = "train_sft") -> pd.DataFrame:
-    """Load UltraChat (benign chats). Extract the first user turn as prompt.
-
-    Returns DataFrame with ["id", "prompt"]. Uses datasets library.
-    """
-    if not _HAS_DATASETS:
-        raise ImportError(
-            "datasets is required for ultrachat loading. Install with: pip install datasets"
-        )
-
-    ds = load_dataset(datapath.ULTRACHAT_DATASET_NAME, split=split)
-
-    prompts = []
-    # Common patterns: columns may include 'messages' (list of {role, content}) or 'conversations'
-    for idx, row in enumerate(ds):
-        prompt_text = None
-        if "messages" in row and isinstance(row["messages"], list):
-            # Find first user message
-            for m in row["messages"]:
-                role = m.get("role") if isinstance(m, dict) else None
-                content = m.get("content") if isinstance(m, dict) else None
-                if role and role.lower() == "user" and content:
-                    prompt_text = content
-                    break
-        elif "conversations" in row and isinstance(row["conversations"], list):
-            for m in row["conversations"]:
-                role = m.get("from") if isinstance(m, dict) else None
-                content = m.get("value") if isinstance(m, dict) else None
-                if role and role.lower() == "human" and content:
-                    prompt_text = content
-                    break
-        elif "instruction" in row:
-            # Fallback: instruction + optional input
-            prompt_text = str(row.get("instruction", ""))
-            if row.get("input"):
-                prompt_text = (prompt_text + " " + str(row["input"])).strip()
-
-        if prompt_text:
-            prompts.append({
-                "id": f"ultrachat/{idx}",
-                "prompt": prompt_text,
-            })
-
-    df = pd.DataFrame(prompts)
-    if sample_n is not None and sample_n > 0 and len(df) > 0:
-        df = df.sample(n=min(sample_n, len(df)), random_state=seed)
-    return df
-
 
 def load_gsm8k(
     sample_n: Optional[int] = None,
@@ -165,7 +119,7 @@ def load_gsm8k(
 ) -> pd.DataFrame:
     """Load GSM8K math word problems; use 'question' as prompt.
 
-    Returns DataFrame with ["id", "prompt"].
+    Returns DataFrame with ["id", "prompt", "response"].
     """
     if not _HAS_DATASETS:
         raise ImportError(
@@ -173,14 +127,16 @@ def load_gsm8k(
         )
 
     # gsm8k requires a config: 'main' or 'socratic'. Default to 'main'.
+    # Use streaming=True to avoid PyArrow cache issues
     try:
-        ds = load_dataset(datapath.GSM8K_DATASET_NAME, config, split=split)
+        ds = load_dataset(datapath.GSM8K_DATASET_NAME, config, split=split, streaming=True)
     except Exception:
         # Fallback to 'socratic' if 'main' is unavailable in this mirror
-        ds = load_dataset(datapath.GSM8K_DATASET_NAME, "socratic", split=split)
+        ds = load_dataset(datapath.GSM8K_DATASET_NAME, "socratic", split=split, streaming=True)
     records = []
     for idx, row in enumerate(ds):
         q = str(row.get("question", "")).strip()
+        answer = str(row.get("answer", "")).strip()
         if not q:
             continue
         prompt = (
@@ -188,7 +144,7 @@ def load_gsm8k(
             f"Problem: {q}\n"
             f"Answer with only the final number on the last line."
         )
-        records.append({"id": f"gsm8k/{idx}", "prompt": prompt})
+        records.append({"id": f"gsm8k/{idx}", "prompt": prompt, "response": answer})
     df = pd.DataFrame(records)
     if sample_n is not None and sample_n > 0 and len(df) > 0:
         df = df.sample(n=min(sample_n, len(df)), random_state=seed)
@@ -197,16 +153,21 @@ def load_gsm8k(
 def load_squad(sample_n: Optional[int] = None, seed: int = 1, split: str = "train") -> pd.DataFrame:
     """Load SQuAD v1.1; build QA prompts with context.
 
-    Returns DataFrame with ["id", "prompt"].
+    Returns DataFrame with ["id", "prompt", "response"].
+    Note: SQuAD answers are short extracts, so response filtering has limited impact.
     """
     if not _HAS_DATASETS:
         raise ImportError("datasets is required for SQuAD. pip install datasets")
 
-    ds = load_dataset(datapath.SQUAD_DATASET_NAME, split=split)
+    # Use streaming=True to avoid PyArrow cache issues
+    ds = load_dataset(datapath.SQUAD_DATASET_NAME, split=split, streaming=True)
     records = []
     for idx, row in enumerate(ds):
         q = str(row.get("question", "")).strip()
         ctx = str(row.get("context", "")).strip()
+        answers = row.get("answers", {})
+        answer_texts = answers.get("text", []) if isinstance(answers, dict) else []
+        answer = answer_texts[0] if answer_texts else ""
         if not q:
             continue
         prompt = (
@@ -214,7 +175,7 @@ def load_squad(sample_n: Optional[int] = None, seed: int = 1, split: str = "trai
             f"Context: {ctx}\n"
             f"Question: {q}"
         )
-        records.append({"id": f"squad/{idx}", "prompt": prompt})
+        records.append({"id": f"squad/{idx}", "prompt": prompt, "response": answer})
     df = pd.DataFrame(records)
     if sample_n is not None and sample_n > 0 and len(df) > 0:
         df = df.sample(n=min(sample_n, len(df)), random_state=seed)
@@ -230,10 +191,11 @@ def load_trivia_qa(sample_n: Optional[int] = None, seed: int = 1, split: str = "
         raise ImportError("datasets is required for TriviaQA. pip install datasets")
 
     # Use 'rc' subset for reading-comprehension formatted version when available
+    # Use streaming=True to avoid PyArrow cache issues
     try:
-        ds = load_dataset(datapath.TRIVIA_QA_DATASET_NAME, "rc", split=split)
+        ds = load_dataset(datapath.TRIVIA_QA_DATASET_NAME, "rc", split=split, streaming=True)
     except Exception:
-        ds = load_dataset(datapath.TRIVIA_QA_DATASET_NAME, split=split)
+        ds = load_dataset(datapath.TRIVIA_QA_DATASET_NAME, split=split, streaming=True)
     records = []
     for idx, row in enumerate(ds):
         q = str(row.get("question", "")).strip()
@@ -246,27 +208,77 @@ def load_trivia_qa(sample_n: Optional[int] = None, seed: int = 1, split: str = "
     return df
 
 
+def load_sharegpt_firstturn(sample_n: Optional[int] = None, seed: int = 1) -> pd.DataFrame:
+    """Load ShareGPT-style dataset via HF and extract first human→assistant turn.
+
+    Uses datasets library to stream. Returns DataFrame with ["id", "prompt", "response"].
+    """
+    if not _HAS_DATASETS:
+        raise ImportError("datasets is required for ShareGPT loading. pip install datasets")
+
+    # Try common splits; some repos only expose 'train'
+    ds = None
+    for split in ("train", "validation", "test"):
+        try:
+            ds = load_dataset(datapath.SHAREGPT_DATASET_NAME, split=split, streaming=True)
+            break
+        except Exception:
+            ds = None
+    if ds is None:
+        # Last attempt: some datasets expose a default split name
+        ds = load_dataset(datapath.SHAREGPT_DATASET_NAME, split="train", streaming=True)
+
+    records = []
+    for idx, row in enumerate(ds):
+        conv = row.get("conversations", [])
+        if not isinstance(conv, list) or len(conv) < 2:
+            continue
+        first = conv[0]
+        second = conv[1]
+        # Handle various key names
+        role1 = first.get("from") or first.get("role")
+        text1 = first.get("value") or first.get("content")
+        role2 = second.get("from") or second.get("role")
+        text2 = second.get("value") or second.get("content")
+        if role1 and text1 and role2 and text2:
+            # Normalize roles: expect human/user then gpt/assistant
+            if role1.lower() in ("human", "user") and role2.lower() in ("gpt", "assistant"):
+                records.append({
+                    "id": f"sharegpt/{idx}",
+                    "prompt": str(text1).strip(),
+                    "response": str(text2).strip(),
+                })
+        if sample_n is not None and len(records) >= sample_n * 2:
+            break
+
+    df = pd.DataFrame(records)
+    if sample_n is not None and sample_n > 0 and len(df) > 0:
+        df = df.sample(n=min(sample_n, len(df)), random_state=seed)
+    return df
+
+
 def load_cnn_dailymail(sample_n: Optional[int] = None, seed: int = 1, split: str = "train") -> pd.DataFrame:
     """Load CNN/DailyMail; build summarization prompts from article.
 
-    Returns DataFrame with ["id", "prompt"].
+    Returns DataFrame with ["id", "prompt", "response"].
     """
     if not _HAS_DATASETS:
         raise ImportError("datasets is required for CNN/DailyMail. pip install datasets")
 
-    # Prefer newer config name
+    # Prefer newer config name. Use streaming=True to avoid PyArrow cache issues
     try:
-        ds = load_dataset(datapath.CNN_DAILYMAIL_DATASET_NAME, "3.0.0", split=split)
+        ds = load_dataset(datapath.CNN_DAILYMAIL_DATASET_NAME, "3.0.0", split=split, streaming=True)
     except Exception:
-        ds = load_dataset(datapath.CNN_DAILYMAIL_DATASET_NAME, split=split)
+        ds = load_dataset(datapath.CNN_DAILYMAIL_DATASET_NAME, split=split, streaming=True)
 
     records = []
     for idx, row in enumerate(ds):
         art = str(row.get("article", "")).strip()
+        highlights = str(row.get("highlights", "")).strip()
         if not art:
             continue
         prompt = f"Summarize the following article in 3-5 sentences.\nArticle: {art}"
-        records.append({"id": f"cnn_dailymail/{idx}", "prompt": prompt})
+        records.append({"id": f"cnn_dailymail/{idx}", "prompt": prompt, "response": highlights})
     df = pd.DataFrame(records)
     if sample_n is not None and sample_n > 0 and len(df) > 0:
         df = df.sample(n=min(sample_n, len(df)), random_state=seed)
@@ -324,6 +336,7 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Optional path to write a JSON summary of dataset distribution",
     )
+    # no local-path flags for online-only mode
 
     # Dataset selection and sizing
     allowed = [
@@ -331,7 +344,19 @@ def parse_args() -> argparse.Namespace:
         "code_ultra_feedback",
         "beaver_tails",
         "mix_instruct",
-        "ultrachat",
+        "sharegpt",
+        "gsm8k",
+        "squad",
+        "cnn_dailymail",
+        "ai2_arc",
+    ]
+    # Keep default datasets aligned with prior behavior (exclude sharegpt by default)
+    default_datasets = [
+        "reward_bench",
+        "code_ultra_feedback",
+        "beaver_tails",
+        "mix_instruct",
+        "sharegpt",
         "gsm8k",
         "squad",
         "cnn_dailymail",
@@ -341,7 +366,7 @@ def parse_args() -> argparse.Namespace:
         "--datasets",
         nargs="+",
         choices=allowed,
-        default=allowed,
+        default=default_datasets,
         help="Datasets to include (space-separated)",
     )
     p.add_argument(
@@ -390,18 +415,42 @@ def parse_args() -> argparse.Namespace:
         ),
     )
 
-    # Prompt length filtering (applies to all datasets)
+    # Length filtering (applies to all datasets)
+    # Parameters match vLLM's is_valid_sequence and benchmark_serving.py
     p.add_argument(
-        "--max-prompt-length",
+        "--max-prompt-len",
         type=int,
-        default=700,
-        help="Maximum prompt token length; discard prompts exceeding this",
+        default=1024,
+        help="Maximum prompt token length (default: 1024). "
+             "Matches vLLM's is_valid_sequence max_prompt_len.",
+    )
+    p.add_argument(
+        "--min-prompt-len",
+        type=int,
+        default=4,
+        help="Minimum prompt token length for inclusion (default: 4)",
+    )
+    p.add_argument(
+        "--max-output-len",
+        type=int,
+        default=None,
+        help="Maximum output/response token length. "
+             "If specified, filters entries with longer responses. "
+             "Maps to --custom-output-len in benchmark_serving.py.",
+    )
+    p.add_argument(
+        "--max-total-len",
+        type=int,
+        default=2048,
+        help="Maximum total token length (prompt + response, default: 2048). "
+             "Matches vLLM's is_valid_sequence max_total_len. "
+             "Filtering happens BEFORE sampling to ensure balanced ratios.",
     )
     p.add_argument(
         "--tokenizer",
         type=str,
         default="Qwen/Qwen2.5-3B",
-        help="HF tokenizer name for prompt length computation",
+        help="HF tokenizer name for length computation",
     )
 
     return p.parse_args()
@@ -487,7 +536,7 @@ def _assign_counts(
 
 
 def _load_all_full(datasets: List[str], seed: int, args) -> List[pd.DataFrame]:
-    """Load full datasets (after filtering), no sampling. Columns: id, prompt."""
+    """Load full datasets (after filtering), no sampling. Columns: id, prompt, response."""
     loaded: List[pd.DataFrame] = []
     for name in datasets:
         if name == "reward_bench":
@@ -505,26 +554,29 @@ def _load_all_full(datasets: List[str], seed: int, args) -> List[pd.DataFrame]:
             df = load_beaver_tails(sample_n=None, seed=seed)
         elif name == "mix_instruct":
             df = load_mix_instruct(sample_n=None, seed=seed)
-        elif name == "ultrachat":
-            df = load_ultrachat(sample_n=None, seed=seed)
+        
         elif name == "gsm8k":
             df = load_gsm8k(sample_n=None, seed=seed)
         elif name == "squad":
             df = load_squad(sample_n=None, seed=seed)
         elif name == "cnn_dailymail":
             df = load_cnn_dailymail(sample_n=None, seed=seed)
+        elif name == "sharegpt":
+            df = load_sharegpt_firstturn(sample_n=None, seed=seed)
         elif name == "ai2_arc":
             # Combine ARC-Challenge and ARC-Easy train splits for sufficient capacity
             if not _HAS_DATASETS:
                 raise ImportError("datasets is required for ai2_arc. pip install datasets")
             recs = []
             for subset in ("ARC-Challenge", "ARC-Easy"):
-                ds = load_dataset(datapath.AI2_ARC_DATASET_NAME, subset, split="train")
+                # Use streaming=True to avoid PyArrow cache issues
+                ds = load_dataset(datapath.AI2_ARC_DATASET_NAME, subset, split="train", streaming=True)
                 for idx, row in enumerate(ds):
                     q = str(row.get("question", "")).strip()
                     choices = row.get("choices", {}) or {}
                     labels = choices.get("label", [])
                     texts = choices.get("text", [])
+                    answer_key = str(row.get("answerKey", "")).strip()
                     options = [f"{lbl}. {txt}" for lbl, txt in zip(labels, texts)]
                     if not q or not options:
                         continue
@@ -533,7 +585,8 @@ def _load_all_full(datasets: List[str], seed: int, args) -> List[pd.DataFrame]:
                         f"Choices:\n- " + "\n- ".join(options) + "\n"
                         "Answer with only the single letter (A/B/C/D)."
                     )
-                    recs.append({"id": f"ai2_arc/{subset}/{idx}", "prompt": prompt})
+                    # Response is just the answer key (very short)
+                    recs.append({"id": f"ai2_arc/{subset}/{idx}", "prompt": prompt, "response": answer_key})
             df = pd.DataFrame(recs)
         else:
             raise SystemExit(f"Unknown dataset: {name}")
@@ -544,35 +597,69 @@ def _load_all_full(datasets: List[str], seed: int, args) -> List[pd.DataFrame]:
 def _filter_df_by_token_length(
     df: pd.DataFrame,
     tokenizer: "AutoTokenizer",
-    max_len: int,
+    min_prompt_len: int = 4,
+    max_prompt_len: int = 1024,
+    max_output_len: Optional[int] = None,
+    max_total_len: int = 2048,
     batch_size: int = 256,
 ) -> pd.DataFrame:
-    """Filter DataFrame rows where prompt token length <= max_len.
+    """Filter DataFrame rows based on token lengths (matches vLLM's is_valid_sequence logic).
 
-    Uses the tokenizer to count tokens without truncation; does not modify prompts.
+    Uses the tokenizer to count tokens without truncation; does not modify content.
+
+    Args:
+        df: DataFrame with 'prompt' column and optionally 'response' column
+        tokenizer: HuggingFace tokenizer
+        max_prompt_len: Maximum prompt token length (default: 1024)
+        max_output_len: Maximum output/response token length (if None, skip this check)
+        max_total_len: Maximum total token length prompt + response (default: 2048)
+        batch_size: Batch size for tokenization
     """
     if df.empty:
         return df
+
     prompts = df["prompt"].tolist()
+    has_response = "response" in df.columns
+    responses = df["response"].tolist() if has_response else None
+
     keep = [False] * len(prompts)
-    i = 0
-    while i < len(prompts):
-        batch = prompts[i:i + batch_size]
+
+    def get_lengths(texts: List[str]) -> List[int]:
+        """Tokenize texts and return lengths."""
         try:
             enc = tokenizer(
-                batch,
+                texts,
                 add_special_tokens=False,
                 padding=False,
                 truncation=False,
                 return_attention_mask=False,
             )
-            input_ids = enc["input_ids"]
-            lengths = [len(ids) for ids in input_ids]
+            return [len(ids) for ids in enc["input_ids"]]
         except Exception:
-            lengths = [len(tokenizer(x, add_special_tokens=False).input_ids) for x in batch]
-        for j, L in enumerate(lengths):
-            keep[i + j] = (L <= max_len)
+            return [len(tokenizer(x, add_special_tokens=False).input_ids) for x in texts]
+
+    i = 0
+    while i < len(prompts):
+        batch_prompts = prompts[i:i + batch_size]
+        prompt_lengths = get_lengths(batch_prompts)
+
+        if has_response:
+            batch_responses = responses[i:i + batch_size]
+            # Handle None/empty responses
+            batch_responses = [str(r) if r else "" for r in batch_responses]
+            response_lengths = get_lengths(batch_responses)
+        else:
+            response_lengths = [0] * len(batch_prompts)
+
+        for j, (p_len, r_len) in enumerate(zip(prompt_lengths, response_lengths)):
+            # Match vLLM's is_valid_sequence logic
+            prompt_ok = (p_len >= min_prompt_len) and (p_len <= max_prompt_len)
+            output_ok = (max_output_len is None) or (r_len <= max_output_len)
+            total_ok = (p_len + r_len) <= max_total_len
+            keep[i + j] = prompt_ok and output_ok and total_ok
+
         i += batch_size
+
     return df.loc[keep].reset_index(drop=True)
 
 
@@ -589,6 +676,42 @@ def _write_jsonl(path: str, records: Iterable[dict]) -> None:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
 
+def _generate_output_path_with_constraints(
+    base_path: str,
+    max_prompt_len: int,
+    max_output_len: Optional[int],
+    max_total_len: int,
+) -> str:
+    """Generate output path with length constraints encoded in filename.
+
+    Format: {base}-p{max_prompt}-o{max_output}-t{max_total}.{ext}
+    Example: best-route-p1024-o1024-t2048.jsonl
+
+    This allows benchmark_serving.py to auto-detect constraints from filename.
+    """
+    import os
+    dir_name = os.path.dirname(base_path)
+    base_name = os.path.basename(base_path)
+
+    # Split extension
+    if base_name.endswith('.jsonl'):
+        name, ext = base_name[:-6], '.jsonl'
+    elif base_name.endswith('.json'):
+        name, ext = base_name[:-5], '.json'
+    else:
+        name, ext = base_name, ''
+
+    # Build constraint suffix
+    suffix_parts = [f"p{max_prompt_len}"]
+    if max_output_len is not None:
+        suffix_parts.append(f"o{max_output_len}")
+    suffix_parts.append(f"t{max_total_len}")
+    suffix = "-".join(suffix_parts)
+
+    new_name = f"{name}-{suffix}{ext}"
+    return os.path.join(dir_name, new_name) if dir_name else new_name
+
+
 def main() -> None:
     args = parse_args()
     datasets: List[str] = list(args.datasets)
@@ -601,9 +724,15 @@ def main() -> None:
 
     # Load all datasets fully (post-filtering) to know capacities
     full_dfs = _load_all_full(datasets, args.seed, args)
-    # Apply prompt length filter across all datasets
+    # Apply length filters across all datasets (matches vLLM's is_valid_sequence)
     full_dfs = [
-        _filter_df_by_token_length(df, tokenizer, args.max_prompt_length)
+        _filter_df_by_token_length(
+            df, tokenizer,
+            min_prompt_len=args.min_prompt_len,
+            max_prompt_len=args.max_prompt_len,
+            max_output_len=args.max_output_len,
+            max_total_len=args.max_total_len,
+        )
         for df in full_dfs
     ]
     capacities = [len(df) for df in full_dfs]
@@ -650,12 +779,30 @@ def main() -> None:
         pct = (100.0 * cnt / total) if total > 0 else 0.0
         print(f"{name:<20} {cnt:>8} {pct:>9.2f}%")
 
+    # Generate output path with length constraints encoded in filename
+    output_path = _generate_output_path_with_constraints(
+        args.output,
+        max_prompt_len=args.max_prompt_len,
+        max_output_len=args.max_output_len,
+        max_total_len=args.max_total_len,
+    )
+
     # Optional: write stats JSON
     if args.stats_output:
-        os.makedirs(os.path.dirname(args.stats_output), exist_ok=True)
+        stats_path = _generate_output_path_with_constraints(
+            args.stats_output,
+            max_prompt_len=args.max_prompt_len,
+            max_output_len=args.max_output_len,
+            max_total_len=args.max_total_len,
+        )
+        os.makedirs(os.path.dirname(stats_path) or ".", exist_ok=True)
         stats = {
             "total": total,
-            "max_prompt_length": args.max_prompt_length,
+            "length_constraints": {
+                "max_prompt_len": args.max_prompt_len,
+                "max_output_len": args.max_output_len,
+                "max_total_len": args.max_total_len,
+            },
             "tokenizer": args.tokenizer,
             "datasets": [
                 {
@@ -667,16 +814,24 @@ def main() -> None:
                 for name, cap in zip(datasets, capacities)
             ],
         }
-        with open(args.stats_output, "w", encoding="utf-8") as f:
+        with open(stats_path, "w", encoding="utf-8") as f:
             json.dump(stats, f, ensure_ascii=False, indent=2)
-        print(f"\nWrote stats: {args.stats_output}")
+        print(f"\nWrote stats: {stats_path}")
+
     records = mixed.to_dict(orient="records")
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
     if args.use_json:
-        _write_json_array(args.output, records)
-        print(f"Wrote JSON array: {args.output}")
+        _write_json_array(output_path, records)
+        print(f"Wrote JSON array: {output_path}")
     else:
-        _write_jsonl(args.output, records)
-        print(f"Wrote JSONL: {args.output}")
+        _write_jsonl(output_path, records)
+        print(f"Wrote JSONL: {output_path}")
+
+    print(f"\nLength constraints encoded in filename:")
+    print(f"  max_prompt_len: {args.max_prompt_len}")
+    if args.max_output_len:
+        print(f"  max_output_len: {args.max_output_len}")
+    print(f"  max_total_len: {args.max_total_len}")
 
 
 if __name__ == "__main__":
