@@ -1239,27 +1239,8 @@ def add_cli_args(parser: argparse.ArgumentParser):
     # parser.set_defaults(custom_output_len=1024)
     # # Align dataset sampling with backend cap defaults (commonly 1024 on CARA deployments)
     # parser.set_defaults(max_total_len=1024)
-    parser.add_argument(
-        "--custom-output-len",
-        type=int,
-        default=1024,
-        help="Custom maximal output length for each input",
-    )
-
-    parser.add_argument(
-        "--max-prompt-len",
-        type=int,
-        default=1024,
-        help="Maximum prompt length in tokens (default: 1024). "
-        "Matches vLLM's is_valid_sequence max_prompt_len parameter.",
-    )
-    parser.add_argument(
-        "--max-total-len",
-        type=int,
-        default=2048,
-        help="Maximum total length (prompt + output) for each request (default: 2048). "
-        "The benchmark client will cap output lengths so that prompt_len + output_len <= max_total_len.",
-    )
+    # Note: --custom-output-len, --max-prompt-len, --min-prompt-len, --max-total-len
+    # are provided by add_dataset_parser (vLLM compat layer).
 
     parser.add_argument(
         "--label",
