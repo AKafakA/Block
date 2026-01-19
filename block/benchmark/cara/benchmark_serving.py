@@ -1320,12 +1320,6 @@ def add_cli_args(parser: argparse.ArgumentParser):
     )
     parser.add_argument("--use-beam-search", action="store_true")
     parser.add_argument(
-        "--request-id-prefix",
-        type=str,
-        default="",
-        help="Prefix for request IDs.",
-    )
-    parser.add_argument(
         "--logprobs",
         type=int,
         default=None,
