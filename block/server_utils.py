@@ -60,7 +60,6 @@ async def serve_http(app: FastAPI, **uvicorn_kwargs: Any):
 
     try:
         await server_task
-        return dummy_shutdown()
     except asyncio.CancelledError:
         port = uvicorn_kwargs["port"]
         process = find_process_using_port(port)
@@ -69,7 +68,14 @@ async def serve_http(app: FastAPI, **uvicorn_kwargs: Any):
                 "port %s is used by process %s launched with command:\n%s",
                 port, process, " ".join(process.cmdline()))
         logging.info("Shutting down FastAPI HTTP server.")
-        return server.shutdown()
+        # Best-effort shutdown across uvicorn versions; swallow incompatibilities
+        try:
+            if hasattr(server, "shutdown") and callable(server.shutdown):
+                await server.shutdown()
+        except Exception as e:
+            logging.debug("uvicorn shutdown raised %s; ignoring for compatibility", e)
+    # Always return a no-op awaitable to keep caller contract stable
+    return dummy_shutdown()
 
 
 def get_predictor(type_str: str, predictor_config, instance_port: int = -1):

@@ -1508,6 +1508,13 @@ def add_cli_args(parser: argparse.ArgumentParser):
         "openai-compatible backends.",
     )
     sampling_group.add_argument(
+        "--best-of",
+        type=int,
+        default=None,
+        help="Number of candidates for beam search/best-of decoding. "
+             "Forwarded to backends that support it.",
+    )
+    sampling_group.add_argument(
         "--early-stopping",
         action="store_true",
         help="Enable early stopping (backend-dependent; forwarded to backend via request body)",
@@ -1682,6 +1689,9 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
         sampling_params = {}
         if args.temperature is not None:
             sampling_params["temperature"] = args.temperature
+        else:
+            # Default to greedy decoding if no temperature is specified
+            sampling_params["temperature"] = 0.0
         if args.top_p is not None:
             sampling_params["top_p"] = args.top_p
         if args.top_k is not None:
@@ -1700,6 +1710,10 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
         if getattr(args, "early_stopping", False):
             sampling_params["early_stopping"] = True
 
+        # only use best_of if beam search is enabled
+        if args.best_of is not None and sampling_params["use_beam_search"]:
+            sampling_params["best_of"] = args.best_of
+
         # Sampling parameters are only supported by compatible backends (plus CARA).
         if sampling_params and args.backend not in COMPAT_BACKENDS:
             raise ValueError(
@@ -1711,9 +1725,10 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
         sampling_params = {}
         default_percentile_metrics = "e2el"
 
+    # Merge extra request body with explicit sampling params (CLI flags take precedence)
     extra_body = args.extra_body or {}
-    # sampling_params take precedence; user-provided extra_body can still override explicitly
-    extra_body = {**sampling_params, **extra_body}
+    # sampling_params take precedence over extra_body
+    extra_body = {**extra_body, **sampling_params}
 
     percentile_metrics: str = args.percentile_metrics or default_percentile_metrics
 
