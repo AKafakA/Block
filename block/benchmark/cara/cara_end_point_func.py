@@ -68,12 +68,15 @@ async def async_request_cara_openai_completions(
         "model": "cara",
         "prompt": request_func_input.prompt,
         "prompt_len": request_func_input.prompt_len,
+        # Default to greedy decoding unless overridden by extra_body
         "temperature": 0.0,
-        "repetition_penalty": 1.0,
         "max_tokens": request_func_input.output_len,
         # CARA server returns complete JSON response, not streaming
         "stream": False,
     }
+    # Merge any sampling or extra parameters provided by the benchmark CLI
+    if request_func_input.extra_body:
+        payload.update(request_func_input.extra_body)
     headers = {
         "Content-Type": "application/json",
     }
