@@ -1654,11 +1654,14 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
             "'--dataset-path' if required."
         )
 
+    # Consider CARA also openai-compatible for sampling/flags
+    COMPAT_BACKENDS = set(OPENAI_COMPATIBLE_BACKENDS) | {"cara"}
+
     # when using random datasets, default to ignoring EOS
     # so generation runs to the requested length
     if (
         args.dataset_name in ("random", "random-mm")
-        and args.backend in OPENAI_COMPATIBLE_BACKENDS
+        and args.backend in COMPAT_BACKENDS
     ):
         args.ignore_eos = True
 
@@ -1691,8 +1694,8 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
             "early_stopping": True,
         }
 
-        # Sampling parameters are only supported by openai-compatible backend.
-        if sampling_params and args.backend not in OPENAI_COMPATIBLE_BACKENDS:
+        # Sampling parameters are only supported by compatible backends (plus CARA).
+        if sampling_params and args.backend not in COMPAT_BACKENDS:
             raise ValueError(
                 "Sampling parameters are only supported by openai-compatible backends."
             )
