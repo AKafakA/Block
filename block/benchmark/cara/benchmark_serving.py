@@ -1684,14 +1684,17 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
         sampling_params = {
             "use_beam_search": True,
             "best_of": 5,
+            # Paper-specified decode defaults; CLI overrides if provided
             "temperature": 0.0 if args.temperature is None else args.temperature,
             "top_p": 1.0 if args.top_p is None else args.top_p,
             "top_k": -1 if args.top_k is None else args.top_k,
-            "min_p": args.min_p,
-            "frequency_penalty": args.frequency_penalty,
-            "presence_penalty": args.presence_penalty,
-            "repetition_penalty": args.repetition_penalty,
             "early_stopping": True,
+            # Defaults for penalties (can be overridden via CLI)
+            "frequency_penalty": 0.0 if args.frequency_penalty is None else args.frequency_penalty,
+            "presence_penalty": 0.0 if args.presence_penalty is None else args.presence_penalty,
+            "repetition_penalty": 1.0 if args.repetition_penalty is None else args.repetition_penalty,
+            # Forward min_p only when provided
+            "min_p": args.min_p,
         }
 
         # Sampling parameters are only supported by compatible backends (plus CARA).
