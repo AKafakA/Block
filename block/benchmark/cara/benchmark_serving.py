@@ -1508,6 +1508,11 @@ def add_cli_args(parser: argparse.ArgumentParser):
         "openai-compatible backends.",
     )
     sampling_group.add_argument(
+        "--early-stopping",
+        action="store_true",
+        help="Enable early stopping (backend-dependent; forwarded to backend via request body)",
+    )
+    sampling_group.add_argument(
         "--common-prefix-len",
         type=int,
         default=None,
@@ -1651,10 +1656,9 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
 
     # when using random datasets, default to ignoring EOS
     # so generation runs to the requested length
-    COMPAT_BACKENDS = set(OPENAI_COMPATIBLE_BACKENDS) | {"cara"}
     if (
         args.dataset_name in ("random", "random-mm")
-        and args.backend in COMPAT_BACKENDS
+        and args.backend in OPENAI_COMPATIBLE_BACKENDS
     ):
         args.ignore_eos = True
 
@@ -1671,22 +1675,24 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
 
     # Collect the sampling parameters.
     if task_type == TaskType.GENERATION:
+        # Default to beam search config suggested by paper:
+        # use_beam_search=True, best_of=5, temperature=0, top_p=1, top_k=-1, early_stopping=True
+        # CLI-provided values (if any) override these defaults for temperature/top_p/top_k.
         sampling_params = {
-            k: v
-            for k, v in {
-                "top_p": args.top_p,
-                "top_k": args.top_k,
-                "min_p": args.min_p,
-                "temperature": args.temperature,
-                "frequency_penalty": args.frequency_penalty,
-                "presence_penalty": args.presence_penalty,
-                "repetition_penalty": args.repetition_penalty,
-            }.items()
-            if v is not None
+            "use_beam_search": True,
+            "best_of": 5,
+            "temperature": 0.0 if args.temperature is None else args.temperature,
+            "top_p": 1.0 if args.top_p is None else args.top_p,
+            "top_k": -1 if args.top_k is None else args.top_k,
+            "min_p": args.min_p,
+            "frequency_penalty": args.frequency_penalty,
+            "presence_penalty": args.presence_penalty,
+            "repetition_penalty": args.repetition_penalty,
+            "early_stopping": True,
         }
 
         # Sampling parameters are only supported by openai-compatible backend.
-        if sampling_params and args.backend not in COMPAT_BACKENDS:
+        if sampling_params and args.backend not in OPENAI_COMPATIBLE_BACKENDS:
             raise ValueError(
                 "Sampling parameters are only supported by openai-compatible backends."
             )
