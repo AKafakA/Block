@@ -1678,24 +1678,27 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
 
     # Collect the sampling parameters.
     if task_type == TaskType.GENERATION:
-        # Default to beam search config suggested by paper:
-        # use_beam_search=True, best_of=5, temperature=0, top_p=1, top_k=-1, early_stopping=True
-        # CLI-provided values (if any) override these defaults for temperature/top_p/top_k.
-        sampling_params = {
-            "use_beam_search": True,
-            "best_of": 5,
-            # Paper-specified decode defaults; CLI overrides if provided
-            "temperature": 0.0 if args.temperature is None else args.temperature,
-            "top_p": 1.0 if args.top_p is None else args.top_p,
-            "top_k": -1 if args.top_k is None else args.top_k,
-            "early_stopping": True,
-            # Defaults for penalties (can be overridden via CLI)
-            "frequency_penalty": 0.0 if args.frequency_penalty is None else args.frequency_penalty,
-            "presence_penalty": 0.0 if args.presence_penalty is None else args.presence_penalty,
-            "repetition_penalty": 1.0 if args.repetition_penalty is None else args.repetition_penalty,
-            # Forward min_p only when provided
-            "min_p": 0.0 if args.min_p is None else args.min_p,
-        }
+        # Only forward values explicitly provided by the user/CLI
+        sampling_params = {}
+        if args.temperature is not None:
+            sampling_params["temperature"] = args.temperature
+        if args.top_p is not None:
+            sampling_params["top_p"] = args.top_p
+        if args.top_k is not None:
+            sampling_params["top_k"] = args.top_k
+        if args.min_p is not None:
+            sampling_params["min_p"] = args.min_p
+        if args.frequency_penalty is not None:
+            sampling_params["frequency_penalty"] = args.frequency_penalty
+        if args.presence_penalty is not None:
+            sampling_params["presence_penalty"] = args.presence_penalty
+        if args.repetition_penalty is not None:
+            sampling_params["repetition_penalty"] = args.repetition_penalty
+        if getattr(args, "use_beam_search", False):
+            sampling_params["use_beam_search"] = True
+        # Only include early_stopping when requested (older vLLM only)
+        if getattr(args, "early_stopping", False):
+            sampling_params["early_stopping"] = True
 
         # Sampling parameters are only supported by compatible backends (plus CARA).
         if sampling_params and args.backend not in COMPAT_BACKENDS:
@@ -1703,15 +1706,13 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
                 "Sampling parameters are only supported by openai-compatible backends."
             )
 
-        if "temperature" not in sampling_params:
-            sampling_params["temperature"] = 0.0  # Default to greedy decoding.
-
         default_percentile_metrics = "ttft,tpot,itl,e2el"
     else:
         sampling_params = {}
         default_percentile_metrics = "e2el"
 
     extra_body = args.extra_body or {}
+    # sampling_params take precedence; user-provided extra_body can still override explicitly
     extra_body = {**sampling_params, **extra_body}
 
     percentile_metrics: str = args.percentile_metrics or default_percentile_metrics
