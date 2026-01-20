@@ -33,7 +33,6 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger(__name__)
 chat = False
 model_family = "Qwen"
-repetition_penalty = 1.0
 broadcasting_enabled = False
 broadcast_model_list: list[str] = []
 enable_predictor_feedback = False
@@ -71,11 +70,6 @@ async def completion(request: Request) -> Response:
         # This is cleaner and lets vLLM handle chat template automatically
         # Signal to vllm_instance to use chat endpoint
         request_json["use_chat_endpoint"] = True
-        # Remove prompt since we're using messages
-
-        # Force the server-side repetition_penalty to prevent infinite repetition
-        # Override any client-provided value
-        request_json["repetition_penalty"] = float(repetition_penalty)
     try:
         # CARA: Query predictors before scheduling (for training data collection)
         # Only query predictors if feedback is enabled
@@ -220,10 +214,9 @@ async def init_app(
         instances_list: Optional[List[Instance]] = None,
 ) -> FastAPI:
     app = build_app(args)
-    global instances, start_time, scheduling, chat, model_family, repetition_penalty, broadcasting_enabled, broadcast_model_list, enable_predictor_feedback
+    global instances, start_time, scheduling, chat, model_family, broadcasting_enabled, broadcast_model_list, enable_predictor_feedback
     chat = args.chat
     model_family = args.model_family
-    repetition_penalty = args.repetition_penalty
     model_config_path = args.model_config_path
     broadcasting_enabled = bool(getattr(args, "broadcasting", False))
     broadcast_model_list = list(getattr(args, "selected_broadcasted_models", []) or [])
@@ -263,6 +256,8 @@ async def init_app(
                     )
                 elif backend_type == "vllm":
                     from block.global_scheduler.cara.cara_instance.vllm_instance import VllmInstance
+                    # Detect whether this model should use the older vLLM API (v0.4.x)
+                    serve_with_v0 = bool(model_config.get("serve_with_v0", False))
                     instance = VllmInstance(
                         instance_id=instance_id,
                         hostname=hostname,
@@ -271,7 +266,8 @@ async def init_app(
                         model_name=hf_model_name,
                         backend_port=backend_port,
                         enable_predictor_feedback=args.enable_predictor_feedback,
-                        feedback_sample_rate=args.feedback_sample_rate
+                        feedback_sample_rate=args.feedback_sample_rate,
+                        serve_with_v0=serve_with_v0
                     )
                 else:
                     raise ValueError(f"Unsupported backend type: {backend_type}")
@@ -384,8 +380,6 @@ if __name__ == "__main__":
                         help="Whether the model is a chat model to decide if stop words are appended")
     parser.add_argument("--model-family", type=str, default="Qwen",
                         help="Model family, used for append the stop words for chat models")
-    parser.add_argument("--repetition-penalty", type=float, default=1.1,
-                        help="Repetition penalty to use for generation to avoid repetition")
     parser.add_argument("--enable-predictor-feedback", action="store_true",
                         help="Enable sending actual metrics back to predictor for training data collection")
     parser.add_argument("--feedback-sample-rate", type=float, default=1.0,

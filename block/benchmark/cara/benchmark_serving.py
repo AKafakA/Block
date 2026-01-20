@@ -1694,7 +1694,7 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
             "presence_penalty": 0.0 if args.presence_penalty is None else args.presence_penalty,
             "repetition_penalty": 1.0 if args.repetition_penalty is None else args.repetition_penalty,
             # Forward min_p only when provided
-            "min_p": args.min_p,
+            "min_p": 0.0 if args.min_p is None else args.min_p,
         }
 
         # Sampling parameters are only supported by compatible backends (plus CARA).

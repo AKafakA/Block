@@ -63,7 +63,8 @@ class VllmInstance(Instance):
                  query_backend_timeout=30 * 60,  # 30 minutes timeout for vLLM
                  backend_port=8000,
                  enable_predictor_feedback=False,
-                 feedback_sample_rate=1.0):
+                 feedback_sample_rate=1.0,
+                 serve_with_v0: bool = False):
         super().__init__(instance_id,
                          hostname,
                          ip_address,
@@ -77,6 +78,8 @@ class VllmInstance(Instance):
         # Store base URLs for both endpoints
         self.completions_url = f"http://{ip_address}:{backend_port}/v1/completions"
         self.chat_completions_url = f"http://{ip_address}:{backend_port}/v1/chat/completions"
+        # Flag to adapt payload to older vLLM API (v0.4.x) vs latest
+        self._serve_with_v0 = serve_with_v0
 
     async def query_backend(self, payload: dict, headers: dict = None):
 
@@ -100,17 +103,17 @@ class VllmInstance(Instance):
         if use_chat:
             # Chat completions endpoint - use messages format
             vllm_payload = {
-                "model":self._model_name,
+                "model": self._model_name,
                 "messages": [
                     {"role": "user", "content": payload["prompt"]},
                 ],
                 "temperature": 0.0,
-                "repetition_penalty": payload.get("repetition_penalty", 1.0),
-                "max_completion_tokens": payload["max_tokens"],
+                # Older API expects max_tokens; latest uses max_completion_tokens
+                (
+                    "max_tokens" if self._serve_with_v0 else "max_completion_tokens"
+                ): payload["max_tokens"],
                 "stream": True,
-                "stream_options": {
-                    "include_usage": True,
-                },
+                **({"stream_options": {"include_usage": True}} if not self._serve_with_v0 else {}),
                 "request_id": str(request_id),
             }
         else:
@@ -119,15 +122,37 @@ class VllmInstance(Instance):
                 "model": self._model_name,
                 "prompt": payload["prompt"],
                 "temperature": 0.0,
-                "repetition_penalty": payload.get("repetition_penalty", 1.0),
                 "max_tokens": payload["max_tokens"],
                 "logprobs": None,
                 "stream": True,
-                "stream_options": {
-                    "include_usage": True,
-                },
+                **({"stream_options": {"include_usage": True}} if not self._serve_with_v0 else {}),
                 "request_id": str(request_id),
             }
+
+        # Forward sampling parameters conditionally based on vLLM API version
+        common_keys = (
+            "temperature",
+            "top_p",
+            "top_k",
+            "frequency_penalty",
+            "presence_penalty",
+            "repetition_penalty",
+            "use_beam_search",
+            "best_of",
+            "stop",
+        )
+        for k in common_keys:
+            if k in payload and payload[k] is not None:
+                vllm_payload[k] = payload[k]
+
+        if self._serve_with_v0:
+            # v0 supports early_stopping, but not min_p
+            if "early_stopping" in payload and payload["early_stopping"] is not None:
+                vllm_payload["early_stopping"] = payload["early_stopping"]
+        else:
+            # Latest supports min_p; early_stopping removed/ignored
+            if "min_p" in payload and payload["min_p"] is not None:
+                vllm_payload["min_p"] = payload["min_p"]
 
         if not headers:
             headers = {"Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}",
