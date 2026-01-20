@@ -73,9 +73,9 @@ async def completion(request: Request) -> Response:
         request_json["use_chat_endpoint"] = True
         # Remove prompt since we're using messages
 
-        # Respect client-provided repetition_penalty; only apply server default if absent
-        if "repetition_penalty" not in request_json or request_json["repetition_penalty"] is None:
-            request_json["repetition_penalty"] = float(repetition_penalty)
+        # Force the server-side repetition_penalty to prevent infinite repetition
+        # Override any client-provided value
+        request_json["repetition_penalty"] = float(repetition_penalty)
     try:
         # CARA: Query predictors before scheduling (for training data collection)
         # Only query predictors if feedback is enabled

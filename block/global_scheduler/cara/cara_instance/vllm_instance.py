@@ -129,17 +129,6 @@ class VllmInstance(Instance):
                 "request_id": str(request_id),
             }
 
-        # Forward optional sampling parameters when provided by client
-        forward_keys = [
-            "top_p", "top_k", "min_p",
-            "frequency_penalty", "presence_penalty", "repetition_penalty",
-            "use_beam_search", "best_of", "early_stopping",
-            "stop",
-        ]
-        for k in forward_keys:
-            if k in payload and payload[k] is not None:
-                vllm_payload[k] = payload[k]
-
         if not headers:
             headers = {"Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}",
                        # required for the old version of vLLM server use the header to pass request ID
