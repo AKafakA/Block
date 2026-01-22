@@ -51,6 +51,8 @@ from typing import Dict, List, Optional
 from dataclasses import dataclass, field
 from collections import defaultdict
 
+import numpy as np
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -296,6 +298,384 @@ def compute_quality_scores_llm_judge(
     logger.info(f"Completed scoring {len(requests)} requests")
 
 
+def compute_quality_scores_multi_judge(
+    requests: List[Dict],
+    model_name: str,
+    judge_models: List[str],
+    device: str = "cuda",
+    batch_size: int = 8,
+) -> tuple[Dict[str, List[Optional[float]]], set]:
+    """Compute quality scores using multiple LLM judges.
+
+    Args:
+        requests: List of processed requests (modified in place)
+        model_name: Model name key
+        judge_models: List of HuggingFace model names for judging
+        device: Device for judge models
+        batch_size: Batch size for inference
+
+    Returns:
+        Tuple of:
+        - Dict mapping judge_model_name -> list of scores (one per request, None for failures)
+        - Set of request indices that had scoring failures (to be filtered out)
+    """
+    from block.predictor.cara.offline_training.llm_judge_scorer import LLMJudgeScorer
+
+    all_scores = {}
+    failed_indices = set()
+
+    for judge_model in judge_models:
+        logger.info(f"\n{'='*40}")
+        logger.info(f"Running judge: {judge_model}")
+        logger.info(f"{'='*40}")
+
+        scorer = LLMJudgeScorer(
+            judge_model=judge_model,
+            batch_size=batch_size,
+            device=device,
+        )
+
+        judge_scores = []
+        judge_failures = 0
+
+        for idx, req in enumerate(requests):
+            if (idx + 1) % 100 == 0:
+                logger.info(f"  Scored {idx + 1}/{len(requests)} requests")
+
+            model_data = req["models"][model_name]
+            prompt = req["prompt"]
+            response = model_data.get("_response", "")
+
+            if not response:
+                score = None
+            else:
+                scores = scorer.score(prompt, [(model_name, response)])
+                score = scores.get(model_name)  # None if parsing failed
+
+            if score is None:
+                failed_indices.add(idx)
+                judge_failures += 1
+
+            judge_scores.append(score)
+
+            # Store score with judge name as key
+            judge_key = f"quality_score_{judge_model.replace('/', '_')}"
+            model_data[judge_key] = score
+
+        all_scores[judge_model] = judge_scores
+        logger.info(f"Completed {judge_model}: {len(judge_scores)} scores, {judge_failures} failures")
+
+        # Free memory
+        del scorer
+
+    # Set primary quality_score to first judge's scores
+    if judge_models:
+        primary_judge = judge_models[0]
+        for idx, req in enumerate(requests):
+            model_data = req["models"][model_name]
+            model_data["quality_score"] = all_scores[primary_judge][idx]
+
+    logger.info(f"\nTotal requests with scoring failures: {len(failed_indices)}")
+
+    return all_scores, failed_indices
+
+
+def analyze_judge_scores(
+    requests: List[Dict],
+    judge_models: List[str],
+) -> Dict:
+    """Analyze correlation and distribution of scores from multiple judges.
+
+    For multi-model case: computes per-request Spearman correlation of model rankings
+    between judge pairs, then aggregates across requests.
+
+    Args:
+        requests: List of processed requests with scores from all judges
+        judge_models: List of judge model names
+
+    Returns:
+        Dict containing analysis results
+    """
+    from scipy.stats import spearmanr
+
+    logger.info("\n" + "=" * 60)
+    logger.info("JUDGE COMPARISON ANALYSIS")
+    logger.info("=" * 60)
+
+    # Infer LLM models from the data
+    llm_models = list(requests[0]["models"].keys()) if requests else []
+
+    analysis = {
+        "per_judge_stats": {},
+        "pairwise_correlations": {},
+        "score_differences": {},
+        "per_request_ranking_correlation": {},
+        "llm_models": llm_models,
+    }
+
+    num_llm_models = len(llm_models)
+    num_requests = len(requests)
+
+    logger.info(f"LLM models found: {llm_models}")
+
+    # Collect all scores per judge
+    # Structure: judge -> list of scores (one per request per model)
+    all_scores_flat = {judge: [] for judge in judge_models}
+
+    # Structure for per-request analysis: judge -> request_idx -> {model: score}
+    scores_by_request = {judge: [] for judge in judge_models}
+
+    for req in requests:
+        for judge in judge_models:
+            judge_key = f"quality_score_{judge.replace('/', '_')}"
+            request_scores = {}
+            for model in llm_models:
+                if model in req["models"]:
+                    score = req["models"][model].get(judge_key)
+                    all_scores_flat[judge].append(score)
+                    request_scores[model] = score
+            scores_by_request[judge].append(request_scores)
+
+    # Per-judge statistics
+    logger.info("\n--- Per-Judge Statistics ---")
+    for judge in judge_models:
+        scores = np.array(all_scores_flat[judge])
+        if len(scores) == 0:
+            continue
+        stats = {
+            "mean": float(np.mean(scores)),
+            "std": float(np.std(scores)),
+            "min": float(np.min(scores)),
+            "max": float(np.max(scores)),
+            "median": float(np.median(scores)),
+            "q50": float(np.percentile(scores, 50)),
+            "q95": float(np.percentile(scores, 95)),
+        }
+        analysis["per_judge_stats"][judge] = stats
+        logger.info(f"\n{judge}:")
+        logger.info(f"  Mean: {stats['mean']:.4f} ± {stats['std']:.4f}")
+        logger.info(f"  Range: [{stats['min']:.4f}, {stats['max']:.4f}]")
+        logger.info(f"  Median: {stats['median']:.4f}")
+        logger.info(f"  IQR: [{stats['q25']:.4f}, {stats['q75']:.4f}]")
+
+    # Global flat correlation (Pearson) - comparing all scores across (request, model) pairs
+    if len(judge_models) > 1:
+        logger.info("\n--- Global Flat Correlation (across all request-model pairs) ---")
+        for i, judge1 in enumerate(judge_models):
+            for judge2 in judge_models[i+1:]:
+                scores1 = np.array(all_scores_flat[judge1])
+                scores2 = np.array(all_scores_flat[judge2])
+
+                if len(scores1) != len(scores2):
+                    raise ValueError(
+                        f"Score count mismatch between judges: {judge1} has {len(scores1)}, "
+                        f"{judge2} has {len(scores2)}. This indicates a bug in scoring."
+                    )
+                if len(scores1) == 0:
+                    raise ValueError(
+                        f"No scores found for judges {judge1} and {judge2}. "
+                        "All requests may have been filtered out."
+                    )
+
+                # Pearson correlation
+                pearson_corr = np.corrcoef(scores1, scores2)[0, 1]
+
+                # Also compute Spearman on flat scores for comparison
+                flat_spearman, flat_spearman_p = spearmanr(scores1, scores2)
+
+                key = f"{judge1} vs {judge2}"
+                analysis["pairwise_correlations"][key] = {
+                    "pearson": float(pearson_corr),
+                    "spearman": float(flat_spearman),
+                    "spearman_pvalue": float(flat_spearman_p),
+                    "num_samples": len(scores1),
+                }
+
+                logger.info(f"\n{key}:")
+                logger.info(f"  Pearson r:  {pearson_corr:.4f}")
+                logger.info(f"  Spearman ρ: {flat_spearman:.4f} (p={flat_spearman_p:.2e})")
+                logger.info(f"  Num samples: {len(scores1)}")
+
+    # Per-request model ranking correlation (only meaningful with multiple LLM models)
+    if num_llm_models > 1 and len(judge_models) > 1:
+        logger.info("\n--- Per-Request Model Ranking Correlation ---")
+        logger.info(f"(Comparing how judges rank {num_llm_models} LLM models within each request)")
+
+        for i, judge1 in enumerate(judge_models):
+            for judge2 in judge_models[i+1:]:
+                per_request_spearman = []
+
+                for req_idx in range(num_requests):
+                    scores1 = scores_by_request[judge1][req_idx]
+                    scores2 = scores_by_request[judge2][req_idx]
+
+                    # Get scores in same model order - all models should be present
+                    common_models = [m for m in llm_models if m in scores1 and m in scores2]
+                    if len(common_models) != len(llm_models):
+                        raise ValueError(
+                            f"Request {req_idx}: Expected {len(llm_models)} models but found "
+                            f"{len(common_models)}. Failed requests should have been filtered out."
+                        )
+
+                    s1 = [scores1[m] for m in common_models]
+                    s2 = [scores2[m] for m in common_models]
+
+                    # Spearman correlation for this request
+                    if len(set(s1)) > 1 and len(set(s2)) > 1:  # Need variance
+                        corr, _ = spearmanr(s1, s2)
+                        if not np.isnan(corr):
+                            per_request_spearman.append(corr)
+
+                if per_request_spearman:
+                    mean_corr = float(np.mean(per_request_spearman))
+                    std_corr = float(np.std(per_request_spearman))
+                    median_corr = float(np.median(per_request_spearman))
+
+                    key = f"{judge1} vs {judge2}"
+                    analysis["per_request_ranking_correlation"][key] = {
+                        "mean_spearman": mean_corr,
+                        "std_spearman": std_corr,
+                        "median_spearman": median_corr,
+                        "num_valid_requests": len(per_request_spearman),
+                    }
+
+                    logger.info(f"\n{key}:")
+                    logger.info(f"  Mean Spearman ρ: {mean_corr:.4f} ± {std_corr:.4f}")
+                    logger.info(f"  Median Spearman ρ: {median_corr:.4f}")
+                    logger.info(f"  Valid requests: {len(per_request_spearman)}/{num_requests}")
+    elif num_llm_models <= 1:
+        logger.info("\n--- Per-Request Model Ranking Correlation ---")
+        logger.info("  Skipped: Only 1 LLM model (need 2+ models to compute ranking correlation)")
+
+    # Score differences distribution (per judge pair, aggregated across all scores)
+    if len(judge_models) > 1:
+        logger.info("\n--- Score Difference Distribution ---")
+        for i, judge1 in enumerate(judge_models):
+            for judge2 in judge_models[i+1:]:
+                scores1 = np.array(all_scores_flat[judge1])
+                scores2 = np.array(all_scores_flat[judge2])
+
+                if len(scores1) != len(scores2):
+                    raise ValueError(
+                        f"Score count mismatch between judges: {judge1} has {len(scores1)}, "
+                        f"{judge2} has {len(scores2)}. This indicates a bug in scoring."
+                    )
+                if len(scores1) == 0:
+                    raise ValueError(
+                        f"No scores found for judges {judge1} and {judge2}. "
+                        "All requests may have been filtered out."
+                    )
+
+                diffs = scores1 - scores2
+
+                diff_stats = {
+                    "mean": float(np.mean(diffs)),
+                    "std": float(np.std(diffs)),
+                    "abs_mean": float(np.mean(np.abs(diffs))),
+                    "max_diff": float(np.max(np.abs(diffs))),
+                }
+
+                key = f"{judge1} - {judge2}"
+                analysis["score_differences"][key] = diff_stats
+
+                logger.info(f"\n{key}:")
+                logger.info(f"  Mean diff: {diff_stats['mean']:.4f} ± {diff_stats['std']:.4f}")
+                logger.info(f"  Mean |diff|: {diff_stats['abs_mean']:.4f}")
+                logger.info(f"  Max |diff|: {diff_stats['max_diff']:.4f}")
+
+    logger.info("\n" + "=" * 60)
+
+    return analysis
+
+
+def find_divergent_samples(
+    requests: List[Dict],
+    judge_models: List[str],
+    threshold: float = 0.3,
+) -> List[Dict]:
+    """Find samples where judges disagree significantly.
+
+    Args:
+        requests: List of processed requests (scores stored in request data)
+        judge_models: List of judge model names
+        threshold: Score difference threshold for divergence
+
+    Returns:
+        List of divergent samples with scores
+    """
+    divergent = []
+
+    # Infer LLM models from data
+    llm_models = list(requests[0]["models"].keys()) if requests else []
+
+    for req in requests:
+        # For each LLM model in the request, check judge agreement
+        for model_name in llm_models:
+            if model_name not in req["models"]:
+                continue
+
+            model_data = req["models"][model_name]
+
+            # Extract scores from each judge
+            scores = []
+            score_by_judge = {}
+            for judge in judge_models:
+                judge_key = f"quality_score_{judge.replace('/', '_')}"
+                if judge_key in model_data:
+                    score = model_data[judge_key]
+                    scores.append(score)
+                    score_by_judge[judge] = score
+
+            if len(scores) < 2:
+                continue
+
+            max_diff = max(scores) - min(scores)
+
+            if max_diff >= threshold:
+                sample = {
+                    "request_id": req["request_id"],
+                    "llm_model": model_name,
+                    "prompt": req["prompt"],
+                    "response": model_data.get("_response", ""),
+                    "scores": score_by_judge,
+                    "max_difference": max_diff,
+                    "mean_score": float(np.mean(scores)),
+                    "score_std": float(np.std(scores)),
+                }
+                divergent.append(sample)
+
+    # Sort by max difference descending
+    divergent.sort(key=lambda x: x["max_difference"], reverse=True)
+
+    logger.info(f"\nFound {len(divergent)} divergent samples (threshold={threshold})")
+
+    return divergent
+
+
+def save_divergent_samples(
+    divergent: List[Dict],
+    output_path: Path,
+    analysis: Dict,
+) -> None:
+    """Save divergent samples to JSON file.
+
+    Args:
+        divergent: List of divergent samples
+        output_path: Output file path
+        analysis: Analysis results to include
+    """
+    output_data = {
+        "num_divergent": len(divergent),
+        "analysis": analysis,
+        "samples": divergent,
+    }
+
+    with open(output_path, 'w', encoding='utf-8') as f:
+        json.dump(output_data, f, indent=2, ensure_ascii=False)
+
+    logger.info(f"Saved {len(divergent)} divergent samples to: {output_path}")
+
+
 def save_training_data(
     requests: List[Dict],
     output_path: Path,
@@ -413,10 +793,22 @@ def parse_args():
         help="Quality scoring method"
     )
     parser.add_argument(
-        "--judge-model",
+        "--judge-models",
         type=str,
-        default="Qwen/Qwen2.5-0.5B",
-        help="Judge model for llm_judge scoring"
+        nargs="+",
+        default=["Qwen/Qwen2.5-0.5B"],
+        help="Judge model(s) for llm_judge scoring. Pass multiple with --compare-judges for comparison."
+    )
+    parser.add_argument(
+        "--compare-judges",
+        action="store_true",
+        help="Enable judge comparison analysis (requires multiple --judge-models)"
+    )
+    parser.add_argument(
+        "--divergence-threshold",
+        type=float,
+        default=0.3,
+        help="Score difference threshold to flag divergent samples when comparing judges (0-1 scale)"
     )
     parser.add_argument(
         "--device",
@@ -466,6 +858,12 @@ def main():
         output_filename = f"{args.dataset_name}_{args.scoring_method}_training.json"
         args.output = args.input.parent / output_filename
 
+    # Comparison mode requires both flag and multiple judges
+    compare_judges = args.compare_judges and len(args.judge_models) > 1
+
+    if args.compare_judges and len(args.judge_models) <= 1:
+        logger.warning("--compare-judges requires multiple --judge-models, disabling comparison")
+
     logger.info("=" * 60)
     logger.info("CARA BENCHMARK DATA PREPROCESSING")
     logger.info("=" * 60)
@@ -473,6 +871,10 @@ def main():
     logger.info(f"Output:         {args.output}")
     logger.info(f"Model:          {args.model_name}")
     logger.info(f"Scoring:        {args.scoring_method}")
+    logger.info(f"Judge model(s): {args.judge_models}")
+    if compare_judges:
+        logger.info(f"Compare mode:   ENABLED ({len(args.judge_models)} judges)")
+        logger.info(f"Divergence threshold: {args.divergence_threshold}")
     logger.info(f"Min tokens:     {args.min_output_tokens}")
     logger.info(f"Max tokens:     {args.max_output_tokens}")
     logger.info(f"Filter truncated: {args.filter_truncated}")
@@ -504,18 +906,47 @@ def main():
 
         # Compute quality scores
         logger.info("\n[3/3] Computing quality scores...")
+        all_scores = None
+        failed_indices = set()
+
         if args.scoring_method == "compression":
             compute_quality_scores_compression(requests, args.model_name)
         elif args.scoring_method == "llm_judge":
-            compute_quality_scores_llm_judge(
+            all_scores, failed_indices = compute_quality_scores_multi_judge(
                 requests,
                 args.model_name,
-                judge_model=args.judge_model,
+                judge_models=args.judge_models,
                 device=args.device,
                 batch_size=args.batch_size,
             )
         else:
             logger.info("Skipping quality scoring (method=none)")
+
+        # Filter out requests with failed scores
+        if failed_indices:
+            original_count = len(requests)
+            requests = [req for idx, req in enumerate(requests) if idx not in failed_indices]
+            logger.info(f"Filtered out {len(failed_indices)} requests with scoring failures")
+            logger.info(f"Remaining requests: {len(requests)}/{original_count}")
+
+            if not requests:
+                logger.error("No valid requests remaining after filtering scoring failures!")
+                return 1
+
+        # Run comparison analysis if enabled
+        if compare_judges and all_scores:
+            analysis = analyze_judge_scores(requests, args.judge_models)
+
+            # Find and save divergent samples
+            divergent = find_divergent_samples(
+                requests,
+                args.judge_models,
+                threshold=args.divergence_threshold,
+            )
+
+            if divergent:
+                divergent_path = args.output.parent / f"{args.output.stem}_divergent.json"
+                save_divergent_samples(divergent, divergent_path, analysis)
 
         # Save output
         save_training_data(

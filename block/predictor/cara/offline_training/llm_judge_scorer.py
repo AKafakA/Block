@@ -213,8 +213,8 @@ Rating:"""
             except (ValueError, IndexError) as e:
                 logger.warning(
                     f"Failed to parse rating for {model_name}: '{rating_text}'. "
-                    f"Error: {e}. Using default score 0.5"
+                    f"Error: {e}. Marking as invalid (None)"
                 )
-                scores[model_name] = 0.5
+                scores[model_name] = None  # Mark as invalid, to be filtered later
 
         return scores
