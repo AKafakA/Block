@@ -262,6 +262,14 @@ def get_vllm_commands(model_path: str, hf_token: str, precision: str, vllm_param
         if vllm_params.get("enforce-eager"):
             vllm_cmd_parts.append("--enforce-eager")
 
+    # Suppress noisy request-level logs on newer vLLM (V1) to avoid perf impact.
+    # These flags do not exist on older vLLM v0.4.x, so gate by serve_with_v0.
+    if vllm_params and not vllm_params.get("serve_with_v0", False):
+        vllm_cmd_parts.extend([
+            "--disable-log-requests",
+            "--uvicorn-log-level warning",
+        ])
+
     vllm_cmd_str = " ".join(vllm_cmd_parts)
 
     cmds = [
@@ -311,6 +319,44 @@ def get_vllm_commands(model_path: str, hf_token: str, precision: str, vllm_param
             "/usr/local/lib/python3.10/dist-packages/nvidia/nvshmem/lib"
         ),
         "export PATH=$PATH:$CUDA_HOME/bin:/usr/local/cuda-12.8/bin",
+        # Keep vLLM metrics at INFO while requests are disabled via CLI
+        "export VLLM_LOGGING_LEVEL=INFO",
+        # Use custom logging to mute per-request logs while keeping metrics
+        "echo 'Writing vLLM logging config (suppress per-request logs)...'",
+        (
+            "printf '%s\n' "
+            "'{' "
+            "'  \"version\": 1,' "
+            "'  \"disable_existing_loggers\": false,' "
+            "'  \"formatters\": {' "
+            "'    \"simple\": {' "
+            "'      \"class\": \"logging.Formatter\",' "
+            "'      \"format\": \"%(levelname)s %(asctime)s [%(name)s:%(lineno)d] %(message)s\",' "
+            "'      \"datefmt\": \"%m-%d %H:%M:%S\"' "
+            "'    }' "
+            "'  },' "
+            "'  \"handlers\": {' "
+            "'    \"console\": {' "
+            "'      \"class\": \"logging.StreamHandler\",' "
+            "'      \"level\": \"INFO\",' "
+            "'      \"formatter\": \"simple\",' "
+            "'      \"stream\": \"ext://sys.stdout\"' "
+            "'    }' "
+            "'  },' "
+            "'  \"loggers\": {' "
+            "'    \"vllm\": {' "
+            "'      \"handlers\": [\"console\"],' "
+            "'      \"level\": \"INFO\",' "
+            "'      \"propagate\": false' "
+            "'    },' "
+            "'    \"vllm.entrypoints.logger\": {' "
+            "'      \"level\": \"WARNING\",' "
+            "'      \"propagate\": true' "
+            "'    }' "
+            "'  }' "
+            "'}' > vllm_logging_cara.json"
+        ),
+        "export VLLM_LOGGING_CONFIG_PATH=$(pwd)/vllm_logging_cara.json",
         "echo 'Step 4: Detecting GPU count...'",
         "export GPU_COUNT=$(python3 -c 'import torch; print(torch.cuda.device_count())')",
         "echo \"GPU_COUNT=$GPU_COUNT\"",
