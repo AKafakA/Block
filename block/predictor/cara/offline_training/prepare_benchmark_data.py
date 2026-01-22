@@ -2,24 +2,48 @@
 """
 CARA Benchmark Data Preprocessing
 
-Processes single-model benchmark results into training data format compatible
-with the multi-model prepare_training_data.py pipeline.
+Unified preprocessing script for CARA benchmark results. Supports both:
+- Single-model format: Direct response in response_details
+- Multi-model format: Multiple models via broadcast_results field
 
-Use case: Build training pipeline with available single-model data (e.g., Qwen2.5-3B),
-then easily transition to multi-model data when more nodes become available.
+Features:
+- Auto-detects data format (single-model vs multi-model with broadcast_results)
+- Auto-detects all models from data (scans all requests for robustness)
+- Handles incomplete requests (exports to JSONL for re-running benchmark)
+- Multiple quality scoring methods: llm_judge, similarity, compression
+- Judge comparison analysis with correlation metrics
+- Divergent sample detection and export
 
-Usage:
-    python -m block.predictor.cara.offline_training.prepare_benchmark_data \
-        --input cara_result/cara-*.json \
-        --output data/cara/processed/benchmark_training.json \
-        --model-name "Qwen/Qwen2.5-3B"
+Usage (single-model):
+    python -m block.predictor.cara.offline_training.prepare_benchmark_data \\
+        --input cara_result/cara-benchmark.json \\
+        --scoring-method llm_judge \\
+        --judge-models Qwen/Qwen2.5-0.5B
 
-Output format matches prepare_training_data.py for compatibility:
+Usage (multi-model with similarity scoring):
+    python -m block.predictor.cara.offline_training.prepare_benchmark_data \\
+        --input data/cara/cara-best-route-training.json \\
+        --scoring-method similarity \\
+        --reference-model "Qwen/Qwen2.5-72B"
+
+Usage (multi-judge comparison):
+    python -m block.predictor.cara.offline_training.prepare_benchmark_data \\
+        --input cara_result/cara-benchmark.json \\
+        --judge-models Qwen/Qwen2.5-0.5B Qwen/Qwen2.5-3B \\
+        --compare-judges \\
+        --divergence-threshold 0.3
+
+Output files:
+- {output}.json: Training data with quality scores
+- {output}_incomplete.jsonl: Incomplete requests for re-running (benchmark format)
+- {output}_divergent.json: Samples where judges disagree (if --compare-judges)
+
+Output format:
 {
     "dataset_name": "...",
-    "scoring_method": "llm_judge" | "compression",
+    "scoring_method": "llm_judge" | "similarity" | "compression",
     "num_requests": N,
-    "models": ["Qwen/Qwen2.5-3B"],
+    "models": ["Qwen/Qwen2.5-3B", "Qwen/Qwen2.5-72B", ...],
     "requests": [
         {
             "request_id": "...",
@@ -35,7 +59,8 @@ Output format matches prepare_training_data.py for compatibility:
                     "server_latency": 2.3,
                     "instance_id": "...",
                     "host": "..."
-                }
+                },
+                ...
             }
         }
     ]
@@ -64,12 +89,15 @@ logger = logging.getLogger(__name__)
 class ProcessingStats:
     """Statistics for data processing."""
     total_requests: int = 0
+    total_responses: int = 0  # Total model responses across all requests
     filtered_empty: int = 0
     filtered_too_short: int = 0
     filtered_truncated: int = 0
     filtered_error: int = 0
     filtered_high_repetition: int = 0
+    valid_responses: int = 0
     valid_requests: int = 0
+    incomplete_requests: int = 0  # Requests missing some models
 
     def log(self):
         """Log processing statistics."""
@@ -77,12 +105,15 @@ class ProcessingStats:
         logger.info("PROCESSING STATISTICS")
         logger.info("=" * 60)
         logger.info(f"Total requests: {self.total_requests}")
-        logger.info(f"Valid requests: {self.valid_requests}")
-        logger.info(f"Filtered (empty): {self.filtered_empty}")
-        logger.info(f"Filtered (too short): {self.filtered_too_short}")
-        logger.info(f"Filtered (truncated): {self.filtered_truncated}")
-        logger.info(f"Filtered (error): {self.filtered_error}")
-        logger.info(f"Filtered (high repetition): {self.filtered_high_repetition}")
+        logger.info(f"Total model responses: {self.total_responses}")
+        logger.info(f"Valid responses: {self.valid_responses}")
+        logger.info(f"Valid requests (with all models): {self.valid_requests}")
+        logger.info(f"Incomplete requests: {self.incomplete_requests}")
+        logger.info(f"Filtered responses (empty): {self.filtered_empty}")
+        logger.info(f"Filtered responses (too short): {self.filtered_too_short}")
+        logger.info(f"Filtered responses (truncated): {self.filtered_truncated}")
+        logger.info(f"Filtered responses (error): {self.filtered_error}")
+        logger.info(f"Filtered responses (high repetition): {self.filtered_high_repetition}")
         logger.info("=" * 60)
 
 
@@ -134,148 +165,320 @@ def load_benchmark_results(input_path: Path) -> Dict:
     return data
 
 
+def detect_data_format(data: Dict) -> str:
+    """Detect if data is single-model or multi-model format.
+
+    Args:
+        data: Raw benchmark JSON data
+
+    Returns:
+        "multi_model" if broadcast_results present with 2+ models, else "single_model"
+    """
+    response_details = data.get("response_details", [])
+
+    for detail in response_details:
+        broadcast_results = detail.get("broadcast_results", [])
+        if broadcast_results and len(broadcast_results) >= 2:
+            return "multi_model"
+
+    return "single_model"
+
+
+def collect_all_models(data: Dict) -> tuple[set, Dict[str, int], Dict[str, set]]:
+    """Scan all requests to collect all seen models and their availability.
+
+    Args:
+        data: Raw benchmark JSON data
+
+    Returns:
+        Tuple of:
+        - Set of all model names seen
+        - Dict mapping model_name -> count of requests with this model
+        - Dict mapping request_id -> set of models available for this request
+    """
+    response_details = data.get("response_details", [])
+    all_models = set()
+    model_counts = defaultdict(int)
+    request_models = {}
+
+    for detail in response_details:
+        request_id = detail.get("request_id", "unknown")
+        models_in_request = set()
+
+        # Check broadcast_results first (multi-model format)
+        broadcast_results = detail.get("broadcast_results", [])
+        if broadcast_results:
+            for br in broadcast_results:
+                model_name = br.get("model")
+                if model_name:
+                    all_models.add(model_name)
+                    models_in_request.add(model_name)
+                    model_counts[model_name] += 1
+        else:
+            # Single-model format: use top-level model field
+            model_name = detail.get("model")
+            if model_name:
+                all_models.add(model_name)
+                models_in_request.add(model_name)
+                model_counts[model_name] += 1
+
+        request_models[request_id] = models_in_request
+
+    return all_models, dict(model_counts), request_models
+
+
+def log_model_statistics(
+    all_models: set,
+    model_counts: Dict[str, int],
+    total_requests: int,
+) -> None:
+    """Log statistics about model availability.
+
+    Args:
+        all_models: Set of all model names
+        model_counts: Dict mapping model_name -> count
+        total_requests: Total number of requests
+    """
+    logger.info("=" * 60)
+    logger.info("MODEL AVAILABILITY STATISTICS")
+    logger.info("=" * 60)
+    logger.info(f"Total unique models found: {len(all_models)}")
+    logger.info(f"Total requests: {total_requests}")
+    logger.info("")
+    for model in sorted(all_models):
+        count = model_counts.get(model, 0)
+        pct = (count / total_requests * 100) if total_requests > 0 else 0
+        logger.info(f"  {model}: {count}/{total_requests} ({pct:.1f}%)")
+    logger.info("=" * 60)
+
+
+def process_model_response(
+    model_name: str,
+    response_text: str,
+    output_len: int,
+    error: str,
+    ttft: float,
+    server_latency: float,
+    instance_id: str,
+    host: str,
+    min_output_tokens: int,
+    max_output_tokens: int,
+    filter_truncated: bool,
+    filter_high_repetition: bool,
+    min_compression_ratio: float,
+    stats: ProcessingStats,
+) -> Optional[Dict]:
+    """Process a single model's response with filtering.
+
+    Args:
+        model_name: Name of the model
+        response_text: Generated response text
+        output_len: Number of output tokens
+        error: Error message if any
+        ttft: Time to first token
+        server_latency: End-to-end latency
+        instance_id: Instance identifier
+        host: Host name
+        min_output_tokens: Minimum output length
+        max_output_tokens: Maximum output length
+        filter_truncated: Whether to filter truncated responses
+        filter_high_repetition: Whether to filter repetitive responses
+        min_compression_ratio: Minimum compression ratio threshold
+        stats: ProcessingStats to update
+
+    Returns:
+        Processed model data dict, or None if filtered out
+    """
+    stats.total_responses += 1
+
+    # Filter: errors
+    if error:
+        stats.filtered_error += 1
+        return None
+
+    # Filter: empty responses
+    if output_len <= 1 or not response_text.strip():
+        stats.filtered_empty += 1
+        return None
+
+    # Filter: too short
+    if output_len < min_output_tokens:
+        stats.filtered_too_short += 1
+        return None
+
+    # Detect truncation
+    is_truncated = output_len >= max_output_tokens
+
+    # Filter: truncated (optional)
+    if filter_truncated and is_truncated:
+        stats.filtered_truncated += 1
+        return None
+
+    # Compute compression ratio
+    compression_ratio = compute_compression_ratio(response_text)
+
+    # Filter: high repetition (optional)
+    if filter_high_repetition and compression_ratio < min_compression_ratio:
+        stats.filtered_high_repetition += 1
+        return None
+
+    stats.valid_responses += 1
+
+    return {
+        "output_length": output_len,
+        "quality_score": None,  # Will be filled by scorer
+        "compression_ratio": round(compression_ratio, 4),
+        "is_truncated": is_truncated,
+        "ttft": ttft,
+        "server_latency": server_latency,
+        "instance_id": instance_id,
+        "host": host,
+        "_response": response_text,
+    }
+
+
 def process_benchmark_data(
     data: Dict,
-    model_name: str,
+    expected_models: set,
     min_output_tokens: int = 3,
     max_output_tokens: int = 1024,
     filter_truncated: bool = False,
     filter_high_repetition: bool = False,
     min_compression_ratio: float = 0.2,
-) -> tuple[List[Dict], ProcessingStats]:
+    require_all_models: bool = True,
+) -> tuple[List[Dict], List[Dict], ProcessingStats]:
     """Process benchmark data into training format.
+
+    Supports both single-model and multi-model (broadcast_results) formats.
 
     Args:
         data: Raw benchmark JSON data
-        model_name: Model name (e.g., "Qwen/Qwen2.5-3B")
+        expected_models: Set of expected model names (from collect_all_models)
         min_output_tokens: Minimum output length to keep
         max_output_tokens: Maximum output length (for truncation detection)
         filter_truncated: If True, filter out truncated responses
         filter_high_repetition: If True, filter out high repetition responses
         min_compression_ratio: Threshold for high repetition (only if filter enabled)
+        require_all_models: If True, filter out requests missing any expected model
 
     Returns:
-        Tuple of (processed_requests, stats)
+        Tuple of (complete_requests, incomplete_requests, stats)
+        - complete_requests: Requests with all expected models
+        - incomplete_requests: Requests missing some models (for re-running)
     """
     response_details = data.get("response_details", [])
     stats = ProcessingStats(total_requests=len(response_details))
+    data_format = detect_data_format(data)
 
-    processed_requests = []
+    complete_requests = []
+    incomplete_requests = []
 
     for detail in response_details:
         request_id = detail.get("request_id", "unknown")
         prompt = detail.get("prompt", "")
         input_len = detail.get("input_len", 0)
-        output_len = detail.get("output_len", 0)
-        response = detail.get("response", "")
-        error = detail.get("error", "")
 
-        # Filter: errors
-        if error:
-            stats.filtered_error += 1
+        models_data = {}
+
+        if data_format == "multi_model":
+            # Multi-model format: extract from broadcast_results
+            broadcast_results = detail.get("broadcast_results", [])
+            for br in broadcast_results:
+                model_name = br.get("model")
+                if not model_name:
+                    continue
+
+                model_data = process_model_response(
+                    model_name=model_name,
+                    response_text=br.get("generated_text", ""),
+                    output_len=br.get("output_tokens", 0),
+                    error=br.get("error", ""),
+                    ttft=br.get("ttft", 0.0),
+                    server_latency=br.get("server_latency", 0.0),
+                    instance_id=br.get("instance_id", "unknown"),
+                    host=br.get("host", "unknown"),
+                    min_output_tokens=min_output_tokens,
+                    max_output_tokens=max_output_tokens,
+                    filter_truncated=filter_truncated,
+                    filter_high_repetition=filter_high_repetition,
+                    min_compression_ratio=min_compression_ratio,
+                    stats=stats,
+                )
+                if model_data:
+                    models_data[model_name] = model_data
+        else:
+            # Single-model format: extract from top-level fields
+            model_name = detail.get("model")
+            if not model_name and expected_models:
+                # Fallback: use first expected model if not specified
+                model_name = next(iter(expected_models))
+
+            if model_name:
+                model_data = process_model_response(
+                    model_name=model_name,
+                    response_text=detail.get("response", ""),
+                    output_len=detail.get("output_len", 0),
+                    error=detail.get("error", ""),
+                    ttft=detail.get("ttft", 0.0),
+                    server_latency=detail.get("e2el", 0.0),
+                    instance_id=detail.get("instance_id", "unknown"),
+                    host=detail.get("host", "unknown"),
+                    min_output_tokens=min_output_tokens,
+                    max_output_tokens=max_output_tokens,
+                    filter_truncated=filter_truncated,
+                    filter_high_repetition=filter_high_repetition,
+                    min_compression_ratio=min_compression_ratio,
+                    stats=stats,
+                )
+                if model_data:
+                    models_data[model_name] = model_data
+
+        # Skip if no valid model responses
+        if not models_data:
             continue
 
-        # Filter: empty responses
-        if output_len <= 1 or not response.strip():
-            stats.filtered_empty += 1
-            continue
-
-        # Filter: too short
-        if output_len < min_output_tokens:
-            stats.filtered_too_short += 1
-            continue
-
-        # Detect truncation
-        is_truncated = output_len >= max_output_tokens
-
-        # Filter: truncated (optional)
-        if filter_truncated and is_truncated:
-            stats.filtered_truncated += 1
-            continue
-
-        # Compute compression ratio
-        compression_ratio = compute_compression_ratio(response)
-
-        # Filter: high repetition (optional, disabled by default)
-        if filter_high_repetition and compression_ratio < min_compression_ratio:
-            stats.filtered_high_repetition += 1
-            continue
-
-        # Build processed request in compatible format
+        # Build processed request
         processed_request = {
             "request_id": request_id,
             "prompt": prompt,
             "input_len": input_len,
-            "models": {
-                model_name: {
-                    "output_length": output_len,
-                    "quality_score": None,  # Will be filled by scorer if enabled
-                    "compression_ratio": round(compression_ratio, 4),
-                    "is_truncated": is_truncated,
-                    "ttft": detail.get("ttft", 0.0),
-                    "server_latency": detail.get("e2el", 0.0),
-                    "instance_id": detail.get("instance_id", "unknown"),
-                    "host": detail.get("host", "unknown"),
-                    # Store response for potential LLM judge scoring
-                    "_response": response,
-                }
-            }
+            "models": models_data,
         }
 
-        processed_requests.append(processed_request)
-        stats.valid_requests += 1
+        # Check completeness
+        available_models = set(models_data.keys())
+        missing_models = expected_models - available_models
 
-    return processed_requests, stats
+        if missing_models and require_all_models:
+            stats.incomplete_requests += 1
+            # Store for potential re-running
+            processed_request["_missing_models"] = list(missing_models)
+            incomplete_requests.append(processed_request)
+        else:
+            stats.valid_requests += 1
+            complete_requests.append(processed_request)
+
+    return complete_requests, incomplete_requests, stats
 
 
-def compute_quality_scores_compression(
+def compute_quality_scores_similarity(
     requests: List[Dict],
-    model_name: str,
+    reference_model: str,
+    device: str = "cpu",
 ) -> None:
-    """Compute quality scores based on compression ratio.
-
-    Simple heuristic: higher compression ratio = better quality.
-    Normalized to [0, 1] range.
+    """Compute quality scores based on embedding similarity to reference model.
 
     Args:
         requests: List of processed requests (modified in place)
-        model_name: Model name key
+        reference_model: Model name to use as reference for similarity
+        device: Device for embedding model
     """
-    logger.info("Computing quality scores from compression ratio...")
+    from block.predictor.cara.offline_training.similarity_scorer import SimilarityScorer
 
-    for req in requests:
-        model_data = req["models"][model_name]
-        compression_ratio = model_data["compression_ratio"]
+    logger.info(f"Computing quality scores using similarity to {reference_model}...")
 
-        # Normalize: typical range is 0.2 - 0.6 for text
-        # Map to [0, 1] where 0.2 -> 0.0 and 0.6+ -> 1.0
-        quality_score = max(0.0, min(1.0, (compression_ratio - 0.2) / 0.4))
-        model_data["quality_score"] = round(quality_score, 4)
-
-
-def compute_quality_scores_llm_judge(
-    requests: List[Dict],
-    model_name: str,
-    judge_model: str = "Qwen/Qwen2.5-3B",
-    device: str = "cuda",
-    batch_size: int = 1,
-) -> None:
-    """Compute quality scores using LLM-as-judge.
-
-    Args:
-        requests: List of processed requests (modified in place)
-        model_name: Model name key
-        judge_model: HuggingFace model for judging
-        device: Device for judge model
-        batch_size: Batch size for inference
-    """
-    from block.predictor.cara.offline_training.llm_judge_scorer import LLMJudgeScorer
-
-    logger.info(f"Computing quality scores using LLM judge: {judge_model}")
-
-    scorer = LLMJudgeScorer(
-        judge_model=judge_model,
-        batch_size=batch_size,
+    scorer = SimilarityScorer(
+        reference_model=reference_model,
         device=device,
     )
 
@@ -283,45 +486,68 @@ def compute_quality_scores_llm_judge(
         if (idx + 1) % 100 == 0:
             logger.info(f"Scored {idx + 1}/{len(requests)} requests")
 
-        model_data = req["models"][model_name]
         prompt = req["prompt"]
-        response = model_data.get("_response", "")
 
-        if not response:
-            model_data["quality_score"] = 0.5
+        # Build responses list for all models in this request
+        responses = []
+        for model_name, model_data in req["models"].items():
+            response_text = model_data.get("_response", "")
+            if response_text:
+                responses.append((model_name, response_text))
+
+        if not responses:
             continue
 
-        # Score using LLM judge
-        scores = scorer.score(prompt, [(model_name, response)])
-        model_data["quality_score"] = round(scores.get(model_name, 0.5), 4)
+        # Score using similarity
+        scores = scorer.score(prompt, responses)
 
-    logger.info(f"Completed scoring {len(requests)} requests")
+        # Store scores in model data
+        for model_name, model_data in req["models"].items():
+            model_data["quality_score"] = scores.get(model_name, 0.5)
+
+    logger.info(f"Completed similarity scoring for {len(requests)} requests")
 
 
-def compute_quality_scores_multi_judge(
-    requests: List[Dict],
-    model_name: str,
-    judge_models: List[str],
-    device: str = "cuda",
-    batch_size: int = 8,
-) -> tuple[Dict[str, List[Optional[float]]], set]:
-    """Compute quality scores using multiple LLM judges.
+def compute_quality_scores_compression(requests: List[Dict]) -> None:
+    """Compute quality scores based on compression ratio for all models.
+
+    Simple heuristic: higher compression ratio = better quality.
+    Normalized to [0, 1] range.
 
     Args:
         requests: List of processed requests (modified in place)
-        model_name: Model name key
+    """
+    logger.info("Computing quality scores from compression ratio...")
+
+    for req in requests:
+        for model_name, model_data in req["models"].items():
+            compression_ratio = model_data["compression_ratio"]
+
+            # Normalize: typical range is 0.2 - 0.6 for text
+            # Map to [0, 1] where 0.2 -> 0.0 and 0.6+ -> 1.0
+            quality_score = max(0.0, min(1.0, (compression_ratio - 0.2) / 0.4))
+            model_data["quality_score"] = round(quality_score, 4)
+
+
+def compute_quality_scores_llm_judge(
+    requests: List[Dict],
+    judge_models: List[str],
+    device: str = "cuda",
+    batch_size: int = 8,
+) -> set:
+    """Compute quality scores using multiple LLM judges for all models in each request.
+
+    Args:
+        requests: List of processed requests (modified in place)
         judge_models: List of HuggingFace model names for judging
         device: Device for judge models
         batch_size: Batch size for inference
 
     Returns:
-        Tuple of:
-        - Dict mapping judge_model_name -> list of scores (one per request, None for failures)
-        - Set of request indices that had scoring failures (to be filtered out)
+        Set of request indices that had scoring failures (to be filtered out)
     """
     from block.predictor.cara.offline_training.llm_judge_scorer import LLMJudgeScorer
 
-    all_scores = {}
     failed_indices = set()
 
     for judge_model in judge_models:
@@ -335,35 +561,40 @@ def compute_quality_scores_multi_judge(
             device=device,
         )
 
-        judge_scores = []
+        total_scored = 0
         judge_failures = 0
 
         for idx, req in enumerate(requests):
             if (idx + 1) % 100 == 0:
                 logger.info(f"  Scored {idx + 1}/{len(requests)} requests")
 
-            model_data = req["models"][model_name]
             prompt = req["prompt"]
-            response = model_data.get("_response", "")
+            request_has_failure = False
 
-            if not response:
-                score = None
-            else:
-                scores = scorer.score(prompt, [(model_name, response)])
-                score = scores.get(model_name)  # None if parsing failed
+            # Score all models in this request
+            for llm_model_name, model_data in req["models"].items():
+                response = model_data.get("_response", "")
 
-            if score is None:
+                if not response:
+                    score = None
+                else:
+                    scores = scorer.score(prompt, [(llm_model_name, response)])
+                    score = scores.get(llm_model_name)  # None if parsing failed
+
+                if score is None:
+                    request_has_failure = True
+                    judge_failures += 1
+                else:
+                    total_scored += 1
+
+                # Store score with judge name as key
+                judge_key = f"quality_score_{judge_model.replace('/', '_')}"
+                model_data[judge_key] = score
+
+            if request_has_failure:
                 failed_indices.add(idx)
-                judge_failures += 1
 
-            judge_scores.append(score)
-
-            # Store score with judge name as key
-            judge_key = f"quality_score_{judge_model.replace('/', '_')}"
-            model_data[judge_key] = score
-
-        all_scores[judge_model] = judge_scores
-        logger.info(f"Completed {judge_model}: {len(judge_scores)} scores, {judge_failures} failures")
+        logger.info(f"Completed {judge_model}: {total_scored} scores, {judge_failures} failures")
 
         # Free memory
         del scorer
@@ -371,13 +602,14 @@ def compute_quality_scores_multi_judge(
     # Set primary quality_score to first judge's scores
     if judge_models:
         primary_judge = judge_models[0]
-        for idx, req in enumerate(requests):
-            model_data = req["models"][model_name]
-            model_data["quality_score"] = all_scores[primary_judge][idx]
+        judge_key = f"quality_score_{primary_judge.replace('/', '_')}"
+        for req in requests:
+            for model_data in req["models"].values():
+                model_data["quality_score"] = model_data.get(judge_key)
 
     logger.info(f"\nTotal requests with scoring failures: {len(failed_indices)}")
 
-    return all_scores, failed_indices
+    return failed_indices
 
 
 def analyze_judge_scores(
@@ -456,7 +688,7 @@ def analyze_judge_scores(
         logger.info(f"  Mean: {stats['mean']:.4f} ± {stats['std']:.4f}")
         logger.info(f"  Range: [{stats['min']:.4f}, {stats['max']:.4f}]")
         logger.info(f"  Median: {stats['median']:.4f}")
-        logger.info(f"  IQR: [{stats['q25']:.4f}, {stats['q75']:.4f}]")
+        logger.info(f"  IQR: [{stats['q50']:.4f}, {stats['q95']:.4f}]")
 
     # Global flat correlation (Pearson) - comparing all scores across (request, model) pairs
     if len(judge_models) > 1:
@@ -676,10 +908,53 @@ def save_divergent_samples(
     logger.info(f"Saved {len(divergent)} divergent samples to: {output_path}")
 
 
+def save_incomplete_requests(
+    incomplete_requests: List[Dict],
+    output_path: Path,
+    expected_models: set,
+) -> None:
+    """Save incomplete requests in benchmark dataset format (JSONL) for re-running.
+
+    Output format matches collect_data.py for direct use with benchmark_serving.py:
+    {"id": 0, "source": "incomplete/request_id", "prompt": "..."}
+
+    Args:
+        incomplete_requests: List of requests missing some models
+        output_path: Output file path (.jsonl)
+        expected_models: Set of expected model names
+    """
+    if not incomplete_requests:
+        return
+
+    # Collect statistics on missing models
+    missing_counts = defaultdict(int)
+    for req in incomplete_requests:
+        for model in req.get("_missing_models", []):
+            missing_counts[model] += 1
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Write in JSONL format for benchmark_serving.py
+    with open(output_path, 'w', encoding='utf-8') as f:
+        for idx, req in enumerate(incomplete_requests):
+            record = {
+                "id": idx,
+                "source": f"incomplete/{req['request_id']}",
+                "prompt": req["prompt"],
+            }
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+    logger.info(f"Saved {len(incomplete_requests)} incomplete requests to: {output_path}")
+    logger.info(f"  Format: JSONL (compatible with benchmark_serving.py)")
+    logger.info(f"  Missing model counts:")
+    for model, count in sorted(missing_counts.items()):
+        logger.info(f"    {model}: {count} requests")
+
+
 def save_training_data(
     requests: List[Dict],
     output_path: Path,
-    model_name: str,
+    models: List[str],
     dataset_name: str,
     scoring_method: str,
     include_response: bool = False,
@@ -689,13 +964,16 @@ def save_training_data(
     Args:
         requests: List of processed requests
         output_path: Output file path
-        model_name: Model name
+        models: List of model names
         dataset_name: Dataset name for metadata
         scoring_method: Scoring method used
         include_response: If True, include full response text
     """
-    # Clean up internal fields if not including response
+    # Clean up internal fields
     for req in requests:
+        # Remove _missing_models field
+        if "_missing_models" in req:
+            del req["_missing_models"]
         for model_data in req["models"].values():
             if not include_response and "_response" in model_data:
                 del model_data["_response"]
@@ -704,7 +982,7 @@ def save_training_data(
         "dataset_name": dataset_name,
         "scoring_method": scoring_method,
         "num_requests": len(requests),
-        "models": [model_name],
+        "models": sorted(models),
         "requests": requests,
     }
 
@@ -716,6 +994,7 @@ def save_training_data(
     file_size_mb = output_path.stat().st_size / 1024 / 1024
     logger.info(f"Saved training data to: {output_path}")
     logger.info(f"  Requests: {len(requests)}")
+    logger.info(f"  Models: {sorted(models)}")
     logger.info(f"  File size: {file_size_mb:.2f} MB")
 
 
@@ -746,12 +1025,18 @@ def parse_args():
         help="Dataset name for output metadata"
     )
 
-    # Model
+    # Model configuration
     parser.add_argument(
-        "--model-name",
+        "--expected-models",
         type=str,
-        default="Qwen/Qwen2.5-3B",
-        help="Model name in benchmark results"
+        nargs="+",
+        default=None,
+        help="Override auto-detected models. If not specified, models are detected from data."
+    )
+    parser.add_argument(
+        "--allow-incomplete",
+        action="store_true",
+        help="Allow incomplete requests (missing some models). Default: require all models."
     )
 
     # Filtering
@@ -788,9 +1073,15 @@ def parse_args():
     parser.add_argument(
         "--scoring-method",
         type=str,
-        choices=["llm_judge", "none"],
+        choices=["llm_judge", "similarity", "compression", "none"],
         default="llm_judge",
-        help="Quality scoring method"
+        help="Quality scoring method. 'similarity' requires --reference-model and multi-model data."
+    )
+    parser.add_argument(
+        "--reference-model",
+        type=str,
+        default=None,
+        help="Reference model for similarity scoring (e.g., Qwen/Qwen2.5-72B). Required for --scoring-method=similarity."
     )
     parser.add_argument(
         "--judge-models",
@@ -864,60 +1155,123 @@ def main():
     if args.compare_judges and len(args.judge_models) <= 1:
         logger.warning("--compare-judges requires multiple --judge-models, disabling comparison")
 
-    logger.info("=" * 60)
-    logger.info("CARA BENCHMARK DATA PREPROCESSING")
-    logger.info("=" * 60)
-    logger.info(f"Input:          {args.input}")
-    logger.info(f"Output:         {args.output}")
-    logger.info(f"Model:          {args.model_name}")
-    logger.info(f"Scoring:        {args.scoring_method}")
-    logger.info(f"Judge model(s): {args.judge_models}")
-    if compare_judges:
-        logger.info(f"Compare mode:   ENABLED ({len(args.judge_models)} judges)")
-        logger.info(f"Divergence threshold: {args.divergence_threshold}")
-    logger.info(f"Min tokens:     {args.min_output_tokens}")
-    logger.info(f"Max tokens:     {args.max_output_tokens}")
-    logger.info(f"Filter truncated: {args.filter_truncated}")
-    logger.info(f"Filter repetition: {args.filter_high_repetition}")
-    logger.info("=" * 60)
-
     try:
-        # Load data
-        logger.info("\n[1/3] Loading benchmark data...")
+        # =================================================================
+        # Step 1: Load data and detect format
+        # =================================================================
+        logger.info("\n[1/5] Loading benchmark data...")
         data = load_benchmark_results(args.input)
+        data_format = detect_data_format(data)
+        logger.info(f"Detected format: {data_format}")
 
-        # Process data
-        logger.info("\n[2/3] Processing and filtering...")
-        requests, stats = process_benchmark_data(
+        # =================================================================
+        # Step 2: Collect all models from data (first pass)
+        # =================================================================
+        logger.info("\n[2/5] Collecting model information...")
+        all_models, model_counts, request_models = collect_all_models(data)
+        total_requests = len(data.get("response_details", []))
+
+        log_model_statistics(all_models, model_counts, total_requests)
+
+        # Determine expected models
+        if args.expected_models:
+            expected_models = set(args.expected_models)
+            logger.info(f"Using user-specified expected models: {sorted(expected_models)}")
+            # Validate all expected models exist in data
+            missing = expected_models - all_models
+            if missing:
+                logger.error(f"Expected models not found in data: {missing}")
+                logger.error(f"Available models: {sorted(all_models)}")
+                return 1
+        else:
+            expected_models = all_models
+            logger.info(f"Using auto-detected models: {sorted(expected_models)}")
+
+        # =================================================================
+        # Validate reference model for similarity scoring
+        # =================================================================
+        if args.scoring_method == "similarity":
+            if not args.reference_model:
+                logger.error("--scoring-method=similarity requires --reference-model")
+                return 1
+            if len(expected_models) < 2:
+                logger.error("Similarity scoring requires multi-model data (2+ models)")
+                return 1
+            if args.reference_model not in expected_models:
+                logger.error(f"Reference model '{args.reference_model}' not found in data")
+                logger.error(f"Available models: {sorted(expected_models)}")
+                return 1
+            logger.info(f"Reference model for similarity: {args.reference_model}")
+
+        # Log configuration
+        logger.info("\n" + "=" * 60)
+        logger.info("CARA BENCHMARK DATA PREPROCESSING")
+        logger.info("=" * 60)
+        logger.info(f"Input:          {args.input}")
+        logger.info(f"Output:         {args.output}")
+        logger.info(f"Data format:    {data_format}")
+        logger.info(f"Models:         {sorted(expected_models)}")
+        logger.info(f"Scoring:        {args.scoring_method}")
+        if args.scoring_method == "llm_judge":
+            logger.info(f"Judge model(s): {args.judge_models}")
+        if compare_judges:
+            logger.info(f"Compare mode:   ENABLED ({len(args.judge_models)} judges)")
+            logger.info(f"Divergence threshold: {args.divergence_threshold}")
+        logger.info(f"Require all models: {not args.allow_incomplete}")
+        logger.info(f"Min tokens:     {args.min_output_tokens}")
+        logger.info(f"Max tokens:     {args.max_output_tokens}")
+        logger.info(f"Filter truncated: {args.filter_truncated}")
+        logger.info(f"Filter repetition: {args.filter_high_repetition}")
+        logger.info("=" * 60)
+
+        # =================================================================
+        # Step 3: Process and filter data
+        # =================================================================
+        logger.info("\n[3/5] Processing and filtering...")
+        complete_requests, incomplete_requests, stats = process_benchmark_data(
             data=data,
-            model_name=args.model_name,
+            expected_models=expected_models,
             min_output_tokens=args.min_output_tokens,
             max_output_tokens=args.max_output_tokens,
             filter_truncated=args.filter_truncated,
             filter_high_repetition=args.filter_high_repetition,
             min_compression_ratio=args.min_compression_ratio,
+            require_all_models=not args.allow_incomplete,
         )
 
         stats.log()
 
-        if not requests:
-            logger.error("No valid requests after filtering!")
+        # Save incomplete requests for re-running
+        if incomplete_requests:
+            incomplete_path = args.output.parent / f"{args.output.stem}_incomplete.jsonl"
+            save_incomplete_requests(incomplete_requests, incomplete_path, expected_models)
+
+        if not complete_requests:
+            logger.error("No valid complete requests after filtering!")
             return 1
 
-        # Compute quality scores
-        logger.info("\n[3/3] Computing quality scores...")
-        all_scores = None
+        requests = complete_requests
+
+        # =================================================================
+        # Step 4: Compute quality scores
+        # =================================================================
+        logger.info("\n[4/5] Computing quality scores...")
         failed_indices = set()
 
         if args.scoring_method == "compression":
-            compute_quality_scores_compression(requests, args.model_name)
+            compute_quality_scores_compression(requests)
         elif args.scoring_method == "llm_judge":
-            all_scores, failed_indices = compute_quality_scores_multi_judge(
+            failed_indices = compute_quality_scores_llm_judge(
                 requests,
-                args.model_name,
                 judge_models=args.judge_models,
                 device=args.device,
                 batch_size=args.batch_size,
+            )
+        elif args.scoring_method == "similarity":
+            compute_quality_scores_similarity(
+                requests,
+                reference_model=args.reference_model,
+                device=args.device,
             )
         else:
             logger.info("Skipping quality scoring (method=none)")
@@ -933,8 +1287,13 @@ def main():
                 logger.error("No valid requests remaining after filtering scoring failures!")
                 return 1
 
+        # =================================================================
+        # Step 5: Analysis and save output
+        # =================================================================
+        logger.info("\n[5/5] Saving output...")
+
         # Run comparison analysis if enabled
-        if compare_judges and all_scores:
+        if compare_judges:
             analysis = analyze_judge_scores(requests, args.judge_models)
 
             # Find and save divergent samples
@@ -948,11 +1307,11 @@ def main():
                 divergent_path = args.output.parent / f"{args.output.stem}_divergent.json"
                 save_divergent_samples(divergent, divergent_path, analysis)
 
-        # Save output
+        # Save training data
         save_training_data(
             requests=requests,
             output_path=args.output,
-            model_name=args.model_name,
+            models=list(expected_models),
             dataset_name=args.dataset_name,
             scoring_method=args.scoring_method,
             include_response=args.include_response,
