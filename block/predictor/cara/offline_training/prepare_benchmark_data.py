@@ -424,6 +424,12 @@ def parse_args():
         default="cpu",
         help="Device for LLM judge (cuda, cpu)"
     )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=8,
+        help="Batch size for LLM judge inference (higher = faster but more memory)"
+    )
 
     # Output options
     parser.add_argument(
@@ -506,6 +512,7 @@ def main():
                 args.model_name,
                 judge_model=args.judge_model,
                 device=args.device,
+                batch_size=args.batch_size,
             )
         else:
             logger.info("Skipping quality scoring (method=none)")

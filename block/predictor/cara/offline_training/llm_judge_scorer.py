@@ -90,8 +90,12 @@ Rating:"""
 
             self._judge_tokenizer = AutoTokenizer.from_pretrained(
                 self.judge_model_name,
-                trust_remote_code=True
+                trust_remote_code=True,
+                padding_side="left"  # Left padding for batched generation
             )
+            # Set pad token to suppress warning during generation
+            if self._judge_tokenizer.pad_token is None:
+                self._judge_tokenizer.pad_token = self._judge_tokenizer.eos_token
 
             # Load model with appropriate dtype
             self._judge_model = AutoModelForCausalLM.from_pretrained(
@@ -140,7 +144,7 @@ Rating:"""
     def _score_batch(self,
                      prompt: str,
                      batch: List[Tuple[str, str]]) -> Dict[str, float]:
-        """Score a batch of responses.
+        """Score a batch of responses with true batched inference.
 
         Args:
             prompt: Input prompt
@@ -149,46 +153,55 @@ Rating:"""
         Returns:
             Dict mapping model_name -> quality_score (0.0-1.0)
         """
-        scores = {}
+        import re
 
+        if not batch:
+            return {}
+
+        scores = {}
+        model_names = []
+        judge_prompts = []
+
+        # Format all judge prompts
         for model_name, generated_text in batch:
-            # Format judge prompt
             judge_prompt = self.judge_prompt_template.format(
                 prompt=prompt,
                 response=generated_text
             )
+            model_names.append(model_name)
+            judge_prompts.append(judge_prompt)
 
-            # Tokenize
-            inputs = self._judge_tokenizer(
-                judge_prompt,
-                return_tensors="pt",
-                truncation=True,
-                max_length=2048
-            ).to(self._judge_model.device)
+        # Tokenize batch with padding
+        inputs = self._judge_tokenizer(
+            judge_prompts,
+            return_tensors="pt",
+            truncation=True,
+            max_length=2048,
+            padding=True
+        ).to(self._judge_model.device)
 
-            # Generate rating
-            with torch.no_grad():
-                outputs = self._judge_model.generate(
-                    **inputs,
-                    max_new_tokens=10,
-                    temperature=0.0,
-                    do_sample=False
-                )
+        # Generate ratings for entire batch
+        with torch.no_grad():
+            outputs = self._judge_model.generate(
+                **inputs,
+                max_new_tokens=10,
+                do_sample=False
+            )
 
-            # Decode output
+        # Decode and parse each output
+        for idx, model_name in enumerate(model_names):
+            # Extract only the generated tokens (after input)
+            generated_tokens = outputs[idx][inputs['input_ids'].shape[1]:]
             rating_text = self._judge_tokenizer.decode(
-                outputs[0][inputs['input_ids'].shape[1]:],
+                generated_tokens,
                 skip_special_tokens=True
             ).strip()
 
             # Parse rating (expect single number 0-10)
             try:
-                # Try to extract first number from response
-                import re
                 numbers = re.findall(r'\d+(?:\.\d+)?', rating_text)
                 if numbers:
                     rating = float(numbers[0])
-                    # Normalize to [0, 1]
                     normalized_score = max(0.0, min(10.0, rating)) / 10.0
                     scores[model_name] = normalized_score
                     logger.debug(
