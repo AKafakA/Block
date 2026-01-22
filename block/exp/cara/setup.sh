@@ -16,7 +16,6 @@ echo "Install CUDA and dependencies on all hosts..."
 parallel-ssh -t 0 -h block/config/hosts "sudo apt update && sudo apt full-upgrade -y"
 parallel-ssh -t 0 -h block/config/hosts "sudo apt install -y python3-pip python3-venv ccache"
 parallel-ssh -t 0 -h block/config/hosts "pip install --upgrade pip"
-parallel-ssh -t 0 -h block/config/hosts "git clone ${BLOCK_GITHUB_LINK} && cd Block && git checkout ${BRANCH_NAME}  && pip install -r requirements.txt"
 parallel-ssh -t 0 -h block/config/hosts "pip3 install torch torchvision"
 parallel-ssh -t 0 -h block/config/hosts "pip install dacite"
 parallel-ssh -t 0 -h block/config/hosts "wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-ubuntu2004.pin && sudo mv cuda-ubuntu2004.pin /etc/apt/preferences.d/cuda-repository-pin-600"
@@ -41,6 +40,9 @@ echo "cuda installation completed on all hosts and now tested with nvidia-smi...
 echo "If error, please consider to reboot the hosts and re-run nvidia-smi to verify cuda installation."
 parallel-ssh -t 0 -h block/config/hosts "sudo nvidia-smi -mig 0"
 parallel-ssh -t 0 -h block/config/hosts  "rm -r ~/cuda-repo-*.deb"
+
+# Clone and setup Block on all hosts
+parallel-ssh -t 0 -h block/config/hosts "git clone ${BLOCK_GITHUB_LINK} && cd Block && git checkout ${BRANCH_NAME}  && pip install -r requirements.txt"
 
 # For ampere hosts and volta hosts, which are able to run vllm
 echo "Starting setup for vllm hosts..."

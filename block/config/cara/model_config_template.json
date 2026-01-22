@@ -56,7 +56,7 @@
     "backend": "vllm",
     "node_type": {
       "c240g5": {
-        "count": 2,
+        "count": 4,
         "serve_with_v0": true,
         "max-model-len": 8192,
         "dtype": "float16",

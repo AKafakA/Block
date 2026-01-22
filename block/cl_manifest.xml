@@ -1,28 +1,28 @@
 <rspec xmlns="http://www.geni.net/resources/rspec/3" xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" xmlns:tour="http://www.protogeni.net/resources/rspec/ext/apt-tour/1" xmlns:jacks="http://www.protogeni.net/resources/rspec/ext/jacks/1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.geni.net/resources/rspec/3    http://www.geni.net/resources/rspec/3/request.xsd" type="request">
-  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node0" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c240g5-110107" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1089939">
+  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node0" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c240g5-110223" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1091485">
     <sliver_type name="raw-pc"/>
     <hardware_type name="c240g5"/>
-    <interface client_id="node0:eth1" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110107:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1089942" mac_address="b83fd277d8ae">
+    <interface client_id="node0:eth1" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110223:eth3" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1091489" mac_address="b83fd277f6e3">
       <ip address="10.10.1.1" type="ipv4" netmask="255.255.255.0"/>
     </interface>
-    <emulab:vnode name="c240g5-110107" hardware_type="c240g5"/>
-    <host name="node0.asdwb-286422.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.144.46"/>
+    <emulab:vnode name="c240g5-110223" hardware_type="c240g5"/>
+    <host name="node0.asdwb-287120.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.144.70"/>
     <services>
-      <login authentication="ssh-keys" hostname="c240g5-110107.wisc.cloudlab.us" port="22" username="asdwb"/>
+      <login authentication="ssh-keys" hostname="c240g5-110223.wisc.cloudlab.us" port="22" username="asdwb"/>
       <emulab:console server="boss.wisc.cloudlab.us"/>
       <emulab:recovery available="true"/>
       <emulab:powercycle available="true"/>
       <emulab:imageable available="true"/>
     </services>
   </node>
-  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node1" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c240g5-110119" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1089938">
+  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node1" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c240g5-110119" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1091486">
     <sliver_type name="raw-pc"/>
     <hardware_type name="c240g5"/>
-    <interface client_id="node1:eth1" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110119:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1089943" mac_address="b83fd277d88e">
+    <interface client_id="node1:eth1" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110119:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1091490" mac_address="b83fd277d88e">
       <ip address="10.10.1.2" type="ipv4" netmask="255.255.255.0"/>
     </interface>
     <emulab:vnode name="c240g5-110119" hardware_type="c240g5"/>
-    <host name="node1.asdwb-286422.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.144.52"/>
+    <host name="node1.asdwb-287120.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.144.52"/>
     <services>
       <login authentication="ssh-keys" hostname="c240g5-110119.wisc.cloudlab.us" port="22" username="asdwb"/>
       <emulab:console server="boss.wisc.cloudlab.us"/>
@@ -31,9 +31,44 @@
       <emulab:imageable available="true"/>
     </services>
   </node>
-  <link client_id="link-1" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1089941" vlantag="1180">
-    <interface_ref client_id="node0:eth1" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110107:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1089942"/>
-    <interface_ref client_id="node1:eth1" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110119:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1089943"/>
+  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node2" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c240g5-110105" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1091483">
+    <sliver_type name="raw-pc"/>
+    <hardware_type name="c240g5"/>
+    <interface client_id="node2:eth1" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110105:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1091491" mac_address="b83fd277d89e">
+      <ip address="10.10.1.3" type="ipv4" netmask="255.255.255.0"/>
+    </interface>
+    <emulab:vnode name="c240g5-110105" hardware_type="c240g5"/>
+    <host name="node2.asdwb-287120.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.144.45"/>
+    <services>
+      <login authentication="ssh-keys" hostname="c240g5-110105.wisc.cloudlab.us" port="22" username="asdwb"/>
+      <emulab:console server="boss.wisc.cloudlab.us"/>
+      <emulab:recovery available="true"/>
+      <emulab:powercycle available="true"/>
+      <emulab:imageable available="true"/>
+    </services>
+  </node>
+  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node3" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+c240g5-110131" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1091484">
+    <sliver_type name="raw-pc"/>
+    <hardware_type name="c240g5"/>
+    <interface client_id="node3:eth1" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110131:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1091492" mac_address="b83fd277e516">
+      <ip address="10.10.1.4" type="ipv4" netmask="255.255.255.0"/>
+    </interface>
+    <emulab:vnode name="c240g5-110131" hardware_type="c240g5"/>
+    <host name="node3.asdwb-287120.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.144.58"/>
+    <services>
+      <login authentication="ssh-keys" hostname="c240g5-110131.wisc.cloudlab.us" port="22" username="asdwb"/>
+      <emulab:console server="boss.wisc.cloudlab.us"/>
+      <emulab:recovery available="true"/>
+      <emulab:powercycle available="true"/>
+      <emulab:imageable available="true"/>
+    </services>
+  </node>
+  <link client_id="link-1" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1091488" vlantag="1176">
+    <interface_ref client_id="node0:eth1" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110223:eth3" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1091489"/>
+    <interface_ref client_id="node1:eth1" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110119:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1091490"/>
+    <interface_ref client_id="node2:eth1" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110105:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1091491"/>
+    <interface_ref client_id="node3:eth1" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+c240g5-110131:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1091492"/>
+    <link_type name="lan"/>
     <component_manager name="urn:publicid:IDN+wisc.cloudlab.us+authority+cm"/>
   </link>
   <rspec_tour xmlns="http://www.protogeni.net/resources/rspec/ext/apt-tour/1">
@@ -57,7 +92,7 @@ Use `sudo` to run root commands.
     <data_item name="emulab.net.parameter.phystype">c240g5</data_item>
     <data_item name="emulab.net.parameter.sameSwitch">False</data_item>
     <data_item name="emulab.net.parameter.osImage">default</data_item>
-    <data_item name="emulab.net.parameter.nodeCount">2</data_item>
+    <data_item name="emulab.net.parameter.nodeCount">4</data_item>
     <data_item name="emulab.net.parameter.startVNC">False</data_item>
   </data_set>
   <emulab:password name="experiment-rpctoken" encrypted="true">-----BEGIN PKCS7-----
@@ -65,27 +100,27 @@ MIID+QYJKoZIhvcNAQcDoIID6jCCA+YCAQAxggHNMIIByQIBADCBsDCBqDELMAkG
 A1UEBhMCVVMxDTALBgNVBAgTBFV0YWgxFzAVBgNVBAcTDlNhbHQgTGFrZSBDaXR5
 MR0wGwYDVQQKExRVdGFoIE5ldHdvcmsgVGVzdGJlZDEPMA0GA1UECxMGQVBUTEFC
 MRcwFQYDVQQDEw53d3cuYXB0bGFiLm5ldDEoMCYGCSqGSIb3DQEJARYZdGVzdGJl
-ZC1vcHNAZmx1eC51dGFoLmVkdQIDI0yMMA0GCSqGSIb3DQEBAQUABIIBACjzxLaN
-HmTpjj1v+C8wVrB6DoMShq4rKSvu0nd9P2tvCQkbgsxGDcCLgclEh2GUs57gdnDO
-nMpqliRPyZehh5aG+tVAwcg0+otroo+9F0ssFUM4jkoPqFIajKW0mGK6JgGTkGW3
-aA+f8mi/gc3OLTfeUGR/yMLiFkRD9lHZxzOw3GJ7BbJNvueoFpX/4x5Sr+YX6CwM
-yacUgD95+DDBIRVAqDeOr+hMsrLyjrXHD7ZVAScYkODkUZVllykQRPURKPm+SPxg
-5V1HqgY4ju48g3i8ePGhfsH7xcv7l5oj1ySTQxvac3K1pRh30Te2sYrAOJ+Ptm4P
-ryNUFz86Acodw2kwggIOBgkqhkiG9w0BBwEwHQYJYIZIAWUDBAEqBBAspX4l13LJ
-yrSKCYz+ImIdgIIB4DEEhkyjHH5+J45WS6cr5e+lrh/liiDUSu3w5l8DjeI91A7n
-7KD821mlXrRKwUZoKaylO658BuJu40GOL8UV/tUY6+rR6+uJIjQVB/pbrR7fto59
-LKWLqnADWRfI63iGa4ZONtMI+dvgVPAsRUKRkRJZ0FXKDT0w5MaevOpT+a7aVn5r
-umpuT+Am4dk/Q9M+/Ot5ZuX5tvEJ3YSJe/5JRG+pQvtGMBSy6lUN3wiwZUwYs8sY
-h6JWqTivRgOuf2CRrVK58bJTTbvU84FzpDFwkEKcjq/i6n9tKAQ9P88OhgZaSrnM
-itPmBuk68/2aeYxjWFbcctdpH8hqZ89BD2RrcPBVneMAOuHsx6b7A72IyM585SkE
-lL5KjqiUpugST2exBucFpYpHqDukjnj13J7ykXtSWMLmV2Wd+nswwo7ZcLiGcbOi
-chIDDwuitffxt3G2mzyNAmWhKXvOTgywicEKVp95YBtMjzChENQfbhk5mydbQbMv
-W0i8XrEP8cc2hjxXd6IzLYY6kXQWS8nsJN341loYsRyMyHy6NDJ8RYbK6TvD1clN
-7/MEjMUTWl8BjqkUR5CAVD5gSwmN+v7bzFkkaNERDpn+p51z5EmihO0FqpzqebKD
-tv2tqROh4tt2ICCvLw==
+ZC1vcHNAZmx1eC51dGFoLmVkdQIDI2diMA0GCSqGSIb3DQEBAQUABIIBACjPbRzh
+x5ZEnPkVGVKqJvt+raf3/YVolkx80sIqsxs5PnX3Bci+lLAp/z/N5lp6qRmeIlJH
+Zqq2W6Pe9MHdovs83Eo+B8CvflUEu1iDyfdEAZjPaVP4eDWezezfvEFLTEptmr11
+WX39m3IsFuMo+lULzFQyruTx7V/kJQdiPEIwNLZsYgGHXQWDU6h5kLgVhqWDjOWm
+sAc4QBrDlqsKjiIpw4+3R/8XLzDKmfbqn2K4iQch8KGdZ5PvHmkkKASZhhpJCE4A
+3yU2S9n9h7wFauZmENTDVYaj+6e+2jHKYDR8K4ncLTQ2SzujHXIGjOA0u3TnTfKZ
+PrYCVMUMmGAySccwggIOBgkqhkiG9w0BBwEwHQYJYIZIAWUDBAEqBBDcLkGMUuoI
+2Inmz8mPHIkJgIIB4NUN3/kqtqNDnBRYTdYFNclJxOKrTja8GbVkl0QrbFZqYJHW
+MvVkxp7tSOdHpzpZTemkQCC82V3y/JrgvjqyK77dN5cZuQedqepWz580h69X2ntd
+OG/ELtBwFza28nBpFkrViKIvC3dSEPYYbQmD5Qxy1rf13uLqcpuG0Ud7MU74+s/b
+evWYBRkEp5CThRFUE5KZOX4Luy2h4bPfFNGLXa+KckMaDxNUJAUTaaj2C9DGmJt/
+nytQoNIJqoamA/E69Nxga39JW4jWwq8s9v6ZfSEYQ4VlgWGxXsq8u97tk/og5m73
+FBCDsWicQAFa8HSezAnpphlENDUjhAafFCpQ+MFUOEPnsN60D2CHPtN6Hdl61EZ7
+f1jfMwhjqHOSHnQ/nCmCnzE+gsE1l9u9nizNy4JaRGSAuEANlZZJD3NJpGPNlR0y
+8+MljfhcnOWoDq6AipnJnh8hZ2vVDQABha13MHs0N2MB6uh1MOYTu2yCkQMWGDOg
+9lRULLSy8ewN24iXAW5spP1qI5KMZTN9/YI1YjgkQmuXSBcZvO/w91fuivhj/Ds8
+k8RidBErMMnu2CpJZv2zD3PazrJhmonrg/RevXIdR1Ypw8LhWqGGn7HVR4Pvceha
+nEeNJ+OUDstqBLMNFQ==
 -----END PKCS7-----
 </emulab:password>
-  <emulab:portal name="cloudlab" url="https://www.cloudlab.us/status.php?uuid=1c3b80f4-f22a-11f0-bc80-e4434b2381fc" project="Hyperion" experiment="asdwb-286422" sequence="1768492319"/>
+  <emulab:portal name="cloudlab" url="https://www.cloudlab.us/status.php?uuid=79ab6c37-f7c3-11f0-bc80-e4434b2381fc" project="Hyperion" experiment="asdwb-287120" sequence="1769107945"/>
   <rs:site_info xmlns:rs="http://www.protogeni.net/resources/rspec/ext/site-info/1">
     <rs:location country="US" latitude="43.0667" longitude="89.4000"/>
   </rs:site_info>

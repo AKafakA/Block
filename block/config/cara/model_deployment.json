@@ -29,8 +29,10 @@
     "precision": "fp16",
     "backend": "vllm",
     "node_hosts": [
-      "asdwb@c240g5-110107.wisc.cloudlab.us",
-      "asdwb@c240g5-110119.wisc.cloudlab.us"
+      "asdwb@c240g5-110223.wisc.cloudlab.us",
+      "asdwb@c240g5-110119.wisc.cloudlab.us",
+      "asdwb@c240g5-110105.wisc.cloudlab.us",
+      "asdwb@c240g5-110131.wisc.cloudlab.us"
     ]
   }
 }
