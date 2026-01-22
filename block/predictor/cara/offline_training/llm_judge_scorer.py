@@ -185,7 +185,8 @@ Rating:"""
             outputs = self._judge_model.generate(
                 **inputs,
                 max_new_tokens=10,
-                do_sample=False
+                do_sample=False,
+                pad_token_id=self._judge_tokenizer.pad_token_id
             )
 
         # Decode and parse each output
