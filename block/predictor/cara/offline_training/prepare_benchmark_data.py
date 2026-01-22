@@ -534,6 +534,7 @@ def compute_quality_scores_llm_judge(
     judge_models: List[str],
     device: str = "cuda",
     batch_size: int = 8,
+    hf_token: Optional[str] = None,
 ) -> set:
     """Compute quality scores using multiple LLM judges for all models in each request.
 
@@ -559,6 +560,7 @@ def compute_quality_scores_llm_judge(
             judge_model=judge_model,
             batch_size=batch_size,
             device=device,
+            hf_token=hf_token,
         )
 
         total_scored = 0
@@ -1113,6 +1115,12 @@ def parse_args():
         default=8,
         help="Batch size for LLM judge inference (higher = faster but more memory)"
     )
+    parser.add_argument(
+        "--hf-token",
+        type=str,
+        default=None,
+        help="Hugging Face access token to use for gated model repos",
+    )
 
     # Output options
     parser.add_argument(
@@ -1266,6 +1274,7 @@ def main():
                 judge_models=args.judge_models,
                 device=args.device,
                 batch_size=args.batch_size,
+                hf_token=args.hf_token,
             )
         elif args.scoring_method == "similarity":
             compute_quality_scores_similarity(

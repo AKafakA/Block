@@ -44,7 +44,9 @@ Rating:"""
                  judge_model: str = "Unbabel/M-Prometheus-7B",
                  judge_prompt_template: Optional[str] = None,
                  batch_size: int = 1,
-                 device: str = "auto"):
+                 device: str = "auto",
+                 hf_token: Optional[str] = None,
+                 ):
         """
         Args:
             judge_model: HuggingFace model name or local path for judge LLM
@@ -56,6 +58,7 @@ Rating:"""
         self.judge_model_name = judge_model
         self.batch_size = batch_size
         self.device = device
+        self.hf_token = hf_token
 
         # Use provided template or default
         self.judge_prompt_template = (
@@ -88,22 +91,64 @@ Rating:"""
         try:
             from transformers import AutoModelForCausalLM, AutoTokenizer
 
-            self._judge_tokenizer = AutoTokenizer.from_pretrained(
-                self.judge_model_name,
-                trust_remote_code=True,
-                padding_side="left"  # Left padding for batched generation
-            )
+            # Load tokenizer, forwarding HF token if provided.
+            try:
+                if self.hf_token:
+                    self._judge_tokenizer = AutoTokenizer.from_pretrained(
+                        self.judge_model_name,
+                        trust_remote_code=True,
+                        padding_side="left",
+                        token=self.hf_token,  # Transformers >= 4.46 / v5
+                    )
+                else:
+                    self._judge_tokenizer = AutoTokenizer.from_pretrained(
+                        self.judge_model_name,
+                        trust_remote_code=True,
+                        padding_side="left",
+                    )
+            except TypeError:
+                # Backwards compatibility with older Transformers
+                if self.hf_token:
+                    self._judge_tokenizer = AutoTokenizer.from_pretrained(
+                        self.judge_model_name,
+                        trust_remote_code=True,
+                        padding_side="left",
+                        use_auth_token=self.hf_token,  # Older API
+                    )
+                else:
+                    raise
             # Set pad token to suppress warning during generation
             if self._judge_tokenizer.pad_token is None:
                 self._judge_tokenizer.pad_token = self._judge_tokenizer.eos_token
 
-            # Load model with appropriate dtype
-            self._judge_model = AutoModelForCausalLM.from_pretrained(
-                self.judge_model_name,
-                trust_remote_code=True,
-                torch_dtype=torch.float16,
-                device_map=self.device
-            )
+            # Load model with appropriate dtype, forwarding HF token if provided.
+            try:
+                if self.hf_token:
+                    self._judge_model = AutoModelForCausalLM.from_pretrained(
+                        self.judge_model_name,
+                        trust_remote_code=True,
+                        torch_dtype=torch.float16,
+                        device_map=self.device,
+                        token=self.hf_token,
+                    )
+                else:
+                    self._judge_model = AutoModelForCausalLM.from_pretrained(
+                        self.judge_model_name,
+                        trust_remote_code=True,
+                        torch_dtype=torch.float16,
+                        device_map=self.device,
+                    )
+            except TypeError:
+                if self.hf_token:
+                    self._judge_model = AutoModelForCausalLM.from_pretrained(
+                        self.judge_model_name,
+                        trust_remote_code=True,
+                        torch_dtype=torch.float16,
+                        device_map=self.device,
+                        use_auth_token=self.hf_token,
+                    )
+                else:
+                    raise
 
             self._judge_model.eval()
 
