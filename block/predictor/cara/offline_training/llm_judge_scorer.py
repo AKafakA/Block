@@ -88,80 +88,22 @@ Rating:"""
         try:
             from transformers import AutoModelForCausalLM, AutoTokenizer
 
-            # Prefer built-in fast tokenizers without remote code.
-            # This avoids misconfigured tokenizer_config (e.g. TokenizersBackend).
-            model_id_lower = str(self.judge_model_name).lower()
-            try:
-                self._judge_tokenizer = AutoTokenizer.from_pretrained(
-                    self.judge_model_name,
-                    use_fast=True,
-                    trust_remote_code=False,
-                    padding_side="left",  # Left padding for batched generation
-                )
-            except Exception as te:
-                logger.warning(
-                    f"AutoTokenizer load without remote code failed: {te}."
-                )
-                # If this looks like a (Mi|M)istral-family model, try known fast tokenizers
-                if "mistral" in model_id_lower or "ministral" in model_id_lower:
-                    try:
-                        try:
-                            from transformers import MistralTokenizerFast  # type: ignore
-                            self._judge_tokenizer = MistralTokenizerFast.from_pretrained(
-                                self.judge_model_name,
-                                padding_side="left",
-                            )
-                            logger.info("Loaded tokenizer via MistralTokenizerFast fallback")
-                        except Exception:
-                            from transformers import LlamaTokenizerFast  # type: ignore
-                            self._judge_tokenizer = LlamaTokenizerFast.from_pretrained(
-                                self.judge_model_name,
-                                padding_side="left",
-                            )
-                            logger.info("Loaded tokenizer via LlamaTokenizerFast fallback")
-                    except Exception as fam_te:
-                        logger.warning(
-                            f"Mistral/Llama tokenizer fallback failed: {fam_te}. "
-                            f"Retrying with trust_remote_code=True."
-                        )
-                        # Final fallback: allow remote code in case the model truly needs it
-                        self._judge_tokenizer = AutoTokenizer.from_pretrained(
-                            self.judge_model_name,
-                            use_fast=True,
-                            trust_remote_code=True,
-                            padding_side="left",
-                        )
-                else:
-                    # Non-Mistral family: fallback to remote code
-                    self._judge_tokenizer = AutoTokenizer.from_pretrained(
-                        self.judge_model_name,
-                        use_fast=True,
-                        trust_remote_code=True,
-                        padding_side="left",
-                    )
+            self._judge_tokenizer = AutoTokenizer.from_pretrained(
+                self.judge_model_name,
+                trust_remote_code=True,
+                padding_side="left"  # Left padding for batched generation
+            )
             # Set pad token to suppress warning during generation
             if self._judge_tokenizer.pad_token is None:
                 self._judge_tokenizer.pad_token = self._judge_tokenizer.eos_token
 
-            # Load model with appropriate dtype. Prefer built-in classes first.
-            try:
-                self._judge_model = AutoModelForCausalLM.from_pretrained(
-                    self.judge_model_name,
-                    trust_remote_code=False,
-                    torch_dtype=torch.float16,
-                    device_map=self.device,
-                )
-            except Exception as me:
-                logger.warning(
-                    f"AutoModel load without remote code failed: {me}. "
-                    f"Retrying with trust_remote_code=True."
-                )
-                self._judge_model = AutoModelForCausalLM.from_pretrained(
-                    self.judge_model_name,
-                    trust_remote_code=True,
-                    torch_dtype=torch.float16,
-                    device_map=self.device,
-                )
+            # Load model with appropriate dtype
+            self._judge_model = AutoModelForCausalLM.from_pretrained(
+                self.judge_model_name,
+                trust_remote_code=True,
+                torch_dtype=torch.float16,
+                device_map=self.device
+            )
 
             self._judge_model.eval()
 
