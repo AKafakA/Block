@@ -77,6 +77,9 @@ class ValidationResult:
     num_failures: int = 0
     failure_rate: float = 0.0
 
+    # Parsing statistics
+    parsing_stats: Dict = field(default_factory=dict)
+
 
 def load_feedbackqa_dataset(sample_size: Optional[int] = None,
                             require_agreement: bool = True) -> Tuple[List[Dict], Dict[str, int]]:
@@ -252,6 +255,12 @@ def evaluate_judge_model(
     else:
         logger.warning(f"Not enough valid predictions for {judge_model}")
 
+    # Get parsing statistics before cleanup
+    result.parsing_stats = scorer.get_parsing_stats()
+
+    # Print parsing statistics
+    scorer.print_parsing_stats()
+
     # Clean up
     del scorer
 
@@ -272,12 +281,48 @@ def print_comparison_report(results: List[ValidationResult]):
     print("\n" + "-"*80)
     print("CORRELATION WITH HUMAN RATINGS (higher is better)")
     print("-"*80)
-    print(f"{'Model':<45} {'Pearson r':<12} {'Spearman ρ':<12} {'Failures':<10}")
+    print(f"{'Model':<40} {'Pearson r':<12} {'Spearman ρ':<12} {'Success':<10}")
     print("-"*80)
 
     for result in results_sorted:
-        model_name = result.judge_model.split("/")[-1][:43]  # Truncate long names
-        print(f"{model_name:<45} {result.pearson_r:>6.4f}       {result.spearman_rho:>6.4f}       {result.failure_rate*100:>5.1f}%")
+        model_name = result.judge_model.split("/")[-1][:38]  # Truncate long names
+        success_rate = result.parsing_stats.get('success_rate', 0) * 100
+        print(f"{model_name:<40} {result.pearson_r:>6.4f}       {result.spearman_rho:>6.4f}       {success_rate:>5.1f}%")
+
+    # Print parsing method summary
+    print("\n" + "-"*80)
+    print("PARSING METHOD SUMMARY")
+    print("-"*80)
+    print(f"{'Model':<40} {'Number':<10} {'Exact':<10} {'Semantic':<10}")
+    print("-"*80)
+
+    for result in results_sorted:
+        model_name = result.judge_model.split("/")[-1][:38]
+        stats = result.parsing_stats
+        num_rate = stats.get('number_extraction_rate', 0) * 100
+        exact_rate = stats.get('exact_match_rate', 0) * 100
+        sem_rate = stats.get('semantic_match_rate', 0) * 100
+        print(f"{model_name:<40} {num_rate:>5.1f}%     {exact_rate:>5.1f}%     {sem_rate:>5.1f}%")
+
+    # Semantic similarity stats
+    has_semantic = any(r.parsing_stats.get('avg_semantic_similarity') is not None for r in results_sorted)
+    if has_semantic:
+        print("\n" + "-"*80)
+        print("SEMANTIC MATCHING CONFIDENCE (when used)")
+        print("-"*80)
+        print(f"{'Model':<40} {'Avg Similarity':<20} {'Range':<20}")
+        print("-"*80)
+
+        for result in results_sorted:
+            model_name = result.judge_model.split("/")[-1][:38]
+            stats = result.parsing_stats
+            avg_sim = stats.get('avg_semantic_similarity')
+            if avg_sim is not None:
+                min_sim = stats.get('min_semantic_similarity', 0)
+                max_sim = stats.get('max_semantic_similarity', 0)
+                print(f"{model_name:<40} {avg_sim:>6.3f}              [{min_sim:.3f}, {max_sim:.3f}]")
+            else:
+                print(f"{model_name:<40} {'N/A':<20} {'N/A':<20}")
 
     # Best model
     best = results_sorted[0]
@@ -348,6 +393,7 @@ def save_results(results: List[ValidationResult], output_path: Path):
                 "failures": result.num_failures,
                 "failure_rate": result.failure_rate,
             },
+            "parsing_stats": result.parsing_stats,
             "examples": result.examples,
         })
 

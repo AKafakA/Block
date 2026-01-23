@@ -97,6 +97,16 @@ class LLMJudgeScorer(ModelScorer):
         self._judge_model = None
         self._judge_tokenizer = None
 
+        # Statistics tracking for parsing methods
+        self._stats = {
+            'total_attempts': 0,
+            'number_extraction': 0,
+            'exact_match': 0,
+            'semantic_match': 0,
+            'failures': 0,
+            'semantic_similarities': [],  # Track similarity scores
+        }
+
         logger.info(
             f"LLMJudgeScorer initialized: model={judge_model}, "
             f"scale={score_min}-{score_max}, use_rationale={use_rationale}, "
@@ -140,6 +150,93 @@ class LLMJudgeScorer(ModelScorer):
 
         return descriptions
 
+    def _match_score_exact(self, text: str) -> Optional[float]:
+        """Stage 2: Try to find exact substring match against scale descriptions.
+
+        Args:
+            text: The generated text
+
+        Returns:
+            Score if exact match found, None otherwise
+        """
+        text_lower = text.lower().strip()
+
+        # Try to find exact substring matches
+        for score, description in self.scale_descriptions.items():
+            desc_lower = description.lower().strip()
+
+            # Check if description appears as substring in text
+            if desc_lower in text_lower or text_lower in desc_lower:
+                logger.debug(
+                    f"Exact substring match: '{text[:60]}...' matched '{desc_lower}' -> score {score}"
+                )
+                return float(score)
+
+        # No exact match found
+        return None
+
+    def _match_score_by_embedding(self, text: str) -> Optional[Tuple[float, float]]:
+        """Stage 3: Match text to score using semantic similarity with embeddings.
+
+        If the model outputs description text instead of a number,
+        use embeddings to find the most similar scale description.
+
+        Args:
+            text: The generated text
+
+        Returns:
+            Tuple of (score, similarity) if a good match is found, None otherwise
+        """
+        try:
+            from sentence_transformers import SentenceTransformer, util
+            import torch
+
+            # Lazy load embedding model
+            if not hasattr(self, '_embedding_model'):
+                logger.debug("Loading sentence embedding model for fallback parsing...")
+                self._embedding_model = SentenceTransformer('all-MiniLM-L6-v2')  # Lightweight & fast
+                logger.debug("Embedding model loaded")
+
+            # Get embeddings for the generated text
+            text_embedding = self._embedding_model.encode(text, convert_to_tensor=True)
+
+            # Get embeddings for all scale descriptions
+            descriptions = list(self.scale_descriptions.values())
+            scores = list(self.scale_descriptions.keys())
+
+            desc_embeddings = self._embedding_model.encode(descriptions, convert_to_tensor=True)
+
+            # Compute cosine similarities
+            similarities = util.cos_sim(text_embedding, desc_embeddings)[0]
+
+            # Find best match
+            best_idx = similarities.argmax().item()
+            best_score = scores[best_idx]
+            best_similarity = similarities[best_idx].item()
+
+            # Only return if similarity is high enough (> 0.5 threshold)
+            if best_similarity > 0.5:
+                logger.debug(
+                    f"Semantic match: '{text[:60]}...' -> score {best_score} "
+                    f"(similarity: {best_similarity:.3f}, matched: '{descriptions[best_idx]}')"
+                )
+                return (float(best_score), float(best_similarity))
+            else:
+                logger.debug(
+                    f"Semantic similarity too low ({best_similarity:.3f}), rejecting match"
+                )
+                return None
+
+        except ImportError:
+            logger.warning(
+                "sentence-transformers not available for semantic fallback parsing. "
+                "Install with: pip install sentence-transformers"
+            )
+            return None
+        except Exception as e:
+            logger.warning(f"Semantic matching failed: {e}")
+            return None
+
     def _generate_default_prompt(self) -> str:
         """Generate default prompt template based on scale and rationale settings."""
         # Build scale description section
@@ -150,6 +247,7 @@ class LLMJudgeScorer(ModelScorer):
 
         if self.use_rationale:
             # HF cookbook style with rationale (better performance)
+            # Put rating FIRST to ensure it's generated within token limit
             return f"""You are a helpful assistant evaluating the quality of AI responses.
 
 Given the following prompt and response, rate the response quality on a scale of {self.score_min} to {self.score_max}.
@@ -165,17 +263,17 @@ Consider these aspects:
 Provide your feedback as follows:
 
 Feedback:::
-Evaluation: (your rationale for the rating, as text)
 Total rating: (your rating, as a number between {self.score_min} and {self.score_max})
+Evaluation: (your rationale for the rating, as text)
 
-You MUST provide values for 'Evaluation:' and 'Total rating:' in your answer.
+You MUST provide a number for 'Total rating:' first, then your reasoning in 'Evaluation:'.
 
 Prompt: {{prompt}}
 
 Response: {{response}}
 
 Feedback:::
-Evaluation: """
+Total rating: """
         else:
             # Simple style (faster but less accurate)
             return f"""You are a helpful assistant evaluating the quality of AI responses.
@@ -271,6 +369,66 @@ Rating:"""
             logger.error(f"Failed to load judge model: {e}")
             raise
 
+    def get_parsing_stats(self) -> Dict:
+        """Get statistics about parsing methods used.
+
+        Returns:
+            Dict with counts and metrics for each parsing method
+        """
+        stats = self._stats.copy()
+
+        # Compute averages
+        if stats['semantic_similarities']:
+            stats['avg_semantic_similarity'] = sum(stats['semantic_similarities']) / len(stats['semantic_similarities'])
+            stats['min_semantic_similarity'] = min(stats['semantic_similarities'])
+            stats['max_semantic_similarity'] = max(stats['semantic_similarities'])
+        else:
+            stats['avg_semantic_similarity'] = None
+            stats['min_semantic_similarity'] = None
+            stats['max_semantic_similarity'] = None
+
+        # Compute success rates
+        if stats['total_attempts'] > 0:
+            stats['success_rate'] = (stats['total_attempts'] - stats['failures']) / stats['total_attempts']
+            stats['number_extraction_rate'] = stats['number_extraction'] / stats['total_attempts']
+            stats['exact_match_rate'] = stats['exact_match'] / stats['total_attempts']
+            stats['semantic_match_rate'] = stats['semantic_match'] / stats['total_attempts']
+            stats['failure_rate'] = stats['failures'] / stats['total_attempts']
+        else:
+            stats['success_rate'] = 0.0
+            stats['number_extraction_rate'] = 0.0
+            stats['exact_match_rate'] = 0.0
+            stats['semantic_match_rate'] = 0.0
+            stats['failure_rate'] = 0.0
+
+        # Remove raw similarities list from output (too long)
+        del stats['semantic_similarities']
+
+        return stats
+
+    def print_parsing_stats(self):
+        """Print formatted parsing statistics."""
+        stats = self.get_parsing_stats()
+
+        print(f"\n{'='*60}")
+        print(f"PARSING STATISTICS - {self.judge_model_name}")
+        print(f"{'='*60}")
+        print(f"Total attempts:       {stats['total_attempts']}")
+        print(f"Overall success rate: {stats['success_rate']*100:.1f}%")
+        print(f"\nParsing Method Breakdown:")
+        print(f"  Stage 1 (Number extraction): {stats['number_extraction']:>5} ({stats['number_extraction_rate']*100:>5.1f}%)")
+        print(f"  Stage 2 (Exact substring):   {stats['exact_match']:>5} ({stats['exact_match_rate']*100:>5.1f}%)")
+        print(f"  Stage 3 (Semantic embedding):{stats['semantic_match']:>5} ({stats['semantic_match_rate']*100:>5.1f}%)")
+        print(f"  Failed:                       {stats['failures']:>5} ({stats['failure_rate']*100:>5.1f}%)")
+
+        if stats['avg_semantic_similarity'] is not None:
+            print(f"\nSemantic Matching Confidence:")
+            print(f"  Average similarity: {stats['avg_semantic_similarity']:.3f}")
+            print(f"  Range: [{stats['min_semantic_similarity']:.3f}, {stats['max_semantic_similarity']:.3f}]")
+            print(f"  (Higher is better, threshold is 0.5)")
+
+        print(f"{'='*60}\n")
+
     def score(self,
               prompt: str,
               responses: List[Tuple[str, str]]) -> Dict[str, float]:
@@ -339,10 +497,13 @@ Rating:"""
         ).to(self._judge_model.device)
 
         # Generate ratings for entire batch
+        # Use more tokens if rationale is enabled
+        max_tokens = 200 if self.use_rationale else 10
+
         with torch.no_grad():
             outputs = self._judge_model.generate(
                 **inputs,
-                max_new_tokens=10,
+                max_new_tokens=max_tokens,
                 do_sample=False,
                 pad_token_id=self._judge_tokenizer.pad_token_id
             )
@@ -356,11 +517,63 @@ Rating:"""
                 skip_special_tokens=True
             ).strip()
 
-            # Parse rating (expect single number in configured range)
+            # Parse rating with three-stage approach:
+            # Stage 1: Number extraction (direct)
+            # Stage 2: Exact substring match (against scale descriptions)
+            # Stage 3: Semantic embedding match (last resort)
+            self._stats['total_attempts'] += 1
+
             try:
-                numbers = re.findall(r'\d+(?:\.\d+)?', rating_text)
+                # Prepare rating section - look for number right after the prompt end
+                # If there's an "Evaluation:" marker, extract only the part before it
+                # to avoid picking up numbers from the evaluation text
+                rating_section = rating_text
+                if "Evaluation:" in rating_text:
+                    rating_section = rating_text.split("Evaluation:")[0]
+
+                rating = None
+                parse_method = None
+
+                # STAGE 1: Try to extract number directly
+                numbers = re.findall(r'\d+(?:\.\d+)?', rating_section)
                 if numbers:
                     rating = float(numbers[0])
+                    parse_method = 'number_extraction'
+                    self._stats['number_extraction'] += 1
+                    logger.debug(
+                        f"{model_name}: [STAGE 1] Number extraction: {rating}/{self.score_max}"
+                    )
+
+                # STAGE 2: Try exact substring match
+                if rating is None:
+                    logger.debug(
+                        f"{model_name}: [STAGE 2] No number found, trying exact substring match..."
+                    )
+                    matched_score = self._match_score_exact(rating_text)
+                    if matched_score is not None:
+                        rating = matched_score
+                        parse_method = 'exact_match'
+                        self._stats['exact_match'] += 1
+
+                # STAGE 3: Try semantic embedding match
+                if rating is None:
+                    logger.debug(
+                        f"{model_name}: [STAGE 3] No exact match, trying semantic embedding match..."
+                    )
+                    match_result = self._match_score_by_embedding(rating_text)
+                    if match_result is not None:
+                        matched_score, similarity = match_result
+                        rating = matched_score
+                        parse_method = 'semantic_match'
+                        self._stats['semantic_match'] += 1
+                        self._stats['semantic_similarities'].append(similarity)
+                        logger.debug(
+                            f"{model_name}: [STAGE 3] Semantic match: {rating}/{self.score_max} "
+                            f"(similarity: {similarity:.3f})"
+                        )
+
+                # Check if we got a rating from any stage
+                if rating is not None:
                     # Clamp to valid range
                     clamped_rating = max(self.score_min, min(self.score_max, rating))
                     # Normalize to 0-1 range
@@ -368,14 +581,19 @@ Rating:"""
                     normalized_score = (clamped_rating - self.score_min) / range_size if range_size > 0 else 0.0
                     scores[model_name] = normalized_score
                     logger.debug(
-                        f"{model_name}: rating={rating}/{self.score_max} "
-                        f"(normalized={normalized_score:.2f})"
+                        f"{model_name}: ✓ SUCCESS via {parse_method}: rating={rating}/{self.score_max} "
+                        f"(normalized={normalized_score:.3f})"
                     )
                 else:
-                    raise ValueError(f"No number found in: {rating_text}")
+                    # All stages failed
+                    self._stats['failures'] += 1
+                    raise ValueError(
+                        f"All parsing stages failed for text: {rating_text[:150]}..."
+                    )
+
             except (ValueError, IndexError) as e:
                 logger.warning(
-                    f"Failed to parse rating for {model_name}: '{rating_text}'. "
+                    f"Failed to parse rating for {model_name}: '{rating_text[:200]}...'. "
                     f"Error: {e}. Marking as invalid (None)"
                 )
                 scores[model_name] = None  # Mark as invalid, to be filtered later

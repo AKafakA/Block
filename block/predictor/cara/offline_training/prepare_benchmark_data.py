@@ -608,6 +608,9 @@ def compute_quality_scores_llm_judge(
 
         logger.info(f"Completed {judge_model}: {total_scored} scores, {judge_failures} failures")
 
+        # Print parsing statistics
+        scorer.print_parsing_stats()
+
         # Free memory
         del scorer
 
