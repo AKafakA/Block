@@ -535,6 +535,9 @@ def compute_quality_scores_llm_judge(
     device: str = "cuda",
     batch_size: int = 8,
     hf_token: Optional[str] = None,
+    score_min: int = 1,
+    score_max: int = 10,
+    use_rationale: bool = True,
 ) -> set:
     """Compute quality scores using multiple LLM judges for all models in each request.
 
@@ -543,6 +546,10 @@ def compute_quality_scores_llm_judge(
         judge_models: List of HuggingFace model names for judging
         device: Device for judge models
         batch_size: Batch size for inference
+        hf_token: HuggingFace token for gated models
+        score_min: Minimum score value for rating scale
+        score_max: Maximum score value for rating scale
+        use_rationale: Whether to use rationale-based prompting (improves accuracy)
 
     Returns:
         Set of request indices that had scoring failures (to be filtered out)
@@ -561,6 +568,9 @@ def compute_quality_scores_llm_judge(
             batch_size=batch_size,
             device=device,
             hf_token=hf_token,
+            score_min=score_min,
+            score_max=score_max,
+            use_rationale=use_rationale,
         )
 
         total_scored = 0
@@ -1121,6 +1131,23 @@ def parse_args():
         default=None,
         help="Hugging Face access token to use for gated model repos",
     )
+    parser.add_argument(
+        "--score-min",
+        type=int,
+        default=1,
+        help="Minimum score value for LLM judge rating scale (default: 1)"
+    )
+    parser.add_argument(
+        "--score-max",
+        type=int,
+        default=10,
+        help="Maximum score value for LLM judge rating scale (default: 10)"
+    )
+    parser.add_argument(
+        "--disable-rationale",
+        action="store_true",
+        help="Disable rationale/reasoning step in judge prompt (faster but less accurate)"
+    )
 
     # Output options
     parser.add_argument(
@@ -1275,6 +1302,9 @@ def main():
                 device=args.device,
                 batch_size=args.batch_size,
                 hf_token=args.hf_token,
+                score_min=args.score_min,
+                score_max=args.score_max,
+                use_rationale=not args.disable_rationale,
             )
         elif args.scoring_method == "similarity":
             compute_quality_scores_similarity(
