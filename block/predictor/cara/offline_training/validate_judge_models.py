@@ -361,11 +361,33 @@ def print_comparison_report(results: List[ValidationResult]):
     print("\n" + "="*80)
 
 
-def save_results(results: List[ValidationResult], output_path: Path):
-    """Save detailed results to JSON."""
+def save_results(results: List[ValidationResult], output_path: Path, append: bool = False):
+    """Save detailed results to JSON.
+
+    Args:
+        results: List of ValidationResult objects to save
+        output_path: Path to output JSON file
+        append: If True, merge with existing results in the file
+    """
+    existing_judges = []
+
+    # Load existing results if append mode and file exists
+    if append and output_path.exists():
+        try:
+            with open(output_path, "r") as f:
+                existing_data = json.load(f)
+                existing_judges = existing_data.get("judges", [])
+                logger.info(f"Loaded {len(existing_judges)} existing judge results from {output_path}")
+        except (json.JSONDecodeError, KeyError) as e:
+            logger.warning(f"Could not load existing results: {e}. Starting fresh.")
+            existing_judges = []
+
+    # Create a dict of existing judges by model name for easy lookup
+    existing_by_model = {j["model"]: j for j in existing_judges}
+
     output = {
         "dataset": "McGill-NLP/feedbackQA",
-        "num_judges": len(results),
+        "num_judges": 0,  # Will be updated after merging
         "judges": []
     }
 
@@ -397,6 +419,19 @@ def save_results(results: List[ValidationResult], output_path: Path):
             "examples": result.examples,
         })
 
+    # Track which models we've added from new results
+    new_model_names = {r.judge_model for r in results}
+
+    # Add existing judges that weren't re-evaluated
+    if append:
+        for model_name, judge_data in existing_by_model.items():
+            if model_name not in new_model_names:
+                output["judges"].append(judge_data)
+                logger.info(f"Kept existing results for: {model_name}")
+
+    # Update count
+    output["num_judges"] = len(output["judges"])
+
     # Sort by Spearman correlation
     output["judges"].sort(key=lambda x: x["metrics"]["spearman_rho"], reverse=True)
     output["best_judge"] = output["judges"][0]["model"]
@@ -405,6 +440,8 @@ def save_results(results: List[ValidationResult], output_path: Path):
         json.dump(output, f, indent=2)
 
     logger.info(f"Detailed results saved to: {output_path}")
+    if append:
+        logger.info(f"Total judges in file: {output['num_judges']} (new: {len(results)}, existing: {output['num_judges'] - len(results)})")
 
 
 def parse_args():
@@ -480,6 +517,11 @@ def parse_args():
         default=20,
         help="Number of example ratings to save per judge"
     )
+    parser.add_argument(
+        "--append",
+        action="store_true",
+        help="Append results to existing output file instead of overwriting"
+    )
 
     return parser.parse_args()
 
@@ -541,7 +583,7 @@ def main():
     print_comparison_report(results)
 
     # Save detailed results
-    save_results(results, args.output)
+    save_results(results, args.output, append=args.append)
 
     logger.info("\n" + "="*80)
     logger.info("VALIDATION COMPLETE")
