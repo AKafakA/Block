@@ -198,13 +198,21 @@ class LLMJudgeScorer(ModelScorer):
                 logger.debug("Embedding model loaded")
 
             # Get embeddings for the generated text
-            text_embedding = self._embedding_model.encode(text, convert_to_tensor=True)
+            text_embedding = self._embedding_model.encode(
+                text,
+                convert_to_tensor=True,
+                show_progress_bar=False,
+            )
 
             # Get embeddings for all scale descriptions
             descriptions = list(self.scale_descriptions.values())
             scores = list(self.scale_descriptions.keys())
 
-            desc_embeddings = self._embedding_model.encode(descriptions, convert_to_tensor=True)
+            desc_embeddings = self._embedding_model.encode(
+                descriptions,
+                convert_to_tensor=True,
+                show_progress_bar=False,
+            )
 
             # Compute cosine similarities
             similarities = util.cos_sim(text_embedding, desc_embeddings)[0]
