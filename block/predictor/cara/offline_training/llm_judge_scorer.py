@@ -457,6 +457,138 @@ Rating:"""
 
         return scores
 
+    def score_pairs(self,
+                    pairs: List[Tuple[str, str, str]]) -> List[Optional[float]]:
+        """Score multiple (prompt, model_name, response) pairs in batches.
+
+        This enables batching across different requests (different prompts).
+
+        Args:
+            pairs: List of tuples (prompt, model_name, response)
+
+        Returns:
+            List of normalized scores (0.0-1.0) or None for failures,
+            aligned with the input order.
+        """
+        import re
+        import torch
+
+        if not pairs:
+            return []
+
+        self._load_judge_model()
+
+        results: List[Optional[float]] = [None] * len(pairs)
+
+        # Process in chunks according to batch size
+        for start in range(0, len(pairs), self.batch_size):
+            chunk = pairs[start:start + self.batch_size]
+
+            # Format prompts and keep model names for logging
+            model_names: List[str] = []
+            judge_prompts: List[str] = []
+            for prompt, model_name, generated_text in chunk:
+                judge_prompts.append(self.judge_prompt_template.format(
+                    prompt=prompt,
+                    response=generated_text
+                ))
+                model_names.append(model_name)
+
+            # Tokenize with padding
+            inputs = self._judge_tokenizer(
+                judge_prompts,
+                return_tensors="pt",
+                truncation=True,
+                max_length=2048,
+                padding=True,
+            ).to(self._judge_model.device)
+
+            max_tokens = 200 if self.use_rationale else 10
+            with torch.no_grad():
+                outputs = self._judge_model.generate(
+                    **inputs,
+                    max_new_tokens=max_tokens,
+                    do_sample=False,
+                    pad_token_id=self._judge_tokenizer.pad_token_id,
+                )
+
+            # Parse outputs: generated tokens start after the padded input length
+            common_input_len = inputs['input_ids'].shape[1]
+            for local_idx, model_name in enumerate(model_names):
+                global_idx = start + local_idx
+                try:
+                    generated_tokens = outputs[local_idx][common_input_len:]
+                    rating_text = self._judge_tokenizer.decode(
+                        generated_tokens,
+                        skip_special_tokens=True
+                    ).strip()
+
+                    self._stats['total_attempts'] += 1
+
+                    rating = None
+                    parse_method = None
+
+                    # Stage 1: numeric extraction
+                    rating_section = rating_text
+                    if "Evaluation:" in rating_text:
+                        rating_section = rating_text.split("Evaluation:")[0]
+                    numbers = re.findall(r'\d+(?:\.\d+)?', rating_section)
+                    if numbers:
+                        rating = float(numbers[0])
+                        parse_method = 'number_extraction'
+                        self._stats['number_extraction'] += 1
+                        logger.debug(
+                            f"{model_name}: [STAGE 1] Number extraction: {rating}/{self.score_max}"
+                        )
+
+                    # Stage 2: exact substring match
+                    if rating is None:
+                        logger.debug(
+                            f"{model_name}: [STAGE 2] No number found, trying exact substring match..."
+                        )
+                        matched_score = self._match_score_exact(rating_text)
+                        if matched_score is not None:
+                            rating = matched_score
+                            parse_method = 'exact_match'
+                            self._stats['exact_match'] += 1
+
+                    # Stage 3: semantic match
+                    if rating is None:
+                        logger.debug(
+                            f"{model_name}: [STAGE 3] No exact match, trying semantic embedding match..."
+                        )
+                        match_result = self._match_score_by_embedding(rating_text)
+                        if match_result is not None:
+                            matched_score, similarity = match_result
+                            rating = matched_score
+                            parse_method = 'semantic_match'
+                            self._stats['semantic_match'] += 1
+                            self._stats['semantic_similarities'].append(similarity)
+                            logger.debug(
+                                f"{model_name}: [STAGE 3] Semantic match: {rating}/{self.score_max} "
+                                f"(similarity: {similarity:.3f})"
+                            )
+
+                    if rating is not None:
+                        clamped_rating = max(self.score_min, min(self.score_max, rating))
+                        range_size = self.score_max - self.score_min
+                        normalized_score = (clamped_rating - self.score_min) / range_size if range_size > 0 else 0.0
+                        results[global_idx] = normalized_score
+                        logger.debug(
+                            f"{model_name}: ✓ SUCCESS via {parse_method}: rating={rating}/{self.score_max} "
+                            f"(normalized={normalized_score:.3f})"
+                        )
+                    else:
+                        self._stats['failures'] += 1
+                        results[global_idx] = None
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to parse rating for {model_name}: error: {e}. Marking as invalid (None)"
+                    )
+                    self._stats['failures'] += 1
+                    results[global_idx] = None
+
+        return results
     def _score_batch(self,
                      prompt: str,
                      batch: List[Tuple[str, str]]) -> Dict[str, float]:

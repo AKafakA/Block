@@ -576,35 +576,52 @@ def compute_quality_scores_llm_judge(
         total_scored = 0
         judge_failures = 0
 
+        # Build a flat list of (prompt, model_name, response) and an index map
+        flat_items: List[Tuple[str, str, str]] = []
+        index_map: List[Tuple[int, str]] = []  # (req_idx, model_name)
+        direct_fail_positions: List[int] = []
+
         for idx, req in enumerate(requests):
-            if (idx + 1) % 100 == 0:
-                logger.info(f"  Scored {idx + 1}/{len(requests)} requests")
-
             prompt = req["prompt"]
-            request_has_failure = False
-
-            # Score all models in this request
             for llm_model_name, model_data in req["models"].items():
                 response = model_data.get("_response", "")
-
-                if not response:
-                    score = None
+                if response:
+                    index_map.append((idx, llm_model_name))
+                    flat_items.append((prompt, llm_model_name, response))
                 else:
-                    scores = scorer.score(prompt, [(llm_model_name, response)])
-                    score = scores.get(llm_model_name)  # None if parsing failed
+                    # Mark as direct failure to preserve prior semantics
+                    index_map.append((idx, llm_model_name))
+                    flat_items.append((prompt, llm_model_name, ""))
+                    direct_fail_positions.append(len(index_map) - 1)
 
-                if score is None:
-                    request_has_failure = True
-                    judge_failures += 1
-                else:
-                    total_scored += 1
+        # Process in batches using scorer.score_pairs()
+        # Results are aligned with flat_items order
+        results: List[Optional[float]] = []
+        for start in range(0, len(flat_items), batch_size):
+            chunk = flat_items[start:start + batch_size]
+            chunk_scores = scorer.score_pairs(chunk)
+            results.extend(chunk_scores)
 
-                # Store score with judge name as key
-                judge_key = f"quality_score_{judge_model.replace('/', '_')}"
-                model_data[judge_key] = score
+        judge_key = f"quality_score_{judge_model.replace('/', '_')}"
 
-            if request_has_failure:
-                failed_indices.add(idx)
+        # Apply results back to requests and track failures
+        # Also enforce direct failures for empty responses
+        for pos, score in enumerate(results):
+            req_idx, llm_model_name = index_map[pos]
+            if pos in direct_fail_positions:
+                # Force failure (empty response)
+                requests[req_idx]["models"][llm_model_name][judge_key] = None
+                judge_failures += 1
+                failed_indices.add(req_idx)
+                continue
+
+            if score is None:
+                judge_failures += 1
+                failed_indices.add(req_idx)
+            else:
+                total_scored += 1
+
+            requests[req_idx]["models"][llm_model_name][judge_key] = score
 
         logger.info(f"Completed {judge_model}: {total_scored} scores, {judge_failures} failures")
 
