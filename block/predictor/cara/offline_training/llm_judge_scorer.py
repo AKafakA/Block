@@ -494,13 +494,14 @@ Rating:"""
                 ))
                 model_names.append(model_name)
 
-            # Tokenize with padding
+            # Tokenize with padding; capture per-sample input lengths using attention mask
             inputs = self._judge_tokenizer(
                 judge_prompts,
                 return_tensors="pt",
                 truncation=True,
                 max_length=2048,
                 padding=True,
+                return_attention_mask=True,
             ).to(self._judge_model.device)
 
             max_tokens = 200 if self.use_rationale else 10
@@ -512,12 +513,17 @@ Rating:"""
                     pad_token_id=self._judge_tokenizer.pad_token_id,
                 )
 
-            # Parse outputs: generated tokens start after the padded input length
-            common_input_len = inputs['input_ids'].shape[1]
+            # Parse outputs: determine per-sample input lengths from attention mask
+            attn_mask = inputs.get('attention_mask')
+            if attn_mask is None:
+                input_lengths = [inputs['input_ids'].shape[1]] * len(chunk)
+            else:
+                input_lengths = attn_mask.sum(dim=1).tolist()
             for local_idx, model_name in enumerate(model_names):
                 global_idx = start + local_idx
                 try:
-                    generated_tokens = outputs[local_idx][common_input_len:]
+                    start_pos = int(input_lengths[local_idx])
+                    generated_tokens = outputs[local_idx][start_pos:]
                     rating_text = self._judge_tokenizer.decode(
                         generated_tokens,
                         skip_special_tokens=True

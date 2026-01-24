@@ -203,41 +203,64 @@ def evaluate_judge_model(
         num_samples=len(samples),
     )
 
-    # Evaluate each sample
-    for sample in tqdm(samples, desc=f"Scoring with {judge_model}"):
-        question = sample["question"]
-        answer = sample["answer"]
-        human_score = sample["human_score"]
+    # Build flat list of pairs for batching across samples
+    pairs: List[Tuple[str, str, str]] = []
+    sample_idx_map: List[int] = []
+    for idx, sample in enumerate(samples):
+        pairs.append((sample["question"], "judge", sample["answer"]))
+        sample_idx_map.append(idx)
 
-        # Get judge score (already normalized to 0-1)
-        scores = scorer.score(question, [("judge", answer)])
-        judge_score_normalized = scores.get("judge")
+    # Process in chunks
+    from math import ceil
+    total = len(samples)
+    pos = 0
+    pbar = tqdm(total=total, desc=f"Scoring with {judge_model}")
+    logged_milestone = 0
+    while pos < len(pairs):
+        start = pos
+        end = min(start + batch_size, len(pairs))
+        chunk = pairs[start:end]
+        scores = scorer.score_pairs(chunk)
 
-        if judge_score_normalized is None:
-            result.num_failures += 1
-            continue
+        # Map results back to samples
+        for local_idx, judge_score_normalized in enumerate(scores):
+            s_idx = sample_idx_map[start + local_idx]
+            sample = samples[s_idx]
+            question = sample["question"]
+            answer = sample["answer"]
+            human_score = sample["human_score"]
 
-        # Store normalized scores (0-1 range)
-        # Normalize human score to same range
-        human_min, human_max = human_score_range
-        human_score_normalized = (human_score - human_min) / (human_max - human_min)
+            if judge_score_normalized is None:
+                result.num_failures += 1
+                continue
 
-        result.predictions.append(judge_score_normalized)
-        result.ground_truth.append(human_score_normalized)
+            human_min, human_max = human_score_range
+            human_score_normalized = (human_score - human_min) / (human_max - human_min)
 
-        # Save some examples
-        if len(result.examples) < save_examples:
-            # Convert back to original scales for display
-            judge_score_original = judge_score_normalized * (score_max - score_min) + score_min
-            result.examples.append({
-                "question": question[:200] + "..." if len(question) > 200 else question,
-                "answer": answer[:200] + "..." if len(answer) > 200 else answer,
-                "human_score": human_score,
-                "judge_score": round(judge_score_original, 2),
-                "judge_score_normalized": round(judge_score_normalized, 3),
-                "human_score_normalized": round(human_score_normalized, 3),
-                "difference": abs(judge_score_normalized - human_score_normalized),
-            })
+            result.predictions.append(judge_score_normalized)
+            result.ground_truth.append(human_score_normalized)
+
+            if len(result.examples) < save_examples:
+                judge_score_original = judge_score_normalized * (score_max - score_min) + score_min
+                result.examples.append({
+                    "question": question[:200] + "..." if len(question) > 200 else question,
+                    "answer": answer[:200] + "..." if len(answer) > 200 else answer,
+                    "human_score": human_score,
+                    "judge_score": round(judge_score_original, 2),
+                    "judge_score_normalized": round(judge_score_normalized, 3),
+                    "human_score_normalized": round(human_score_normalized, 3),
+                    "difference": abs(judge_score_normalized - human_score_normalized),
+                })
+        processed = end - start
+        pbar.update(processed)
+        # Also emit explicit logs every 100 samples for persistent visibility
+        current_done = pbar.n
+        milestone = (current_done // 100) * 100
+        if milestone > logged_milestone and milestone > 0:
+            logger.info(f"{milestone}/{total} completed")
+            logged_milestone = milestone
+        pos = end
+    pbar.close()
 
     # Compute statistics
     result.failure_rate = result.num_failures / len(samples)

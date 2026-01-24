@@ -596,32 +596,39 @@ def compute_quality_scores_llm_judge(
 
         # Process in batches using scorer.score_pairs()
         # Results are aligned with flat_items order
-        results: List[Optional[float]] = []
+        direct_fail_set = set(direct_fail_positions)
+        judge_key = f"quality_score_{judge_model.replace('/', '_')}"
+        seen_requests = set()
+
         for start in range(0, len(flat_items), batch_size):
             chunk = flat_items[start:start + batch_size]
             chunk_scores = scorer.score_pairs(chunk)
-            results.extend(chunk_scores)
 
-        judge_key = f"quality_score_{judge_model.replace('/', '_')}"
+            # Apply this chunk's results immediately (for progressive logging)
+            for local_idx, score in enumerate(chunk_scores):
+                pos = start + local_idx
+                req_idx, llm_model_name = index_map[pos]
 
-        # Apply results back to requests and track failures
-        # Also enforce direct failures for empty responses
-        for pos, score in enumerate(results):
-            req_idx, llm_model_name = index_map[pos]
-            if pos in direct_fail_positions:
-                # Force failure (empty response)
-                requests[req_idx]["models"][llm_model_name][judge_key] = None
-                judge_failures += 1
-                failed_indices.add(req_idx)
-                continue
+                # Progress logging every 100 unique requests seen
+                if req_idx not in seen_requests:
+                    seen_requests.add(req_idx)
+                    if len(seen_requests) % 100 == 0:
+                        logger.info(f"{len(seen_requests)}/{len(requests)} completed")
 
-            if score is None:
-                judge_failures += 1
-                failed_indices.add(req_idx)
-            else:
-                total_scored += 1
+                if pos in direct_fail_set:
+                    # Force failure (empty response)
+                    requests[req_idx]["models"][llm_model_name][judge_key] = None
+                    judge_failures += 1
+                    failed_indices.add(req_idx)
+                    continue
 
-            requests[req_idx]["models"][llm_model_name][judge_key] = score
+                if score is None:
+                    judge_failures += 1
+                    failed_indices.add(req_idx)
+                else:
+                    total_scored += 1
+
+                requests[req_idx]["models"][llm_model_name][judge_key] = score
 
         logger.info(f"Completed {judge_model}: {total_scored} scores, {judge_failures} failures")
 
