@@ -521,17 +521,13 @@ Rating:"""
                     pad_token_id=self._judge_tokenizer.pad_token_id,
                 )
 
-            # Parse outputs: determine per-sample input lengths from attention mask
-            attn_mask = inputs.get('attention_mask')
-            if attn_mask is None:
-                input_lengths = [inputs['input_ids'].shape[1]] * len(chunk)
-            else:
-                input_lengths = attn_mask.sum(dim=1).tolist()
+            # Parse outputs: with left padding, the generation boundary is the
+            # common max input length across the batch.
+            common_input_len = inputs['input_ids'].shape[1]
             for local_idx, model_name in enumerate(model_names):
                 global_idx = start + local_idx
                 try:
-                    start_pos = int(input_lengths[local_idx])
-                    generated_tokens = outputs[local_idx][start_pos:]
+                    generated_tokens = outputs[local_idx][common_input_len:]
                     rating_text = self._judge_tokenizer.decode(
                         generated_tokens,
                         skip_special_tokens=True
