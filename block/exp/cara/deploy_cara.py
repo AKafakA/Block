@@ -261,6 +261,9 @@ def get_vllm_commands(model_path: str, hf_token: str, precision: str, vllm_param
             vllm_cmd_parts.append(f"--max-model-len {vllm_params['max-model-len']}")
         if vllm_params.get("enforce-eager"):
             vllm_cmd_parts.append("--enforce-eager")
+        # Enable chunked prefill for older vLLM versions (v0) where it's not default
+        if vllm_params.get("enable-chunked-prefill"):
+            vllm_cmd_parts.append("--enable-chunked-prefill")
 
     # Suppress noisy request-level logs on newer vLLM (V1) to avoid perf impact.
     # These flags do not exist on older vLLM v0.4.x, so gate by serve_with_v0.

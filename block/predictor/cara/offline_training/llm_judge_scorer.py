@@ -159,18 +159,32 @@ class LLMJudgeScorer(ModelScorer):
         Returns:
             Score if exact match found, None otherwise
         """
+        import re
+
         text_lower = text.lower().strip()
 
-        # Try to find exact substring matches
+        # Reject empty or non-alphanumeric outputs to avoid false positives
+        if not text_lower or not any(ch.isalnum() for ch in text_lower):
+            return None
+
+        # Try to find exact or whole-word substring matches
         for score, description in self.scale_descriptions.items():
             desc_lower = description.lower().strip()
 
-            # Check if description appears as substring in text
-            if desc_lower in text_lower or text_lower in desc_lower:
+            # Case 1: full description appears somewhere in text
+            if desc_lower and desc_lower in text_lower:
                 logger.debug(
                     f"Exact substring match: '{text[:60]}...' matched '{desc_lower}' -> score {score}"
                 )
                 return float(score)
+
+            # Case 2: short text like 'excellent'/'good' should match as a whole word
+            if 3 <= len(text_lower) <= 64:
+                if re.search(rf"\b{re.escape(text_lower)}\b", desc_lower):
+                    logger.debug(
+                        f"Whole-word match: '{text[:60]}...' matched '{desc_lower}' -> score {score}"
+                    )
+                    return float(score)
 
         # No exact match found
         return None
@@ -517,17 +531,20 @@ Rating:"""
                 outputs = self._judge_model.generate(
                     **inputs,
                     max_new_tokens=max_tokens,
+                    min_new_tokens=1,
                     do_sample=False,
                     pad_token_id=self._judge_tokenizer.pad_token_id,
                 )
 
-            # Parse outputs: with left padding, the generation boundary is the
-            # common max input length across the batch.
-            common_input_len = inputs['input_ids'].shape[1]
+            # Parse outputs: find per-sample boundary of input end using attention mask
+            # This is robust to tokenizer padding side differences.
             for local_idx, model_name in enumerate(model_names):
                 global_idx = start + local_idx
                 try:
-                    generated_tokens = outputs[local_idx][common_input_len:]
+                    attn = inputs['attention_mask'][local_idx]
+                    last_one = (attn != 0).nonzero(as_tuple=False)[-1].item()
+                    input_end_idx = last_one + 1
+                    generated_tokens = outputs[local_idx][input_end_idx:]
                     rating_text = self._judge_tokenizer.decode(
                         generated_tokens,
                         skip_special_tokens=True
@@ -551,6 +568,23 @@ Rating:"""
                             f"{model_name}: [STAGE 1] Number extraction: {rating}/{self.score_max}"
                         )
 
+                    # Extra: Try spelled-out numbers (e.g., 'seven', 'ten') if no digits found
+                    if rating is None:
+                        word_to_num = {
+                            'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
+                            'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10
+                        }
+                        tokens = re.findall(r"[a-zA-Z]+", rating_section.lower())
+                        for tok in tokens:
+                            if tok in word_to_num:
+                                rating = float(word_to_num[tok])
+                                parse_method = 'number_extraction'
+                                self._stats['number_extraction'] += 1
+                                logger.debug(
+                                    f"{model_name}: [STAGE 1B] Spelled number extraction: {rating}/{self.score_max}"
+                                )
+                                break
+
                     # Stage 2: exact substring match
                     if rating is None:
                         logger.debug(
@@ -567,7 +601,11 @@ Rating:"""
                         logger.debug(
                             f"{model_name}: [STAGE 3] No exact match, trying semantic embedding match..."
                         )
-                        match_result = self._match_score_by_embedding(rating_text)
+                        # Avoid embedding empty or non-informative strings
+                        if rating_text and any(ch.isalnum() for ch in rating_text):
+                            match_result = self._match_score_by_embedding(rating_text)
+                        else:
+                            match_result = None
                         if match_result is not None:
                             matched_score, similarity = match_result
                             rating = matched_score
@@ -646,14 +684,18 @@ Rating:"""
             outputs = self._judge_model.generate(
                 **inputs,
                 max_new_tokens=max_tokens,
+                min_new_tokens=1,
                 do_sample=False,
                 pad_token_id=self._judge_tokenizer.pad_token_id
             )
 
         # Decode and parse each output
         for idx, model_name in enumerate(model_names):
-            # Extract only the generated tokens (after input)
-            generated_tokens = outputs[idx][inputs['input_ids'].shape[1]:]
+            # Extract only the generated tokens (after input) using attention mask
+            attn = inputs['attention_mask'][idx]
+            last_one = (attn != 0).nonzero(as_tuple=False)[-1].item()
+            input_end_idx = last_one + 1
+            generated_tokens = outputs[idx][input_end_idx:]
             rating_text = self._judge_tokenizer.decode(
                 generated_tokens,
                 skip_special_tokens=True
@@ -686,6 +728,23 @@ Rating:"""
                         f"{model_name}: [STAGE 1] Number extraction: {rating}/{self.score_max}"
                     )
 
+                # Extra: Try spelled-out numbers (e.g., 'seven', 'ten') if no digits found
+                if rating is None:
+                    word_to_num = {
+                        'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
+                        'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10
+                    }
+                    tokens = re.findall(r"[a-zA-Z]+", rating_section.lower())
+                    for tok in tokens:
+                        if tok in word_to_num:
+                            rating = float(word_to_num[tok])
+                            parse_method = 'number_extraction'
+                            self._stats['number_extraction'] += 1
+                            logger.debug(
+                                f"{model_name}: [STAGE 1B] Spelled number extraction: {rating}/{self.score_max}"
+                            )
+                            break
+
                 # STAGE 2: Try exact substring match
                 if rating is None:
                     logger.debug(
@@ -702,7 +761,11 @@ Rating:"""
                     logger.debug(
                         f"{model_name}: [STAGE 3] No exact match, trying semantic embedding match..."
                     )
-                    match_result = self._match_score_by_embedding(rating_text)
+                    # Avoid embedding empty or non-informative strings
+                    if rating_text and any(ch.isalnum() for ch in rating_text):
+                        match_result = self._match_score_by_embedding(rating_text)
+                    else:
+                        match_result = None
                     if match_result is not None:
                         matched_score, similarity = match_result
                         rating = matched_score

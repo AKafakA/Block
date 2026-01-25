@@ -128,11 +128,16 @@ def load_feedbackqa_dataset(sample_size: Optional[int] = None,
 
     # Sample if requested
     if sample_size and sample_size < len(ratings):
-        # Stratified sampling to maintain score distribution
-        ratings = ratings.groupby("human_score").apply(
-            lambda x: x.sample(min(len(x), sample_size // 4), random_state=42)
-        ).reset_index(drop=True)
-        logger.info(f"Sampled {len(ratings)} examples (stratified by score)")
+        # Use stratified sampling when we have enough budget per class
+        if sample_size >= 4:
+            per_class = max(1, sample_size // 4)
+            ratings = ratings.groupby("human_score").apply(
+                lambda x: x.sample(min(len(x), per_class), random_state=42)
+            ).reset_index(drop=True)
+        else:
+            # For very small N, just sample globally to avoid zero-per-class
+            ratings = ratings.sample(n=min(sample_size, len(ratings)), random_state=42)
+        logger.info(f"Sampled {len(ratings)} examples for quick validation")
 
     # Convert to list of dicts
     samples = []
@@ -505,6 +510,12 @@ def parse_args():
         help="Number of samples to use from feedbackQA (None = all, ~500 samples)"
     )
     parser.add_argument(
+        "-n", "--num-evals",
+        type=int,
+        default=-1,
+        help="Quick mode: number of evaluations to run; -1 uses all available samples"
+    )
+    parser.add_argument(
         "--require-agreement",
         action="store_true",
         default=True,
@@ -566,9 +577,16 @@ def main():
     logger.info(f"Use rationale: {not args.disable_rationale}")
     logger.info(f"Device: {args.device}")
 
+    # Resolve requested sample size: -n overrides --sample-size
+    effective_sample_size: Optional[int]
+    if args.num_evals is not None and args.num_evals > 0:
+        effective_sample_size = args.num_evals
+    else:
+        effective_sample_size = args.sample_size
+
     # Load dataset
     samples, human_score_mapping = load_feedbackqa_dataset(
-        sample_size=args.sample_size,
+        sample_size=effective_sample_size,
         require_agreement=args.require_agreement
     )
 

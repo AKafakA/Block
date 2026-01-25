@@ -60,7 +60,8 @@
         "serve_with_v0": true,
         "max-model-len": 8192,
         "dtype": "float16",
-        "attention_backend": "XFORMERS"
+        "attention_backend": "XFORMERS",
+        "enable-chunked-prefill": true
       }
     }
   }
