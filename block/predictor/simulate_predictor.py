@@ -60,6 +60,45 @@ def convert_list_to_request_infos(raw: list) -> list:
     return request_infos
 
 
+def calculate_total_unprocessed_tokens(response_data: dict, new_request_context_tokens: int,
+                                        new_request_decode_tokens: int) -> int:
+    """
+    Calculate total unprocessed tokens for Block-NoSim scheduling.
+
+    This provides a simpler metric than full simulation - it sums up all remaining
+    tokens to process (existing requests + new request) without simulating the
+    actual scheduling behavior.
+
+    Args:
+        response_data: Backend response containing waiting/running/swap request lists
+        new_request_context_tokens: Context (prompt) tokens for the new request
+        new_request_decode_tokens: Predicted decode tokens for the new request
+
+    Returns:
+        Total unprocessed tokens across all requests including the new one
+    """
+    total_unprocessed = 0
+
+    # Process waiting, running, and swap queues
+    for queue_name in ["waiting", "running", "swap"]:
+        if queue_name not in response_data:
+            continue
+        request_infos = convert_list_to_request_infos(response_data[queue_name])
+        for req_info in request_infos:
+            # Total expected tokens for this request
+            expected_total = req_info["seq_prompts_length"] + req_info["seq_expected_decoded_length"]
+            # Already computed tokens
+            computed = req_info["seq_computed_length"]
+            # Remaining tokens to process
+            remaining = max(0, expected_total - computed)
+            total_unprocessed += remaining
+
+    # Add the new request's tokens
+    total_unprocessed += new_request_context_tokens + new_request_decode_tokens
+
+    return total_unprocessed
+
+
 class SimulatePredictor(Predictor):
     """A raw implementation of the predictor class
       that extends the Simulator class which is used to predict the completion time of the request.
@@ -101,7 +140,10 @@ class SimulatePredictor(Predictor):
             config.threshold_batch_size_for_time_estimation
         self._port = port
         self._start_time = time.time()
-        if self._need_to_predict:
+        # Block-NoSim (min_total_unprocessed_tokens) needs full request data like simulation-based metrics
+        needs_full_schedule_trace = (self._need_to_predict or
+                                     config.target_metric == "min_total_unprocessed_tokens")
+        if needs_full_schedule_trace:
             self._backend_url = f"http://localhost:{self._port}/schedule_trace"
         else:
             self._backend_url = f"http://localhost:{self._port}/simple_schedule_trace"
@@ -112,8 +154,14 @@ class SimulatePredictor(Predictor):
             self._executor = None
 
     async def predict(self, target_request: Request):
+        # Track backend query time
+        backend_query_start = time.time()
         response_data = await self.get_response_data(target_request.id)
+        backend_query_time_ms = (time.time() - backend_query_start) * 1000
+
         metrics = {}
+        simulation_time_ms = 0.0
+
         if len(response_data) == 0:
             current_gpu_blocks = -1
             current_total_requests = -1
@@ -130,8 +178,11 @@ class SimulatePredictor(Predictor):
                         (len(response_data["waiting"]) + len(response_data["running"]) + len(response_data["swap"]))
                         // NUM_FIELD_PER_REQUEST)
                 current_running_request = len(response_data["running"]) // NUM_FIELD_PER_REQUEST
+
         if self._need_to_predict:
             if len(response_data) > 0:
+                # Track simulation time (includes building scheduler + running prediction)
+                simulation_start = time.time()
                 replica_scheduler = self.get_replica_scheduler_with_backend_response(response_data)
                 loop = asyncio.get_event_loop()
                 target_metric = await loop.run_in_executor(
@@ -143,6 +194,7 @@ class SimulatePredictor(Predictor):
                     self._target_metric,
                     self._request_timeline_predictor
                 )
+                simulation_time_ms = (time.time() - simulation_start) * 1000
             else:
                 target_metric = -1
         elif self._config.target_metric == "min_current_gpu_blocks":
@@ -154,12 +206,28 @@ class SimulatePredictor(Predictor):
         elif self._config.target_metric == "min_lunmnix_load":
             adjusted_free_gpu_blocks = response_data.get("adjusted_free_gpu_blocks", current_gpu_blocks)
             target_metric = (adjusted_free_gpu_blocks / max(current_running_request, 1))*(-1)
+        elif self._config.target_metric == "min_total_unprocessed_tokens":
+            # Block-NoSim: Use length prediction without simulation
+            # Routes to instance with minimum total unprocessed tokens
+            if len(response_data) > 0:
+                target_metric = calculate_total_unprocessed_tokens(
+                    response_data,
+                    target_request.num_prefill_tokens,
+                    target_request.num_decode_tokens
+                )
+            else:
+                # No backend data, use just the new request's tokens
+                target_metric = target_request.num_prefill_tokens + target_request.num_decode_tokens
         else:
             target_metric = random.randint(0, 100)
+
         metrics["target_metric"] = target_metric
         metrics["gpu_blocks"] = current_gpu_blocks
         metrics["num_requests"] = current_total_requests
         metrics["num_preempted"] = current_num_preempted
+        # Timing breakdown for overhead analysis
+        metrics["backend_query_time_ms"] = backend_query_time_ms
+        metrics["simulation_time_ms"] = simulation_time_ms
         return metrics
 
     def __generate_requests_from_backend(self, request_info: dict, source: str) -> Request:

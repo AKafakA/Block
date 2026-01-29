@@ -70,3 +70,14 @@ class H100DgxNodeSKUConfig(BaseNodeSKUConfig):
     @staticmethod
     def get_type():
         return NodeSKUType.H100_DGX
+
+
+@dataclass
+class A100_40GBPairwiseNvlinkNodeSKUConfig(BaseNodeSKUConfig):
+    """CloudLab d8545: 4×A100-40GB SXM4 with NVLink (HGX A100)"""
+    device_sku_type: DeviceSKUType = DeviceSKUType.A100_40GB
+    num_devices_per_node: int = 4
+
+    @staticmethod
+    def get_type():
+        return NodeSKUType.A100_40GB_PAIRWISE_NVLINK

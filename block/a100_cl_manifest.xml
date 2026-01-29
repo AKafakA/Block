@@ -1,0 +1,92 @@
+<rspec xmlns="http://www.geni.net/resources/rspec/3" xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" xmlns:tour="http://www.protogeni.net/resources/rspec/ext/apt-tour/1" xmlns:jacks="http://www.protogeni.net/resources/rspec/ext/jacks/1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.geni.net/resources/rspec/3    http://www.geni.net/resources/rspec/3/request.xsd" type="request">
+  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node0" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+d8545-10s10305" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1093229">
+    <sliver_type name="raw-pc"/>
+    <hardware_type name="d8545"/>
+    <interface client_id="node0:eth1" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d8545-10s10305:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1093233" mac_address="946DAE619422">
+      <ip address="10.10.1.1" type="ipv4" netmask="255.255.255.0"/>
+    </interface>
+    <emulab:vnode name="d8545-10s10305" hardware_type="d8545"/>
+    <host name="node0.asdwb-287944.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.146.43"/>
+    <services>
+      <login authentication="ssh-keys" hostname="d8545-10s10305.wisc.cloudlab.us" port="22" username="asdwb"/>
+      <emulab:console server="boss.wisc.cloudlab.us"/>
+      <emulab:recovery available="true"/>
+      <emulab:powercycle available="true"/>
+      <emulab:imageable available="true"/>
+    </services>
+  </node>
+  <node xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" client_id="node1" exclusive="true" component_manager_id="urn:publicid:IDN+wisc.cloudlab.us+authority+cm" component_id="urn:publicid:IDN+wisc.cloudlab.us+node+d8545-10s10505" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1093230">
+    <sliver_type name="raw-pc"/>
+    <hardware_type name="d8545"/>
+    <interface client_id="node1:eth1" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d8545-10s10505:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1093234" mac_address="946DAE6194E2">
+      <ip address="10.10.1.2" type="ipv4" netmask="255.255.255.0"/>
+    </interface>
+    <emulab:vnode name="d8545-10s10505" hardware_type="d8545"/>
+    <host name="node1.asdwb-287944.hyperion-PG0.wisc.cloudlab.us" ipv4="128.105.146.72"/>
+    <services>
+      <login authentication="ssh-keys" hostname="d8545-10s10505.wisc.cloudlab.us" port="22" username="asdwb"/>
+      <emulab:console server="boss.wisc.cloudlab.us"/>
+      <emulab:recovery available="true"/>
+      <emulab:powercycle available="true"/>
+      <emulab:imageable available="true"/>
+    </services>
+  </node>
+  <link client_id="link-1" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1093232" vlantag="1179">
+    <interface_ref client_id="node0:eth1" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d8545-10s10305:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1093233"/>
+    <interface_ref client_id="node1:eth1" component_id="urn:publicid:IDN+wisc.cloudlab.us+interface+d8545-10s10505:eth2" sliver_id="urn:publicid:IDN+wisc.cloudlab.us+sliver+1093234"/>
+    <component_manager name="urn:publicid:IDN+wisc.cloudlab.us+authority+cm"/>
+  </link>
+  <rspec_tour xmlns="http://www.protogeni.net/resources/rspec/ext/apt-tour/1">
+    <description type="markdown">Variable number of nodes in a lan. You have the option of picking from one
+of several standard images we provide, or just use the default (typically a recent
+version of Ubuntu). You may also optionally pick the specific hardware type for
+all the nodes in the lan. </description>
+    <instructions type="markdown">Wait for the experiment to start, and then log into one or more of the nodes
+by clicking on them in the toplogy, and choosing the `shell` menu option.
+Use `sudo` to run root commands.
+</instructions>
+  </rspec_tour>
+  <data_set xmlns="http://www.protogeni.net/resources/rspec/ext/profile-parameters/1">
+    <data_item name="emulab.net.parameter.linkSpeed">0</data_item>
+    <data_item name="emulab.net.parameter.tempFileSystemSize">0</data_item>
+    <data_item name="emulab.net.parameter.useVMs">False</data_item>
+    <data_item name="emulab.net.parameter.tempFileSystemMax">False</data_item>
+    <data_item name="emulab.net.parameter.tempFileSystemMount">/mydata</data_item>
+    <data_item name="emulab.net.parameter.exclusiveVMs">True</data_item>
+    <data_item name="emulab.net.parameter.bestEffort">False</data_item>
+    <data_item name="emulab.net.parameter.phystype">d8545</data_item>
+    <data_item name="emulab.net.parameter.sameSwitch">False</data_item>
+    <data_item name="emulab.net.parameter.osImage">default</data_item>
+    <data_item name="emulab.net.parameter.nodeCount">2</data_item>
+    <data_item name="emulab.net.parameter.startVNC">False</data_item>
+  </data_set>
+  <emulab:password name="experiment-rpctoken" encrypted="true">-----BEGIN PKCS7-----
+MIID+QYJKoZIhvcNAQcDoIID6jCCA+YCAQAxggHNMIIByQIBADCBsDCBqDELMAkG
+A1UEBhMCVVMxDTALBgNVBAgTBFV0YWgxFzAVBgNVBAcTDlNhbHQgTGFrZSBDaXR5
+MR0wGwYDVQQKExRVdGFoIE5ldHdvcmsgVGVzdGJlZDEPMA0GA1UECxMGQVBUTEFC
+MRcwFQYDVQQDEw53d3cuYXB0bGFiLm5ldDEoMCYGCSqGSIb3DQEJARYZdGVzdGJl
+ZC1vcHNAZmx1eC51dGFoLmVkdQIDI3+gMA0GCSqGSIb3DQEBAQUABIIBAFvQ989z
+OeFl+5egw30/K0F5U5byFcJw7l4TwPx6M+J4noUgWtEKv+OZ09ytZ4wB1nYl4GLQ
+7qAlvD6+VK7me3fIxJ5EsGvGVhU2du0ueo/tJQjKGkMO8GGZVFGMRFY64EenYpon
+SAhReJfvoHJuMDjt/ZfrkK44KIFbgKW8TLjI63ssAdjAbetMdrex+clUcqlDeHdf
+1Wrp0HdhykGBypZRQFeQJTeKjw/EBdWfENmW+GSbzXWQDsNuax3kyptKnFNtxXQm
+jHepGBVzlZ/Qw89yFh+GWBqtFsRuY6q68h0uwrru+o0PsWi73cdNbxIIB8/9Ub69
+elCUEMglwOXpRk8wggIOBgkqhkiG9w0BBwEwHQYJYIZIAWUDBAEqBBCCKlifDRl9
+dSIliODIh95VgIIB4ITP30C6Wjcdf5SJ0DYaWVXfwyLs6u1L/Gxer9HJvxEFJPtt
+qD3/cRLiJVlZeyfvAzxC5g0ohRs9Ryr76bZARFJmQoj+93B9C4PpFE6Pljud3UuP
+SuQ9RmKhcLhgMXo9Nlr8pYTbBLH+HJwe03mjd+9HB4ZSc6P8/8dMgJwF+bEhyelz
+8wRoZJWEyRCCXPYZyvYyDZSZfE5WjvHf/nz2cf0BZ6ahRWZixAXlwjUFxG7KHHSG
+a1VQJ7h/5diSeW3e7s1tLE3jczSiEQ+Huxw9yPi1I5QTDGFriHFo6lPfrkKFlCyS
+HMI1AoUwRSUzhDLVfI62t457TtdqkpK2r+M7WsKcK1vArzzEfeRkTSHcQFW4PV3G
+FSrmp7tFT/1/3jktwGp0GPKLv7+oGuF2ooVsGDhC5DBuctPLsaoBcyyFte7qON0V
+BERSqyHL9hA7M49l+cpLpJlli31WYaxEWFUcGehYdAc6WYcSuwigEkK8bIj51Zs7
+T6uUS0uRgw1U4LGj2jITynmrivdV/3E4zgxaZHIe4qhxeOwf3GHub63u+NAnXWU6
+0eUO4OeeNbUIy3qBNLdR7adgqCJV05OSYXpyB+ZiVGFrQH1Q2Iz6ejVQp383wjCu
+3bjv6Qf6wWccy5lDtg==
+-----END PKCS7-----
+</emulab:password>
+  <emulab:portal name="cloudlab" url="https://www.cloudlab.us/status.php?uuid=e328687f-fd2d-11f0-bc80-e4434b2381fc" project="Hyperion" experiment="asdwb-287944" sequence="1769703404"/>
+  <rs:site_info xmlns:rs="http://www.protogeni.net/resources/rspec/ext/site-info/1">
+    <rs:location country="US" latitude="43.0667" longitude="89.4000"/>
+  </rs:site_info>
+</rspec>

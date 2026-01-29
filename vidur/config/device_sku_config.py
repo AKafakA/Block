@@ -51,3 +51,21 @@ class H100DeviceSKUConfig(BaseDeviceSKUConfig):
     @staticmethod
     def get_type():
         return DeviceSKUType.H100
+
+
+@dataclass
+class A100_40GBDeviceSKUConfig(BaseDeviceSKUConfig):
+    """CloudLab d8545: NVIDIA A100 SXM4 40GB
+
+    Specs:
+    - 40GB HBM2e memory
+    - 1.6 TB/s memory bandwidth (vs 2.0 TB/s on 80GB)
+    - 312 TFLOPS FP16 (same as 80GB)
+    - NVLink 600 GB/s (same as 80GB)
+    """
+    fp16_tflops: int = 312
+    total_memory_gb: int = 40
+
+    @staticmethod
+    def get_type():
+        return DeviceSKUType.A100_40GB

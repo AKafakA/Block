@@ -8,3 +8,4 @@ class NodeSKUType(BaseIntEnum):
     A100_DGX = 4
     H100_DGX = 5
     A30_SINGLE_GPU = 6
+    A100_40GB_PAIRWISE_NVLINK = 7  # CloudLab d8545: 4×A100-40GB with NVLink

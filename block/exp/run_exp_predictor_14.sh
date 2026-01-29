@@ -7,11 +7,18 @@ NUM_WORKERS=$6
 BRANCH_NAME=$7
 BATCH_SIZE_THRESHOLD_FOR_TIME_ESTIMATION=$8
 PREDICTOR_TIMEOUT=$9
+# Optional: Enable CPU tracking for overhead analysis (default: false)
+ENABLE_CPU_TRACKING=${10:-false}
 
 
 APPEND_CHUNKED_PREFILL=""
+
+APPEND_CPU_TRACKING=""
+if [ "$ENABLE_CPU_TRACKING" = "true" ]; then
+    APPEND_CPU_TRACKING="--enable_cpu_tracking"
+fi
 if [ "$ENABLE_CHUNKED_PREFILL" = "true" ]; then
     APPEND_CHUNKED_PREFILL="--enable_chunked_prefill"
 fi
 
-parallel-ssh -i -t 0 -h block/config/hosts "cd Block && export PYTHONPATH=. && nohup python block/predictor/api_server.py --config_path $CONFIG_PATH --metric_type $METRIC_TYPE --enable_time_estimation $ENABLE_TIME_ESTIMATION --batch_size_cap $BATCH_CAP --workers $NUM_WORKERS $APPEND_CHUNKED_PREFILL --threshold_batch_size_for_time_estimation $BATCH_SIZE_THRESHOLD_FOR_TIME_ESTIMATION --port 9500 --predictor_timeout $PREDICTOR_TIMEOUT --predictor_index 14 > experiment_output/logs/predictor_14.log 2>&1 &"
+parallel-ssh -i -t 0 -h block/config/hosts "cd Block && export PYTHONPATH=. && nohup python block/predictor/api_server.py --config_path $CONFIG_PATH --metric_type $METRIC_TYPE --enable_time_estimation $ENABLE_TIME_ESTIMATION --batch_size_cap $BATCH_CAP --workers $NUM_WORKERS $APPEND_CHUNKED_PREFILL --threshold_batch_size_for_time_estimation $BATCH_SIZE_THRESHOLD_FOR_TIME_ESTIMATION --port 9500 --predictor_timeout $PREDICTOR_TIMEOUT --predictor_index 14 $APPEND_CPU_TRACKING > experiment_output/logs/predictor_14.log 2>&1 &"

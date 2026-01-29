@@ -6,3 +6,4 @@ class DeviceSKUType(BaseIntEnum):
     A100 = 2
     H100 = 3
     A30 = 4
+    A100_40GB = 5  # CloudLab d8545: A100 SXM4 40GB
