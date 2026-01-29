@@ -30,7 +30,7 @@ scheduler_to_color = {
     'INFaaS++': 'orange',
     'Llumnix-': 'skyblue',
     'Block': 'black',
-    'Block*': 'red',
+    'Block-Len-Oracle': 'red',
 }
 
 
@@ -168,7 +168,7 @@ def plot_linear_with_different_qps(ax,
     if slo > 0 and len(capacity_indexes) > 0:
         if zoom_out:
             axins = inset_axes(ax, width="60%", height="40%", loc='upper left')
-        selected_schedulers = ["Llumnix-", "Block", "Block*"]
+        selected_schedulers = ["Llumnix-", "Block", "Block-Len-Oracle"]
         max_intersection = max([capacity_x for scheduler, capacity_x in capacity_indexes
                                 if scheduler in selected_schedulers], default=0)
         min_intersection = min([capacity_x for scheduler, capacity_x in capacity_indexes
@@ -348,7 +348,7 @@ def plot_per_qps(experiments_set, output_dir,
                 if key in experiment_name:
                     experiment_name = experiment_name.replace(key, experiment_name_replacement[key])
                 if experiment_name == "Block" and not experiment["use_length_estimation"]:
-                    experiment_name += "*"
+                    experiment_name = "Block-Len-Oracle"
             map_from_name_exp[experiment_name] = experiment
         ordered_key = []
         if len(sorted_keys) == 0:
@@ -526,7 +526,7 @@ def plot_per_qps(experiments_set, output_dir,
             ("requests_throughput", "Throughput (r/s)", False, requests_throughput),
         ]
 
-        baseline_schedulers = [k for k in index_names if k not in ("Block", "Block*")]
+        baseline_schedulers = [k for k in index_names if k not in ("Block", "Block-Len-Oracle")]
         rows = []
         for qps in qps_set:
             for key, human, lower_is_better, metric_map in metrics_spec:
@@ -543,7 +543,7 @@ def plot_per_qps(experiments_set, output_dir,
                 else:
                     best_sched, best_val = max(candidates, key=lambda x: x[1])
 
-                # Fetch Block / Block* values if present
+                # Fetch Block / Block-Len-Oracle values if present
                 def get_val(sched_name):
                     try:
                         return float(metric_map.get(sched_name, {}).get(qps, float("nan")))
@@ -551,7 +551,7 @@ def plot_per_qps(experiments_set, output_dir,
                         return float("nan")
 
                 block_val = get_val("Block")
-                block_star_val = get_val("Block*")
+                block_star_val = get_val("Block-Len-Oracle")
 
                 def delta_pair(val):
                     if math.isnan(val) or best_val == 0:
@@ -571,9 +571,9 @@ def plot_per_qps(experiments_set, output_dir,
                     "Block": round(block_val, 4) if not math.isnan(block_val) else np.nan,
                     "Block Δ": round(block_abs, 4) if not math.isnan(block_abs) else np.nan,
                     "Block Δ%": round(block_pct, 2) if not math.isnan(block_pct) else np.nan,
-                    "Block*": round(block_star_val, 4) if not math.isnan(block_star_val) else np.nan,
-                    "Block* Δ": round(star_abs, 4) if not math.isnan(star_abs) else np.nan,
-                    "Block* Δ%": round(star_pct, 2) if not math.isnan(star_pct) else np.nan,
+                    "Block-Len-Oracle": round(block_star_val, 4) if not math.isnan(block_star_val) else np.nan,
+                    "Block-Len-Oracle Δ": round(star_abs, 4) if not math.isnan(star_abs) else np.nan,
+                    "Block-Len-Oracle Δ%": round(star_pct, 2) if not math.isnan(star_pct) else np.nan,
                 })
 
         if rows:
@@ -603,7 +603,7 @@ def main():
     parser.add_argument("--num-of-cdf-figures", type=int, default=5)
     parser.add_argument("--zoom-for-slo", action='store_true')
     parser.add_argument("--plot-selected-scheduler-only", action='store_true')
-    parser.add_argument("--selected-schedulers", type=str, default="Block, Llumnix-, Block*")
+    parser.add_argument("--selected-schedulers", type=str, default="Block, Llumnix-, Block-Len-Oracle")
     parser.add_argument("--zoom-for-cdf", action='store_true')
     parser.add_argument("--cdf-zoomed-min-qps", type=int, default=36)
     parser.add_argument("--show-slo-text", action='store_true')

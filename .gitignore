@@ -188,3 +188,15 @@ env_3
 experiment_output/
 experiments_analysis/stats/
 experiments_analysis/tombstone/
+
+
+Block_paper/
+Cara_paper/
+
+# CloudLab manifests and generated cluster configs (contain IPs/tokens)
+block/*.xml
+block/*_cl_manifest.xml
+block/config/*_hosts
+block/config/*_host_configs.json
+block/config/hosts
+block/config/host_configs.json

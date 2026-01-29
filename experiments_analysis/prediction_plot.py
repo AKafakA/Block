@@ -10,7 +10,7 @@ from experiments_analysis.experiment_plot import plot_linear_for_multiple_qps
 
 experiment_name_replacement = {"min latency": "Block", "min infass load": "INFaaS++",
                                "request per seconds": "Instance-QPM"}
-scheduler_name_ordered = ['Round Robin', 'random', 'INFaaS++', 'Instance-QPM', 'Block*', 'Block']
+scheduler_name_ordered = ['Round Robin', 'random', 'INFaaS++', 'Instance-QPM', 'Block-Len-Oracle', 'Block']
 
 
 def directory_name_parser(directory_name):

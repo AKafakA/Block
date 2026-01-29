@@ -25,6 +25,32 @@ num_probed_instance = 0
 num_min_probed = 0
 start_time = 0
 metrics_type = "random"
+
+# Error injection parameters for sensitivity analysis
+length_error_pct = 0.0  # Percentage of Gaussian noise to inject into length prediction
+latency_error_pct = 0.0  # Percentage of Gaussian noise to inject into latency prediction
+
+
+def inject_noise(value: float, error_pct: float, min_factor: float = 0.1, max_factor: float = 5.0) -> float:
+    """Inject Gaussian noise into a value for error sensitivity analysis.
+
+    Args:
+        value: Original value to perturb
+        error_pct: Standard deviation of noise as percentage (e.g., 10.0 for 10%)
+        min_factor: Minimum multiplier to avoid zero/negative values (default 0.1 = 10% of original)
+        max_factor: Maximum multiplier to avoid extreme outliers (default 5.0 = 500% of original)
+
+    Returns:
+        Perturbed value, guaranteed to be between value * min_factor and value * max_factor
+    """
+    if error_pct <= 0:
+        return value
+    # Generate noise factor and clamp to valid range to ensure realistic perturbations
+    noise_factor = 1 + np.random.normal(0, error_pct / 100.0)
+    noise_factor = max(min_factor, min(noise_factor, max_factor))
+    return value * noise_factor
+
+
 logging.basicConfig(level=logging.INFO,
                     filemode='a+',
                     filename='experiment_output/logs/predictor_output.log')
@@ -83,13 +109,19 @@ async def generate_benchmark(request: Request) -> Response:
     #     is_sampled_for_compare = request_id % num_sampled_requests == 0
     # else:
     #     is_sampled_for_compare = False
-    global profiling_sampling_rate
+    global profiling_sampling_rate, length_error_pct
     random_flag = random.uniform(0, 1)
     is_sampled_for_compare = random_flag <= profiling_sampling_rate
     random_selected_instances = random.sample(instances, min(num_probed_instance, len(instances)))
+
+    # Inject noise to length prediction for error sensitivity analysis
+    # Each instance gets independent noise to simulate real prediction variance
     for instance in random_selected_instances:
+        noisy_decode_tokens = int(inject_noise(predicted_num_decode_tokens, length_error_pct))
+        # Ensure at least 1 token
+        noisy_decode_tokens = max(1, noisy_decode_tokens)
         predict_tasks.append(instance.query_predictor(
-            request_id, num_context_tokens, predicted_num_decode_tokens, arrived_at))
+            request_id, num_context_tokens, noisy_decode_tokens, arrived_at))
     try:
         predict_results = await asyncio.gather(*predict_tasks)
     except Exception as e:
@@ -120,6 +152,12 @@ async def generate_benchmark(request: Request) -> Response:
         return JSONResponse(response)
 
     target_metrics = [x['target_metric'] for x in predict_results]
+
+    # Inject noise to latency prediction for error sensitivity analysis
+    global latency_error_pct
+    if latency_error_pct > 0:
+        target_metrics = [inject_noise(m, latency_error_pct) for m in target_metrics]
+
     if enable_auto_scaling and use_preemptive_provisioning:
         # if the target metric is a tuple, we only take the first element for scheduling
         # and the second element should always be the waiting time used for auto-scaling
@@ -237,9 +275,17 @@ async def generate_benchmark(request: Request) -> Response:
 
 def build_app(args: Namespace) -> FastAPI:
     global app, num_probed_instance, num_min_probed, profiling_sampling_rate
+    global length_error_pct, latency_error_pct
     num_min_probed = args.num_required_predictor
     num_probed_instance = args.num_query_predictor
     profiling_sampling_rate = args.profiling_sampling_rate
+
+    # Error injection parameters for sensitivity analysis
+    length_error_pct = getattr(args, 'length_error_pct', 0.0)
+    latency_error_pct = getattr(args, 'latency_error_pct', 0.0)
+    if length_error_pct > 0 or latency_error_pct > 0:
+        logger.info(f"Error injection enabled: length_error_pct={length_error_pct}%, "
+                    f"latency_error_pct={latency_error_pct}%")
 
     app.root_path = args.root_path
     return app
@@ -343,6 +389,11 @@ if __name__ == "__main__":
     parser.add_argument("--max_slo_in_seconds", type=int, default=12)
     parser.add_argument("--initial_available_instance", type=int, default=6)
     parser.add_argument("--use_preemptive_provisioning", action='store_true')
+    # Error injection parameters for sensitivity analysis (heatmap experiment)
+    parser.add_argument("--length_error_pct", type=float, default=0.0,
+                        help="Percentage of Gaussian noise to inject into length prediction (0-100)")
+    parser.add_argument("--latency_error_pct", type=float, default=0.0,
+                        help="Percentage of Gaussian noise to inject into latency prediction (0-100)")
     args = parser.parse_args()
     logger.info("Starting server with args: %s", str(args))
     # in case the limited by the number of files
