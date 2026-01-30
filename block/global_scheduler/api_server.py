@@ -21,6 +21,7 @@ TIMEOUT_KEEP_ALIVE = 5  # seconds.
 app = FastAPI()
 instances = []
 num_requests = 0
+completed_requests = 0  # Counter for progress logging
 num_probed_instance = 0
 num_min_probed = 0
 start_time = 0
@@ -210,11 +211,12 @@ async def generate_benchmark(request: Request) -> Response:
         sampled_mean_error_ratios.append(sampled_error_ratio)
         sampled_predict_accuracies.append(sampled_predict_accuracy)
         response["sampled_mean_error_ratio"] = sampled_error_ratio
-        if not len(serving_times) == 12:
-            print(f"expected 12 sampled instances, got {len(serving_times)} due to timedout, "
+        expected_instances = len(instances)
+        if not len(serving_times) == expected_instances:
+            print(f"expected {expected_instances} sampled instances, got {len(serving_times)} due to timedout, "
                   f"autofill with max values")
             autofill_serving_time = max([x[1] for x in serving_times])
-            filled_serving_times = [autofill_serving_time] * (12 - len(serving_times)) + [x[1] for x in serving_times]
+            filled_serving_times = [autofill_serving_time] * (expected_instances - len(serving_times)) + [x[1] for x in serving_times]
             response["sampled_serving_latencies"] = filled_serving_times
         else:
             response["sampled_serving_latencies"] = [serving_times[i][1] for i in range(len(serving_times))]
@@ -270,6 +272,14 @@ async def generate_benchmark(request: Request) -> Response:
                 print(f"Added backfill instance and put it into the pool: "
                       f"{back_instance._instance_id} after request {request_id}")
                 instances.append(back_instance)
+
+    # Progress logging every 100 requests
+    global completed_requests
+    completed_requests += 1
+    if completed_requests % 100 == 0:
+        elapsed = time.time() - start_time
+        print(f"[Progress] Completed {completed_requests} requests in {elapsed:.1f}s ({completed_requests/elapsed:.2f} req/s)")
+
     return JSONResponse(response)
 
 

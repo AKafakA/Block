@@ -27,6 +27,13 @@ from transformers import AutoTokenizer
 from typing import List
 import resource
 
+# Set HF_HOME to use local cache on NVMe storage (for A100 nodes)
+# This avoids authentication issues when loading tokenizer from cached models
+if "HF_HOME" not in os.environ:
+    # Check if running on A100 node with NVMe mounted
+    if os.path.exists("/mydata/huggingface"):
+        os.environ["HF_HOME"] = "/mydata/huggingface"
+
 resource.setrlimit(resource.RLIMIT_NOFILE, (65536, 65536))
 
 num_finished_requests = 0
@@ -745,7 +752,12 @@ def main():
         os.makedirs(args.output_dir)
 
     backend = GenerationBackend[args.backend]
-    tokenizer = AutoTokenizer.from_pretrained(args.tokenizer, trust_remote_code=args.trust_remote_code)
+    # Use local_files_only=True to avoid authentication errors when tokenizer is already cached
+    tokenizer = AutoTokenizer.from_pretrained(
+        args.tokenizer,
+        trust_remote_code=args.trust_remote_code,
+        local_files_only=True
+    )
 
     random.seed(0xCADE)
     np.random.seed(0xCADE)

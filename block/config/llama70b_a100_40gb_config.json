@@ -8,10 +8,10 @@
 		"network_device": "a100_40gb_pairwise_nvlink"
 	},
 	"replica_scheduler_config": {
-		"max_tokens_in_batch": 2048,
-		"batch_size_cap": 16,
+		"max_tokens_in_batch": 4096,
+		"batch_size_cap": 48,
 		"chunk_size": 512,
-		"num_blocks": 0
+		"num_blocks": 806
 	},
 	"target_metric": "min_new_request_latency",
 	"enable_batch_time_estimation": true
