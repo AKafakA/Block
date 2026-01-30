@@ -19,7 +19,8 @@ def generate_configs(num_predictors, backend_port,
                      config_output_path,
                      user_name,
                      tensor_parallel_size=1,
-                     cluster_type="a30"):
+                     cluster_type="a30",
+                     use_internal_network=True):
     """Generate cluster configuration from CloudLab manifest.
 
     Args:
@@ -30,6 +31,10 @@ def generate_configs(num_predictors, backend_port,
         user_name: SSH username for CloudLab nodes
         tensor_parallel_size: GPUs per model instance (1 for A30, 4 for A100-70B)
         cluster_type: "a30" (single GPU nodes) or "a100" (multi-GPU nodes)
+        use_internal_network: Use internal IPs (10.x.x.x) instead of public IPs.
+                              IMPORTANT: CloudLab requires using internal network for
+                              high-volume inter-node traffic. See:
+                              https://docs.cloudlab.us/control-net.html#cnet-avoiding
     """
     # Generate predictor ports: 8100, 8300, 8400, 8500, ...
     # Skip 8200 as it's used by global scheduler client API
@@ -45,18 +50,37 @@ def generate_configs(num_predictors, backend_port,
     nodes = {}
     root = tree.getroot()
 
+    # Define namespace for parsing
+    ns = {'rspec': 'http://www.geni.net/resources/rspec/3'}
+
     for child in root:
         if "node" in child.tag:
             node_info = {}
             node_name = child.get("client_id")
             nodes[node_name] = node_info
             for subchild in child:
+                # Extract internal IP from <interface><ip> element
+                if "interface" in subchild.tag:
+                    for ip_elem in subchild:
+                        if "ip" in ip_elem.tag:
+                            internal_ip = ip_elem.get("address")
+                            if internal_ip and internal_ip.startswith("10."):
+                                node_info["internal_ip"] = internal_ip
+                # Extract public IP from <host> element
                 if "host" in subchild.tag:
-                    ip_address = subchild.get("ipv4")
-                    node_info["ip_adresses"] = ip_address
+                    public_ip = subchild.get("ipv4")
+                    node_info["public_ip"] = public_ip
+                    # Keep backward compatibility
+                    node_info["ip_adresses"] = public_ip
                 if "services" in subchild.tag:
                     host_name = subchild[0].get("hostname")
                     node_info["hostname"] = host_name
+
+            # Choose which IP to use for inter-node communication
+            if use_internal_network and "internal_ip" in node_info:
+                node_info["ip_adresses"] = node_info["internal_ip"]
+            elif "public_ip" in node_info:
+                node_info["ip_adresses"] = node_info["public_ip"]
 
     nodes = OrderedDict(sorted(nodes.items()))
 
@@ -91,6 +115,10 @@ def generate_configs(num_predictors, backend_port,
     print(f"  - Nodes: {len(nodes)}")
     print(f"  - Tensor parallel size: {tensor_parallel_size}")
     print(f"  - Predictors per node: {num_predictors}")
+    print(f"  - Using internal network: {use_internal_network}")
+    if use_internal_network:
+        print(f"  - NOTE: Inter-node traffic will use internal IPs (10.x.x.x)")
+        print(f"          This is required by CloudLab for high-volume traffic.")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate Block cluster configuration from CloudLab manifest")
@@ -108,6 +136,10 @@ if __name__ == "__main__":
                         help="GPUs per model instance (1 for A30/7B, 4 for A100/70B)")
     parser.add_argument("--cluster_type", type=str, default="a30", choices=["a30", "a100"],
                         help="Cluster type: a30 (single GPU) or a100 (multi-GPU)")
+    parser.add_argument("--use_public_network", action="store_true",
+                        help="Use public IPs instead of internal network (NOT recommended). "
+                             "By default, internal IPs (10.x.x.x) are used to comply with "
+                             "CloudLab network policies for high-volume inter-node traffic.")
     args = parser.parse_args()
 
     generate_configs(
@@ -117,5 +149,6 @@ if __name__ == "__main__":
         args.host_config_files,
         args.user_name,
         args.tensor_parallel_size,
-        args.cluster_type
+        args.cluster_type,
+        use_internal_network=not args.use_public_network
     )
