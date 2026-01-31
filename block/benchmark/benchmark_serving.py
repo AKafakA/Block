@@ -355,6 +355,11 @@ class MeasureLatency:
         self._min_predicted_latency = []
         self._sampled_selected_instance_rank = []
         self._num_available_instances = []
+        # CPU overhead tracking metrics
+        self._avg_predictor_time_ms = []
+        self._max_predictor_time_ms = []
+        self._avg_predictor_cpu_percent = []
+        self._avg_predictor_memory_mb = []
 
     def measure(self, f):
         async def measured(*args, **kwargs):
@@ -439,6 +444,15 @@ class MeasureLatency:
                 self._sampled_selected_instance_rank.append(output['sampled_selected_instance_rank'])
             if 'num_available_instances' in output:
                 self._num_available_instances.append(output['num_available_instances'])
+            # CPU overhead tracking metrics (from predictors with --enable_cpu_tracking)
+            if 'avg_predictor_time_ms' in output:
+                self._avg_predictor_time_ms.append(output['avg_predictor_time_ms'])
+            if 'max_predictor_time_ms' in output:
+                self._max_predictor_time_ms.append(output['max_predictor_time_ms'])
+            if 'avg_predictor_cpu_percent' in output:
+                self._avg_predictor_cpu_percent.append(output['avg_predictor_cpu_percent'])
+            if 'avg_predictor_memory_mb' in output:
+                self._avg_predictor_memory_mb.append(output['avg_predictor_memory_mb'])
             return prompt, output
 
         return measured
@@ -571,7 +585,11 @@ async def benchmark(
         m._sampled_selected_instance_rank, \
         m._num_available_instances, \
         timestamps, \
-        msg
+        msg, \
+        m._avg_predictor_time_ms, \
+        m._max_predictor_time_ms, \
+        m._avg_predictor_cpu_percent, \
+        m._avg_predictor_memory_mb
 
 
 def get_dataset_list(dataset_path: str, start_idx: int = 0, num_samples: int = 10):
@@ -820,7 +838,11 @@ def main():
      sampled_selected_instance_rank,
      num_available_instances,
      request_timestamps,
-     messages) = asyncio.run(benchmark(
+     messages,
+     avg_predictor_time_ms,
+     max_predictor_time_ms,
+     avg_predictor_cpu_percent,
+     avg_predictor_memory_mb) = asyncio.run(benchmark(
         backend,
         tokenizer,
         prompts,
@@ -845,6 +867,15 @@ def main():
         p99_request_latency = np.percentile(request_latencies_arr, 99)
         f.write(f"\n p99 prefill token latency: {p99_ttft:.4f} ms\n")
         f.write(f"\n p99 request latency: {p99_request_latency:.4f} ms\n")
+        # CPU overhead breakdown (if tracking enabled via --enable_cpu_tracking on predictors)
+        if avg_predictor_time_ms:
+            f.write(f"\n=== CPU Overhead Breakdown ===\n")
+            f.write(f" Mean predictor time: {np.mean(avg_predictor_time_ms):.2f} ms\n")
+            f.write(f" Max predictor time: {np.max(max_predictor_time_ms):.2f} ms\n")
+        if avg_predictor_cpu_percent:
+            f.write(f" Mean predictor CPU: {np.mean(avg_predictor_cpu_percent):.1f}%\n")
+        if avg_predictor_memory_mb:
+            f.write(f" Mean predictor memory: {np.mean(avg_predictor_memory_mb):.1f} MB\n")
 
     data = {
         "Throughput": np.float32(throughput),
@@ -870,6 +901,15 @@ def main():
         data["sampled_selected_instance_rank"] = np.array(sampled_selected_instance_rank)
     if num_available_instances:
         data["num_available_instances"] = np.array(num_available_instances)
+    # CPU overhead metrics (from predictors with --enable_cpu_tracking)
+    if avg_predictor_time_ms:
+        data["avg_predictor_time_ms"] = np.array(avg_predictor_time_ms)
+    if max_predictor_time_ms:
+        data["max_predictor_time_ms"] = np.array(max_predictor_time_ms)
+    if avg_predictor_cpu_percent:
+        data["avg_predictor_cpu_percent"] = np.array(avg_predictor_cpu_percent)
+    if avg_predictor_memory_mb:
+        data["avg_predictor_memory_mb"] = np.array(avg_predictor_memory_mb)
     np.savez(args.output_dir + '/' + os.path.splitext(args.log_filename)[0] + f"_all_metrics.npz", **data)
 
     if args.generate_csv_files or args.generate_dataset_with_real_response:

@@ -13,9 +13,13 @@
 #
 # This script installs on ALL nodes in hosts file:
 #   - CUDA 12.6
-#   - PyTorch 2.6 with CUDA support
-#   - vLLM (block branch) with tensor parallelism
+#   - vLLM (block branch) with precompiled wheels
+#   - PyTorch 2.6 with CUDA support (installed AFTER vLLM)
 #   - Block (a100-test branch)
+#
+# IMPORTANT: Installation order matters!
+#   1. vLLM with VLLM_USE_PRECOMPILED=1 (downloads compatible .so files)
+#   2. PyTorch 2.6.0+cu126 (after vLLM, not before)
 #
 # See: Block_paper/claude/A100_TESTING_GUIDE.md for full instructions
 
@@ -95,29 +99,22 @@ parallel-ssh -t 0 -h $HOSTS_FILE "if [ -b /dev/nvme0n1 ] && ! mountpoint -q /myd
 echo "=== Phase 4: Verify GPUs ==="
 parallel-ssh -t 0 -h $HOSTS_FILE "nvidia-smi --query-gpu=name,memory.total --format=csv"
 
-# Phase 5: PyTorch and dependencies
-echo "=== Phase 5: PyTorch and dependencies ==="
-parallel-ssh -t 0 -h $HOSTS_FILE "pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu126"
-parallel-ssh -t 0 -h $HOSTS_FILE "pip install flashinfer-python==0.2.5 triton==3.2.0"
-
-# Phase 6: Clone and install vLLM
-echo "=== Phase 6: vLLM installation (building from source, ~20-40 min) ==="
+# Phase 5: Clone and install vLLM with precompiled wheels
+# IMPORTANT: vLLM must be installed BEFORE PyTorch 2.6.0+cu126
+# The precompiled wheels include compatible .so files
+echo "=== Phase 5: vLLM installation (precompiled, ~3 min) ==="
 parallel-ssh -t 0 -h $HOSTS_FILE "rm -rf ~/vllm && git clone ${VLLM_GITHUB_LINK} ~/vllm"
 parallel-ssh -t 0 -h $HOSTS_FILE "cd ~/vllm && git checkout ${VLLM_BRANCH}"
-# Build from source with --no-build-isolation to avoid ABI mismatch
-# This ensures vLLM is compiled against the installed PyTorch version
-# Clean any stale build artifacts first to avoid partial build issues
-parallel-ssh -t 0 -h $HOSTS_FILE "cd ~/vllm && rm -rf build/ vllm/*.so vllm/**/*.so .deps/ 2>/dev/null || true"
-# Note: pip install may fail due to optional flashmla extension not building
-# We handle this by manually copying the required .so files afterward
-parallel-ssh -t 0 -h $HOSTS_FILE "cd ~/vllm && export PATH=\$HOME/.local/bin:/usr/local/cuda-12.6/bin:\$PATH && export CUDA_HOME=/usr/local/cuda-12.6 && export CUDACXX=/usr/local/cuda-12.6/bin/nvcc && pip install --no-cache-dir --no-build-isolation --editable . || true"
-# Workaround: manually copy required .so files if pip install failed due to optional flashmla
-parallel-ssh -t 0 -h $HOSTS_FILE "cd ~/vllm && if [ ! -f vllm/_C.abi3.so ]; then cp build/lib.linux-x86_64-*/vllm/_C.abi3.so vllm/ 2>/dev/null || true; fi"
-parallel-ssh -t 0 -h $HOSTS_FILE "cd ~/vllm && if [ ! -f vllm/_moe_C.abi3.so ]; then cp build/lib.linux-x86_64-*/vllm/_moe_C.abi3.so vllm/ 2>/dev/null || true; fi"
-parallel-ssh -t 0 -h $HOSTS_FILE "cd ~/vllm && if [ ! -f vllm/cumem_allocator.abi3.so ]; then cp build/lib.linux-x86_64-*/vllm/cumem_allocator.abi3.so vllm/ 2>/dev/null || true; fi"
-parallel-ssh -t 0 -h $HOSTS_FILE "cd ~/vllm && mkdir -p vllm/vllm_flash_attn && cp build/lib.linux-x86_64-*/vllm/vllm_flash_attn/*.so vllm/vllm_flash_attn/ 2>/dev/null || true"
+parallel-ssh -t 0 -h $HOSTS_FILE "cd ~/vllm && sudo VLLM_USE_PRECOMPILED=1 pip install --editable ."
+
 # Add PYTHONPATH to bashrc for tensor parallelism subprocess compatibility
 parallel-ssh -t 0 -h $HOSTS_FILE "grep -q 'PYTHONPATH.*vllm' ~/.bashrc || echo 'export PYTHONPATH=\$HOME/vllm:\$PYTHONPATH' >> ~/.bashrc"
+
+# Phase 6: PyTorch and dependencies (MUST be after vLLM)
+# Installing PyTorch after vLLM ensures ABI compatibility
+echo "=== Phase 6: PyTorch and dependencies (after vLLM) ==="
+parallel-ssh -t 0 -h $HOSTS_FILE "pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu126"
+parallel-ssh -t 0 -h $HOSTS_FILE "pip install flashinfer-python==0.2.5 triton==3.2.0"
 
 # Phase 7: Clone and install Block
 echo "=== Phase 7: Block installation ==="
@@ -186,6 +183,10 @@ echo ""
 echo "Known issues fixed in this script:"
 echo "  - VLLM_USE_V1=0 required for Block's get_scheduler_trace API"
 echo "  - transformers==4.50.3 required (not 5.0+)"
-echo "  - --no-build-isolation for ABI compatibility"
+echo "  - VLLM_USE_PRECOMPILED=1 for fast installation (~3 min vs 30 min)"
+echo "  - PyTorch installed AFTER vLLM (order matters for ABI compatibility)"
 echo "  - PYTHONPATH includes ~/vllm for TP subprocess compatibility"
-echo "  - FlashMLA optional extension may fail (handled automatically)"
+echo ""
+echo "IMPORTANT: Use internal network (10.x.x.x) for inter-node traffic."
+echo "  Run generate_config.py to create configs with internal IPs."
+echo "  See: https://docs.cloudlab.us/control-net.html"

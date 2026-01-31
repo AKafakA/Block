@@ -45,6 +45,14 @@ class Instance:
                 response_dict = await response.json()
                 response_dict['instance_id'] = self._instance_id
                 self._predicted_latency[request_id] = response_dict['target_metric']
+                # Pass through CPU tracking metrics if available
+                # These are set when predictor is started with --enable_cpu_tracking
+                if 'time_to_predict' in response_dict:
+                    response_dict['predictor_time_ms'] = response_dict['time_to_predict']
+                if 'cpu_percent' in response_dict:
+                    response_dict['predictor_cpu_percent'] = response_dict['cpu_percent']
+                if 'memory_rss_mb' in response_dict:
+                    response_dict['predictor_memory_mb'] = response_dict['memory_rss_mb']
                 return response_dict
 
     async def query_backend(self, prompt: str, max_response_len: int, request_id: int,

@@ -137,6 +137,18 @@ async def generate_benchmark(request: Request) -> Response:
                      'num_preempted': sum([x['num_preempted'] for x in predict_results]),
                      'num_available_instances': len(instances)}
 
+    # Aggregate CPU overhead metrics from predictors (if tracking enabled)
+    predictor_times = [x['predictor_time_ms'] for x in predict_results if 'predictor_time_ms' in x]
+    if predictor_times:
+        single_metric['avg_predictor_time_ms'] = np.mean(predictor_times)
+        single_metric['max_predictor_time_ms'] = np.max(predictor_times)
+    predictor_cpu = [x['predictor_cpu_percent'] for x in predict_results if 'predictor_cpu_percent' in x]
+    if predictor_cpu:
+        single_metric['avg_predictor_cpu_percent'] = np.mean(predictor_cpu)
+    predictor_mem = [x['predictor_memory_mb'] for x in predict_results if 'predictor_memory_mb' in x]
+    if predictor_mem:
+        single_metric['avg_predictor_memory_mb'] = np.mean(predictor_mem)
+
     if len(predict_results) == 0:
         selected_index = random.randint(0, len(instances) - 1)
         selected_instance = instances[selected_index]

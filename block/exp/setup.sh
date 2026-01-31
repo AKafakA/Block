@@ -13,17 +13,19 @@
 #
 # This script installs on ALL nodes in hosts file:
 #   - CUDA 12.6
-#   - PyTorch 2.6 with CUDA support
-#   - vLLM (block branch)
+#   - vLLM (block branch) with precompiled wheels
+#   - PyTorch 2.6 with CUDA support (installed AFTER vLLM)
 #   - Block (block branch)
 #
-# See: Block_paper/claude/A100_TESTING_GUIDE.md for reference
+# IMPORTANT: Installation order matters!
+#   1. vLLM with VLLM_USE_PRECOMPILED=1 (downloads compatible .so files)
+#   2. PyTorch 2.6.0+cu126 (after vLLM, not before)
 
 set -e
 
 BLOCK_GITHUB_LINK="https://github.com/AKafakA/Block.git"
 VLLM_GITHUB_LINK="https://github.com/AKafakA/vllm.git"
-BLOCK_BRANCH="block"
+BLOCK_BRANCH="test-a-30"
 VLLM_BRANCH="block"
 
 # Allow custom hosts file as argument
@@ -75,8 +77,8 @@ echo ""
 # Phase 1: System updates and build dependencies
 echo "=== Phase 1: System updates ==="
 parallel-ssh -t 0 -h $HOSTS_FILE "sudo apt update && sudo apt full-upgrade -y"
-parallel-ssh -t 0 -h $HOSTS_FILE "sudo apt install -y python3-pip python3-venv python3-dev ccache git build-essential cmake ninja-build"
-parallel-ssh -t 0 -h $HOSTS_FILE "pip3 install -U pip==25.0.1 setuptools wheel"
+parallel-ssh -t 0 -h $HOSTS_FILE "sudo apt install -y python3-pip python3-venv ccache"
+parallel-ssh -t 0 -h $HOSTS_FILE "pip3 install -U pip==25.0.1"
 
 # Phase 2: CUDA 12.6 installation
 echo "=== Phase 2: CUDA 12.6 installation ==="
@@ -86,33 +88,22 @@ parallel-ssh -t 0 -h $HOSTS_FILE "sudo cp /var/cuda-repo-ubuntu2004-12-6-local/c
 parallel-ssh -t 0 -h $HOSTS_FILE "sudo dpkg --configure -a && sudo apt-get -y install cuda-toolkit-12-6 && sudo apt-get install -y nvidia-open"
 parallel-ssh -t 0 -h $HOSTS_FILE "echo 'export PATH=/usr/local/cuda-12.6/bin:\$PATH' >> ~/.bashrc && echo 'export LD_LIBRARY_PATH=/usr/local/cuda-12.6/lib64:\$LD_LIBRARY_PATH' >> ~/.bashrc"
 
-# Phase 3: Verify GPUs and disable MIG mode (A30 specific)
-echo "=== Phase 3: Verify GPUs ==="
-parallel-ssh -t 0 -h $HOSTS_FILE "nvidia-smi --query-gpu=name,memory.total --format=csv"
-# Disable MIG mode on A30 (required for vLLM)
+# Phase 3: Disable MIG mode (A30 specific - required for vLLM)
+echo "=== Phase 3: Disable MIG mode ==="
 parallel-ssh -t 0 -h $HOSTS_FILE "sudo nvidia-smi -mig 0 || true"
 
-# Phase 4: PyTorch and dependencies (MUST be before vLLM)
-echo "=== Phase 4: PyTorch and dependencies ==="
-parallel-ssh -t 0 -h $HOSTS_FILE "pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu126"
-parallel-ssh -t 0 -h $HOSTS_FILE "pip install flashinfer-python==0.2.5 triton==3.2.0"
+# Phase 4: Verify GPUs
+echo "=== Phase 4: Verify GPUs ==="
+parallel-ssh -t 0 -h $HOSTS_FILE "nvidia-smi --query-gpu=name,memory.total --format=csv"
 
-# Phase 5: Clone and install vLLM
-echo "=== Phase 5: vLLM installation (building from source, ~20-40 min) ==="
+# Phase 5: Clone and install vLLM with precompiled wheels
+# IMPORTANT: vLLM must be installed BEFORE PyTorch 2.6.0+cu126
+# The precompiled wheels include compatible .so files
+echo "=== Phase 5: vLLM installation (precompiled, ~3 min) ==="
 parallel-ssh -t 0 -h $HOSTS_FILE "rm -rf ~/vllm && git clone ${VLLM_GITHUB_LINK} ~/vllm"
 parallel-ssh -t 0 -h $HOSTS_FILE "cd ~/vllm && git checkout ${VLLM_BRANCH}"
-# Build from source with --no-build-isolation to avoid ABI mismatch
-# This ensures vLLM is compiled against the installed PyTorch version
-# Clean any stale build artifacts first to avoid partial build issues
-parallel-ssh -t 0 -h $HOSTS_FILE "cd ~/vllm && rm -rf build/ vllm/*.so vllm/**/*.so .deps/ 2>/dev/null || true"
-# Note: pip install may fail due to optional flashmla extension not building
-# We handle this by manually copying the required .so files afterward
-parallel-ssh -t 0 -h $HOSTS_FILE "cd ~/vllm && export PATH=\$HOME/.local/bin:/usr/local/cuda-12.6/bin:\$PATH && export CUDA_HOME=/usr/local/cuda-12.6 && export CUDACXX=/usr/local/cuda-12.6/bin/nvcc && pip install --no-cache-dir --no-build-isolation --editable . || true"
-# Workaround: manually copy required .so files if pip install failed due to optional flashmla
-parallel-ssh -t 0 -h $HOSTS_FILE "cd ~/vllm && if [ ! -f vllm/_C.abi3.so ]; then cp build/lib.linux-x86_64-*/vllm/_C.abi3.so vllm/ 2>/dev/null || true; fi"
-parallel-ssh -t 0 -h $HOSTS_FILE "cd ~/vllm && if [ ! -f vllm/_moe_C.abi3.so ]; then cp build/lib.linux-x86_64-*/vllm/_moe_C.abi3.so vllm/ 2>/dev/null || true; fi"
-parallel-ssh -t 0 -h $HOSTS_FILE "cd ~/vllm && if [ ! -f vllm/cumem_allocator.abi3.so ]; then cp build/lib.linux-x86_64-*/vllm/cumem_allocator.abi3.so vllm/ 2>/dev/null || true; fi"
-parallel-ssh -t 0 -h $HOSTS_FILE "cd ~/vllm && mkdir -p vllm/vllm_flash_attn && cp build/lib.linux-x86_64-*/vllm/vllm_flash_attn/*.so vllm/vllm_flash_attn/ 2>/dev/null || true"
+parallel-ssh -t 0 -h $HOSTS_FILE "cd ~/vllm && sudo VLLM_USE_PRECOMPILED=1 pip install --editable ."
+
 # Add PYTHONPATH to bashrc for subprocess compatibility
 parallel-ssh -t 0 -h $HOSTS_FILE "grep -q 'PYTHONPATH.*vllm' ~/.bashrc || echo 'export PYTHONPATH=\$HOME/vllm:\$PYTHONPATH' >> ~/.bashrc"
 
@@ -121,16 +112,20 @@ echo "=== Phase 6: Block installation ==="
 parallel-ssh -t 0 -h $HOSTS_FILE "rm -rf ~/Block && git clone ${BLOCK_GITHUB_LINK} ~/Block"
 parallel-ssh -t 0 -h $HOSTS_FILE "cd ~/Block && git checkout ${BLOCK_BRANCH}"
 parallel-ssh -t 0 -h $HOSTS_FILE "cd ~/Block && pip install -r requirements.txt"
+
+# Phase 7: PyTorch and dependencies (MUST be after vLLM)
+# Installing PyTorch after vLLM ensures ABI compatibility
+echo "=== Phase 7: PyTorch and dependencies (after vLLM) ==="
+parallel-ssh -t 0 -h $HOSTS_FILE "pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu126"
+parallel-ssh -t 0 -h $HOSTS_FILE "pip install flashinfer-python==0.2.5 triton==3.2.0"
 # Fix transformers version - vLLM block branch requires 4.50.3, not 5.0+
 parallel-ssh -t 0 -h $HOSTS_FILE "pip install transformers==4.50.3"
-# Note: Block doesn't have setup.py/pyproject.toml - use PYTHONPATH=. instead
 
-# Phase 7: SCP local configs to remote hosts (configs are gitignored for security)
-echo "=== Phase 7: Copy local configs to remote hosts ==="
+# Phase 8: Copy local configs to remote hosts
+echo "=== Phase 8: Copy local configs to remote hosts ==="
 CONFIG_DIR="block/config"
 while IFS= read -r host; do
     echo "Copying configs to $host..."
-    # Copy A30-specific configs
     scp ${CONFIG_DIR}/host_configs.json ${host}:~/Block/block/config/ 2>/dev/null || true
     scp ${CONFIG_DIR}/hosts ${host}:~/Block/block/config/ 2>/dev/null || true
     scp ${CONFIG_DIR}/llama_config.json ${host}:~/Block/block/config/ 2>/dev/null || true
@@ -138,15 +133,15 @@ while IFS= read -r host; do
 done < "$HOSTS_FILE"
 echo "Config files copied to all hosts."
 
-# Phase 8: Create directories and cleanup
-echo "=== Phase 8: Create directories and cleanup ==="
+# Phase 9: Create directories and cleanup
+echo "=== Phase 9: Create directories and cleanup ==="
 parallel-ssh -t 0 -h $HOSTS_FILE "mkdir -p ~/Block/experiment_output/logs ~/Block/cache"
 parallel-ssh -t 0 -h $HOSTS_FILE "rm -f ~/cuda-repo-*.deb"
 
-# Phase 9: Verify installation
-echo "=== Phase 9: Verify installation ==="
+# Phase 10: Verify installation
+echo "=== Phase 10: Verify installation ==="
 parallel-ssh -t 0 -h $HOSTS_FILE "python -c 'import torch; print(f\"PyTorch: {torch.__version__}, CUDA: {torch.cuda.is_available()}, GPUs: {torch.cuda.device_count()}\")'"
-parallel-ssh -t 0 -h $HOSTS_FILE "python -c 'import vllm; print(f\"vLLM imported successfully\")'"
+parallel-ssh -t 0 -h $HOSTS_FILE "python -c 'from vllm.engine.async_llm_engine import AsyncLLMEngine; print(\"vLLM OK\")'"
 
 echo ""
 echo "=============================================="
@@ -163,6 +158,10 @@ echo ""
 echo "Known issues fixed in this script:"
 echo "  - VLLM_USE_V1=0 required for Block's get_scheduler_trace API"
 echo "  - transformers==4.50.3 required (not 5.0+)"
-echo "  - --no-build-isolation for ABI compatibility"
-echo "  - FlashMLA optional extension may fail (handled automatically)"
+echo "  - VLLM_USE_PRECOMPILED=1 for fast installation (~3 min vs 30 min)"
+echo "  - PyTorch installed AFTER vLLM (order matters for ABI compatibility)"
 echo "  - MIG mode disabled (required for vLLM on A30)"
+echo ""
+echo "IMPORTANT: Use internal network (10.x.x.x) for inter-node traffic."
+echo "  Run generate_config.py to create configs with internal IPs."
+echo "  See: https://docs.cloudlab.us/control-net.html"
