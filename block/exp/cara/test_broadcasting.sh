@@ -18,7 +18,7 @@
 #   - Customized vLLM with cara backend at ~/vllm
 #
 # Usage:
-#   ./test_broadcasting.sh [MODELS] [DATASET] [NUM_PROMPTS] [REQUEST_RATE] [OUTPUT_SUFFIX]
+#   ./test_broadcasting.sh [MODELS] [DATASET] [NUM_PROMPTS] [REQUEST_RATE] [OUTPUT_SUFFIX] [CUSTOM_DATASET_PATH]
 #
 # Examples:
 #   # Collect data from 3B, 7B, 14B models using ShareGPT dataset
@@ -29,8 +29,19 @@
 #
 #   # Use random prompts for quick testing
 #   ./test_broadcasting.sh "Qwen/Qwen2.5-3B Qwen/Qwen2.5-7B" random 50 inf debug
+#
+#   # Use custom JSONL dataset (format: {id, prompt} per line)
+#   ./test_broadcasting.sh "Qwen/Qwen2.5-3B Qwen/Qwen2.5-7B" custom 500 inf test1 ~/dataset/cara/best-route-extension.jsonl
 
 set -e  # Exit on error
+
+# =============================================================================
+# NVIDIA Library Path (needed for user-installed PyTorch with pip)
+# =============================================================================
+NVIDIA_LIB_BASE="$HOME/.local/lib/python3.10/site-packages/nvidia"
+if [ -d "$NVIDIA_LIB_BASE" ]; then
+    export LD_LIBRARY_PATH=$(find "$NVIDIA_LIB_BASE" -name 'lib' -type d 2>/dev/null | tr '\n' ':')${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+fi
 
 # =============================================================================
 # Configuration Parameters
@@ -41,8 +52,9 @@ set -e  # Exit on error
 BROADCAST_MODELS=${1:-"Qwen/Qwen2.5-3B Qwen/Qwen2.5-7B Qwen/Qwen2.5-14B"}
 
 # Dataset selection
-DATASET_NAME=${2:-"sharegpt"}  # Options: sharegpt, random, sonnet
-DATASET_PATH="~/dataset/sharegpt/sharegpt_random_10k.jsonl"  # Path for sharegpt dataset
+DATASET_NAME=${2:-"sharegpt"}  # Options: sharegpt, random, sonnet, custom
+SHAREGPT_DATASET_PATH="~/dataset/sharegpt/sharegpt_random_10k.jsonl"  # Path for sharegpt dataset
+CUSTOM_DATASET_PATH=${6:-""}  # Path for custom JSONL dataset (used when DATASET_NAME=custom)
 
 # Benchmark parameters
 NUM_PROMPTS=${3:-100}  # Number of prompts to process
@@ -59,13 +71,19 @@ MODEL_CONFIG="block/config/cara/model_deployment.json"
 HOST_CONFIG="block/config/host_configs.json"
 OUTPUT_DIR="experiment_output/cara_broadcast_training_data"
 
-# Server parameters
-REPETITION_PENALTY=1.05  # Avoid repetitive outputs
+# Server parameters (overridable via environment variables)
+REPETITION_PENALTY=${REPETITION_PENALTY:-1.0}
+FREQUENCY_PENALTY=${FREQUENCY_PENALTY:-1.2}
+TEMPERATURE=${TEMPERATURE:-0.0}
+
+# Output length control (overridable via environment variables)
+MAX_OUTPUT_TOKENS=${MAX_OUTPUT_TOKENS:-1024}  # max_tokens sent to vLLM per request
+MAX_TOTAL_LEN=${MAX_TOTAL_LEN:-4096}         # prompt + output cap
 SCHEDULING_STRATEGY="random"  # Doesn't matter for broadcasting (all models queried)
 
 # Detailed metrics to save for training
 # IMPORTANT: Must include 'response' and 'prompts' to collect actual text for quality estimation
-SAVE_DETAILED="prompts response ttft itl e2el input_lens output_lens models hosts instance_ids"
+SAVE_DETAILED="true"  # Boolean flag: save per-request response_details
 
 # Random dataset parameters (only used if DATASET_NAME=random)
 RANDOM_INPUT_LEN=256
@@ -89,12 +107,19 @@ echo "  CARA Server:          ${CARA_URL}"
 echo "  Broadcast Models:     ${BROADCAST_MODELS}"
 echo "  Dataset:              ${DATASET_NAME}"
 if [ "${DATASET_NAME}" = "sharegpt" ]; then
-    echo "  Dataset Path:         ${DATASET_PATH}"
+    echo "  Dataset Path:         ${SHAREGPT_DATASET_PATH}"
+elif [ "${DATASET_NAME}" = "custom" ]; then
+    echo "  Dataset Path:         ${CUSTOM_DATASET_PATH}"
 fi
 echo "  Number of Prompts:    ${NUM_PROMPTS}"
 echo "  Request Rate:         ${REQUEST_RATE} qps"
 echo "  Output Directory:     ${OUTPUT_DIR}"
 echo "  Output Suffix:        ${OUTPUT_SUFFIX}"
+echo "  Max Output Tokens:    ${MAX_OUTPUT_TOKENS}"
+echo "  Max Total Length:     ${MAX_TOTAL_LEN}"
+echo "  Repetition Penalty:  ${REPETITION_PENALTY}"
+echo "  Frequency Penalty:   ${FREQUENCY_PENALTY}"
+echo "  Temperature:          ${TEMPERATURE}"
 echo ""
 echo "DATA COLLECTION:"
 echo "  Each request will be broadcasted to all selected models"
@@ -127,10 +152,10 @@ if [ ! -f "${MODEL_CONFIG}" ]; then
 fi
 echo "✅ Model config found: ${MODEL_CONFIG}"
 
-# Verify dataset exists if using sharegpt
+# Verify dataset exists if using sharegpt or custom
 if [ "${DATASET_NAME}" = "sharegpt" ]; then
     # Expand tilde in path
-    EXPANDED_DATASET_PATH="${DATASET_PATH/#\~/$HOME}"
+    EXPANDED_DATASET_PATH="${SHAREGPT_DATASET_PATH/#\~/$HOME}"
     if [ ! -f "${EXPANDED_DATASET_PATH}" ]; then
         echo "❌ Dataset not found: ${EXPANDED_DATASET_PATH}"
         echo "Please download ShareGPT dataset first"
@@ -138,6 +163,18 @@ if [ "${DATASET_NAME}" = "sharegpt" ]; then
         exit 1
     fi
     echo "✅ Dataset found: ${EXPANDED_DATASET_PATH}"
+elif [ "${DATASET_NAME}" = "custom" ]; then
+    if [ -z "${CUSTOM_DATASET_PATH}" ]; then
+        echo "❌ Custom dataset requires a dataset path as the 6th argument"
+        echo "Usage: ./test_broadcasting.sh MODELS custom NUM_PROMPTS RATE SUFFIX /path/to/dataset.jsonl"
+        exit 1
+    fi
+    EXPANDED_CUSTOM_PATH="${CUSTOM_DATASET_PATH/#\~/$HOME}"
+    if [ ! -f "${EXPANDED_CUSTOM_PATH}" ]; then
+        echo "❌ Custom dataset not found: ${EXPANDED_CUSTOM_PATH}"
+        exit 1
+    fi
+    echo "✅ Custom dataset found: ${EXPANDED_CUSTOM_PATH}"
 fi
 
 echo ""
@@ -165,6 +202,8 @@ nohup python -m block.global_scheduler.cara.cara_serve \
   --host_config ${HOST_CONFIG} \
   --scheduling ${SCHEDULING_STRATEGY} \
   --repetition-penalty ${REPETITION_PENALTY} \
+  --frequency-penalty ${FREQUENCY_PENALTY} \
+  --temperature ${TEMPERATURE} \
   --broadcasting \
   --selected-broadcasted-models ${BROADCAST_MODELS} \
   --enable-predictor-feedback \
@@ -205,12 +244,14 @@ DATASET_ARGS=""
 if [ "${DATASET_NAME}" = "random" ]; then
     DATASET_ARGS="--dataset-name random --random-input-len ${RANDOM_INPUT_LEN} --random-output-len ${RANDOM_OUTPUT_LEN}"
 elif [ "${DATASET_NAME}" = "sharegpt" ]; then
-    DATASET_ARGS="--dataset-name sharegpt --dataset-path ${DATASET_PATH}"
+    DATASET_ARGS="--dataset-name sharegpt --dataset-path ${SHAREGPT_DATASET_PATH}"
 elif [ "${DATASET_NAME}" = "sonnet" ]; then
     DATASET_ARGS="--dataset-name sonnet"
+elif [ "${DATASET_NAME}" = "custom" ]; then
+    DATASET_ARGS="--dataset-name custom --dataset-path ${CUSTOM_DATASET_PATH}"
 else
     echo "❌ Unknown dataset: ${DATASET_NAME}"
-    echo "Supported datasets: sharegpt, random, sonnet"
+    echo "Supported datasets: sharegpt, random, sonnet, custom"
     exit 1
 fi
 
@@ -226,7 +267,9 @@ python block/benchmark/cara/benchmark_serving.py \
   ${DATASET_ARGS} \
   --num-prompts ${NUM_PROMPTS} \
   --request-rate ${REQUEST_RATE} \
-  --save-detailed ${SAVE_DETAILED} \
+  --custom-output-len ${MAX_OUTPUT_TOKENS} \
+  --max-total-len ${MAX_TOTAL_LEN} \
+  --save-detailed \
   --result-dir ${OUTPUT_DIR} \
   --result-filename ${RESULT_FILENAME} \
   --save-result

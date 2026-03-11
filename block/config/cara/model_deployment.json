@@ -3,10 +3,13 @@
     "hf_model_name": "Qwen/Qwen2.5-72B",
     "precision": "fp16",
     "backend": "vllm",
-    "node_hosts": []
+    "node_hosts": [
+      "asdwb@d8545-10s10505.wisc.cloudlab.us",
+      "asdwb@d8545-10s10301.wisc.cloudlab.us"
+    ]
   },
   "Qwen-2.5-32B": {
-    "documentation": "Model deployment for Qwen-2.5-32B is currently disabled due to unexpected repeatation cursors.",
+    "documentation": "Model deployment for Qwen-2.5-32B is currently disabled due to unexpected repetition cursors.",
     "hf_model_name": "Qwen/Qwen2.5-32B",
     "precision": "fp16",
     "backend": "vllm",
@@ -16,21 +19,37 @@
     "hf_model_name": "Qwen/Qwen2.5-14B",
     "precision": "fp16",
     "backend": "vllm",
-    "node_hosts": []
+    "node_hosts": [
+      "asdwb@c4130-110133.wisc.cloudlab.us",
+      "asdwb@c4130-110533.wisc.cloudlab.us",
+      "asdwb@c4130-110233.wisc.cloudlab.us"
+    ]
   },
   "Qwen-2.5-7B": {
     "hf_model_name": "Qwen/Qwen2.5-7B",
     "precision": "fp16",
     "backend": "vllm",
-    "node_hosts": []
+    "node_hosts": [
+      "asdwb@d7525-10s10317.wisc.cloudlab.us",
+      "asdwb@d7525-10s10331.wisc.cloudlab.us",
+      "asdwb@d7525-10s10337.wisc.cloudlab.us",
+      "asdwb@d7525-10s10309.wisc.cloudlab.us",
+      "asdwb@d7525-10s10335.wisc.cloudlab.us"
+    ]
   },
   "Qwen-2.5-3B": {
     "hf_model_name": "Qwen/Qwen2.5-3B",
     "precision": "fp16",
     "backend": "vllm",
     "node_hosts": [
+      "asdwb@d7525-10s10319.wisc.cloudlab.us",
+      "asdwb@d7525-10s10339.wisc.cloudlab.us",
+      "asdwb@d7525-10s10323.wisc.cloudlab.us",
+      "asdwb@c240g5-110113.wisc.cloudlab.us",
       "asdwb@c240g5-110107.wisc.cloudlab.us",
-      "asdwb@c240g5-110119.wisc.cloudlab.us"
+      "asdwb@c240g5-110127.wisc.cloudlab.us",
+      "asdwb@c240g5-110121.wisc.cloudlab.us",
+      "asdwb@c240g5-110103.wisc.cloudlab.us"
     ]
   }
 }

@@ -104,8 +104,9 @@ class VllmInstance(Instance):
                 "messages": [
                     {"role": "user", "content": payload["prompt"]},
                 ],
-                "temperature": 0.0,
+                "temperature": payload.get("temperature", 0.0),
                 "repetition_penalty": payload.get("repetition_penalty", 1.0),
+                "frequency_penalty": payload.get("frequency_penalty", 0.0),
                 "max_completion_tokens": payload["max_tokens"],
                 "stream": True,
                 "stream_options": {
@@ -118,8 +119,9 @@ class VllmInstance(Instance):
             vllm_payload = {
                 "model": self._model_name,
                 "prompt": payload["prompt"],
-                "temperature": 0.0,
+                "temperature": payload.get("temperature", 0.0),
                 "repetition_penalty": payload.get("repetition_penalty", 1.0),
+                "frequency_penalty": payload.get("frequency_penalty", 0.0),
                 "max_tokens": payload["max_tokens"],
                 "logprobs": None,
                 "stream": True,

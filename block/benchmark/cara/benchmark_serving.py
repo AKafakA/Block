@@ -1167,26 +1167,8 @@ def save_to_pytorch_benchmark_format(
 
 def add_cli_args(parser: argparse.ArgumentParser):
     add_dataset_parser(parser)
-    # # Normalize default for custom datasets across environments (A100/P100)
-    # # vLLM's parser on some nodes may default to 256; override to 1024 for consistency.
-    # parser.set_defaults(custom_output_len=1024)
-    # # Align dataset sampling with backend cap defaults (commonly 1024 on CARA deployments)
-    # parser.set_defaults(max_total_len=1024)
-    parser.add_argument(
-        "--custom-output-len",
-        type=int,
-        default=1024,
-        help="Custom maximal output length for each input",
-    )
-
-    parser.add_argument(
-        "--max-total-len",
-        type=int,
-        default=None,
-        help="Maximum total length (prompt + output) for each request. "
-        "If specified, the benchmark client will cap output lengths "
-        "so that prompt_len + output_len <= max_total_len.",
-    )
+    # Override defaults from add_dataset_parser (vllm_compat may set different values)
+    parser.set_defaults(custom_output_len=1024)
 
     parser.add_argument(
         "--label",

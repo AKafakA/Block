@@ -569,47 +569,40 @@ def main():
         # Skip if not in the list of models to deploy
         if models_to_deploy and model_key not in models_to_deploy:
             print(f"\nSkipping: {model_key} (not in deployment list)")
-            # Still add to final config if it exists in output file
             continue
+
+        # When --models is used with an existing deployment config, use the
+        # already-allocated node_hosts instead of re-running allocation.
+        # This avoids the bug where re-allocation grabs nodes belonging to other models.
+        if models_to_deploy and model_key in final_config and 'node_hosts' in final_config[model_key]:
+            existing_hosts = final_config[model_key]['node_hosts']
+            print(f"\nRe-deploying: {model_key} to {len(existing_hosts)} existing hosts...")
+
+            # Build node_type -> hosts mapping from existing config to get correct vllm_params
+            if 'node_type' in details:
+                for ntype, node_config in details['node_type'].items():
+                    if isinstance(node_config, int):
+                        vllm_params = {}
+                    else:
+                        vllm_params = {k: v for k, v in node_config.items() if k != 'count'}
+                    # Find which existing hosts match this node type
+                    ntype_hosts = [h for h in existing_hosts if ntype in h.split('@')[-1]]
+                    if ntype_hosts:
+                        _deploy_hosts(ntype_hosts, vllm_params, ntype_label=ntype)
+            else:
+                _deploy_hosts(existing_hosts, {})
+
+            # Preserve existing config entry
+            final_config[model_key] = final_config[model_key]
+            continue
+
         print(f"\nProcessing: {model_key}...")
 
         # --- Allocation Logic ---
         new_entry = details.copy()
-        assigned_hosts = []
-        vllm_params = {}  # Store vLLM-specific parameters
+        assigned_hosts = []  # Accumulate all hosts for config output
 
-        if 'node_type' in details:
-            for ntype, node_config in details['node_type'].items():
-                # Support both old format (just count) and new format (dict with count + params)
-                if isinstance(node_config, int):
-                    # Old format: "d8545": 2
-                    count = node_config
-                else:
-                    # New format: "d8545": {"count": 2, "gpu-memory-utilization": 0.95, ...}
-                    count = node_config.get('count', 0)
-                    # Extract vLLM parameters (everything except 'count')
-                    vllm_params = {k: v for k, v in node_config.items() if k != 'count'}
-
-                if (ntype not in available_nodes and count > 0) or len(available_nodes.get(ntype, [])) < count:
-                    print(f"CRITICAL ERROR: Not enough nodes of type {ntype} for {model_key} (requires {count}, available {len(available_nodes.get(ntype, []))})")
-                    # In a real script you might want to continue, but exiting is safer here
-                    sys.exit(1)
-
-                if count == 0:
-                    continue
-                nodes = available_nodes[ntype][:count]
-                # Remove used nodes from pool
-                available_nodes[ntype] = available_nodes[ntype][count:]
-                assigned_hosts.extend(nodes)
-
-            del new_entry['node_type']
-            new_entry['node_hosts'] = assigned_hosts
-        else:
-            assigned_hosts = details.get('node_hosts', [])
-
-        final_config[model_key] = new_entry
-
-        # --- SSH Deployment Logic ---
+        # --- SSH Deployment Logic (common fields) ---
         backend = details.get('backend', 'vllm')
         hf_name = details.get('hf_model_name')
         precision = details.get('precision', 'fp16')
@@ -622,57 +615,96 @@ def main():
             print(f"ERROR: Invalid backend '{backend}' for {model_key}. Must be 'vllm' or 'ollama'")
             sys.exit(1)
 
-        for host in assigned_hosts:
-            # Collect deployment tasks (parallel mode) or execute immediately (sequential mode)
-            if deploy_model_instances:
-                # First, cleanup existing processes
-                cleanup_cmds = get_cleanup_commands(backend)
-                if cleanup_cmds:
-                    if args.parallel:
-                        deployment_tasks.append((host, cleanup_cmds, f"Cleanup ({model_key})"))
-                    else:
-                        run_ssh_cmd(host, cleanup_cmds, f"Cleanup ({model_key})")
+        def _deploy_hosts(hosts: List[str], vllm_params: Dict, ntype_label: str = ""):
+            """Deploy model instances and predictors to a group of hosts with shared vllm_params."""
+            label_suffix = f" [{ntype_label}]" if ntype_label else ""
+            for host in hosts:
+                # Deploy model instances
+                if deploy_model_instances:
+                    # First, cleanup existing processes
+                    cleanup_cmds = get_cleanup_commands(backend)
+                    if cleanup_cmds:
+                        if args.parallel:
+                            deployment_tasks.append((host, cleanup_cmds, f"Cleanup ({model_key}{label_suffix})"))
+                        else:
+                            run_ssh_cmd(host, cleanup_cmds, f"Cleanup ({model_key}{label_suffix})")
 
-                # Then deploy backend
-                if backend == "vllm":
-                    if vllm_params:
-                        print(f"  vLLM params: {vllm_params}")
-                    cmds = get_vllm_commands(hf_name, args.hf_token, precision, vllm_params,
-                                             fresh_deploy=args.fresh_deploy)
-                    if args.parallel:
-                        deployment_tasks.append((host, cmds, f"Deploy vLLM ({model_key})"))
-                    else:
-                        run_ssh_cmd(host, cmds, f"Deploying vLLM ({model_key})")
-                elif backend == "ollama":
-                    print(f"  Ollama parallel requests: {args.ollama_num_parallel}")
-                    cmds = get_ollama_commands(hf_name, num_parallel=args.ollama_num_parallel,
-                                               fresh_deploy=args.fresh_deploy)
-                    if args.parallel:
-                        deployment_tasks.append((host, cmds, f"Deploy Ollama ({model_key})"))
-                    else:
-                        run_ssh_cmd(host, cmds, f"Deploying Ollama ({model_key})")
+                    # Then deploy backend
+                    if backend == "vllm":
+                        if vllm_params:
+                            print(f"  vLLM params for {ntype_label or 'default'}: {vllm_params}")
+                        cmds = get_vllm_commands(hf_name, args.hf_token, precision, vllm_params,
+                                                 fresh_deploy=args.fresh_deploy)
+                        if args.parallel:
+                            deployment_tasks.append((host, cmds, f"Deploy vLLM ({model_key}{label_suffix})"))
+                        else:
+                            run_ssh_cmd(host, cmds, f"Deploying vLLM ({model_key}{label_suffix})")
+                    elif backend == "ollama":
+                        print(f"  Ollama parallel requests: {args.ollama_num_parallel}")
+                        cmds = get_ollama_commands(hf_name, num_parallel=args.ollama_num_parallel,
+                                                   fresh_deploy=args.fresh_deploy)
+                        if args.parallel:
+                            deployment_tasks.append((host, cmds, f"Deploy Ollama ({model_key}{label_suffix})"))
+                        else:
+                            run_ssh_cmd(host, cmds, f"Deploying Ollama ({model_key}{label_suffix})")
 
-            # Deploy predictors if requested
-            if deploy_predictors_flag:
-                # Extract hostname from "user@hostname" format
-                hostname = host.split("@")[-1] if "@" in host else host
-                # Validate hostname exists in host_config
-                if hostname not in host_config:
-                    print(f"ERROR: Hostname '{hostname}' not found in host_config ({args.host_config})")
-                    print(f"Available hosts: {list(host_config.keys())}")
-                    sys.exit(1)
-                # Get backend_port from host_config (single source of truth!)
-                backend_port = host_config[hostname]["backend_port"]
-                predictor_cmds = get_predictor_deployment_commands(
-                    hostname=hostname,
-                    backend_port=backend_port,
-                    predictor_config=predictor_config,
-                    host_config=host_config
-                )
-                if args.parallel:
-                    deployment_tasks.append((host, predictor_cmds, f"Deploy Predictors ({model_key})"))
+                # Deploy predictors if requested
+                if deploy_predictors_flag:
+                    # Extract hostname from "user@hostname" format
+                    hostname = host.split("@")[-1] if "@" in host else host
+                    # Validate hostname exists in host_config
+                    if hostname not in host_config:
+                        print(f"ERROR: Hostname '{hostname}' not found in host_config ({args.host_config})")
+                        print(f"Available hosts: {list(host_config.keys())}")
+                        sys.exit(1)
+                    # Get backend_port from host_config (single source of truth!)
+                    backend_port = host_config[hostname]["backend_port"]
+                    predictor_cmds = get_predictor_deployment_commands(
+                        hostname=hostname,
+                        backend_port=backend_port,
+                        predictor_config=predictor_config,
+                        host_config=host_config
+                    )
+                    if args.parallel:
+                        deployment_tasks.append((host, predictor_cmds, f"Deploy Predictors ({model_key}{label_suffix})"))
+                    else:
+                        run_ssh_cmd(host, predictor_cmds, f"Deploying Predictors ({model_key}{label_suffix})")
+
+        if 'node_type' in details:
+            for ntype, node_config in details['node_type'].items():
+                # Support both old format (just count) and new format (dict with count + params)
+                if isinstance(node_config, int):
+                    # Old format: "d8545": 2
+                    count = node_config
+                    vllm_params = {}
                 else:
-                    run_ssh_cmd(host, predictor_cmds, f"Deploying Predictors ({model_key})")
+                    # New format: "d8545": {"count": 2, "gpu-memory-utilization": 0.95, ...}
+                    count = node_config.get('count', 0)
+                    # Extract vLLM parameters (everything except 'count')
+                    vllm_params = {k: v for k, v in node_config.items() if k != 'count'}
+
+                if (ntype not in available_nodes and count > 0) or len(available_nodes.get(ntype, [])) < count:
+                    print(f"CRITICAL ERROR: Not enough nodes of type {ntype} for {model_key} (requires {count}, available {len(available_nodes.get(ntype, []))})")
+                    sys.exit(1)
+
+                if count == 0:
+                    continue
+                nodes = available_nodes[ntype][:count]
+                # Remove used nodes from pool
+                available_nodes[ntype] = available_nodes[ntype][count:]
+                assigned_hosts.extend(nodes)
+
+                # Deploy this group of nodes with their specific vllm_params
+                _deploy_hosts(nodes, vllm_params, ntype_label=ntype)
+
+            del new_entry['node_type']
+            new_entry['node_hosts'] = assigned_hosts
+        else:
+            assigned_hosts = details.get('node_hosts', [])
+            # Deploy with default (empty) vllm_params
+            _deploy_hosts(assigned_hosts, {})
+
+        final_config[model_key] = new_entry
 
     # Execute all deployment tasks in parallel (if parallel mode enabled)
     if args.parallel and deployment_tasks:

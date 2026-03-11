@@ -5,7 +5,7 @@
     "backend": "vllm",
     "node_type": {
       "d8545": {
-        "count": 0,
+        "count": 2,
         "gpu-memory-utilization": 0.95,
         "max-model-len": 8192,
         "enforce-eager": true,
@@ -32,7 +32,7 @@
     "backend": "vllm",
     "node_type": {
       "c4130": {
-        "count": 0,
+        "count": 3,
         "max-model-len": 8192,
         "gpu-memory-utilization": 0.85,
         "use_hf_cache": true
@@ -45,7 +45,7 @@
     "backend": "vllm",
     "node_type": {
       "d7525": {
-        "count": 0,
+        "count": 5,
         "max-model-len": 8192
       }
     }
@@ -55,8 +55,12 @@
     "precision": "fp16",
     "backend": "vllm",
     "node_type": {
+      "d7525": {
+        "count": 3,
+        "max-model-len": 8192
+      },
       "c240g5": {
-        "count": 2,
+        "count": 5,
         "serve_with_v0": true,
         "max-model-len": 8192,
         "dtype": "float16",
