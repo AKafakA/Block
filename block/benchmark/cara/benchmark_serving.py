@@ -26,26 +26,23 @@ import aiohttp
 import numpy as np
 from tqdm.asyncio import tqdm
 
-# Use compatibility layer for vLLM benchmarks (supports both old and new vLLM versions)
-from block.benchmark.cara.vllm_compat import (
-    add_dataset_parser,
+from vllm.benchmarks.datasets import SampleRequest, add_dataset_parser
+from vllm.benchmarks.lib.endpoint_request_func import (
     ASYNC_REQUEST_FUNCS,
     OPENAI_COMPATIBLE_BACKENDS,
-    RequestFuncInput,
-    wait_for_endpoint,
-    convert_to_pytorch_benchmark_format,
-    write_to_json,
-    get_tokenizer,
-    freeze_gc_heap,
-    join_host_port,
+    RequestFuncInput
 )
+from vllm.benchmarks.lib.ready_checker import wait_for_endpoint
+from vllm.benchmarks.lib.utils import convert_to_pytorch_benchmark_format, write_to_json
+from vllm.transformers_utils.tokenizer import get_tokenizer
+from vllm.utils.gc_utils import freeze_gc_heap
+from vllm.utils.network_utils import join_host_port
 
 from transformers import PreTrainedTokenizerBase
 
 
 from block.benchmark.cara.cara_end_point_func import RequestFuncOutput, CARA_ASYNC_REQUEST_FUNCS
-# Import SampleRequest from dataset.py (local canonical implementation)
-from block.benchmark.cara.dataset import get_samples, SampleRequest
+from block.benchmark.cara.dataset import get_samples
 from block.global_scheduler.cara.utils import set_ulimit
 
 # Merge CARA async request functions with vLLM's request functions
@@ -387,9 +384,7 @@ def calculate_metrics(
     if failed_outputs:
         from datetime import datetime
         from collections import Counter
-        error_log_filename = os.path.abspath(os.path.expanduser(
-            f"failed_requests_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
-        ))
+        error_log_filename = f"failed_requests_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
 
         # Analyze failure patterns
         failures_by_instance = Counter(f.instance_id or 'Unknown' for f in failed_outputs)
@@ -440,7 +435,6 @@ def calculate_metrics(
 
         print(f"\n⚠️  {len(failed_outputs)} failed requests detected!")
         print(f"📝 Detailed error logs written to: {error_log_filename}")
-        print(f"   Open in vim: vim {error_log_filename}")
         print(f"    Summary: {dict(failures_by_instance.most_common(3))}\n")
 
     if successful_outputs:
@@ -594,7 +588,7 @@ async def benchmark(
         timeout=aiohttp.ClientTimeout(total=6 * 60 * 60),
     )
 
-    print("Checking endpoint readiness...")
+    print("Starting initial single prompt test run...")
     test_prompt, test_prompt_len, test_output_len, test_mm_content = (
         input_requests[0].prompt,
         input_requests[0].prompt_len,
@@ -625,44 +619,20 @@ async def benchmark(
     )
 
     if ready_check_timeout_sec > 0:
-        if endpoint_type == "cara":
-            # Fast health-check for CARA server to avoid long warmup generation
-            from urllib.parse import urlparse, urlunparse
-            parsed = urlparse(api_url)
-            base = urlunparse((parsed.scheme, parsed.netloc, "", "", "", ""))
-            health_url = base.rstrip("/") + "/health"
-            deadline = time.time() + ready_check_timeout_sec
-            ok = False
-            print(f"Waiting for endpoint to become ready (GET {health_url})...")
-            while time.time() < deadline:
-                try:
-                    async with session.get(health_url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
-                        if resp.status == 200:
-                            ok = True
-                            break
-                except Exception:
-                    pass
-                await asyncio.sleep(1)
-            if not ok:
-                raise TimeoutError(
-                    f"Endpoint did not become ready within {ready_check_timeout_sec} seconds"
-                )
-            print("Endpoint is ready.")
-        else:
-            test_output = await wait_for_endpoint(
-                request_func,
-                test_input,
-                session,
-                timeout_seconds=ready_check_timeout_sec,
+        test_output = await wait_for_endpoint(
+            request_func,
+            test_input,
+            session,
+            timeout_seconds=ready_check_timeout_sec,
+        )
+        if not test_output.success:
+            raise ValueError(
+                "Initial test run failed - Please make sure benchmark "
+                "arguments are correctly specified. "
+                f"Error: {test_output.error}"
             )
-            if getattr(test_output, "success", True) is False:
-                raise ValueError(
-                    "Initial test run failed - Please make sure benchmark "
-                    "arguments are correctly specified. "
-                    f"Error: {test_output.error}"
-                )
-            else:
-                print("Endpoint is ready.")
+        else:
+            print("Initial test run completed.")
     else:
         print("Skipping endpoint ready check.")
 
@@ -789,18 +759,13 @@ async def benchmark(
             req_lora_module = next(lora_modules)
             req_model_id, req_model_name = req_lora_module, req_lora_module
 
-        # Enforce client-side cap so prompt_len + output_len <= args.max_total_len
-        # This keeps requests within backend max-model-len (commonly 1024 in our deployments)
-        allowed_output_len = max(0, (args.max_total_len or 1024) - (prompt_len or 0))
-        capped_output_len = min(output_len or 0, allowed_output_len)
-
         request_func_input = RequestFuncInput(
             model=req_model_id,
             model_name=req_model_name,
             prompt=prompt,
             api_url=api_url,
             prompt_len=prompt_len,
-            output_len=capped_output_len,
+            output_len=output_len,
             logprobs=logprobs,
             multi_modal_content=mm_content,
             ignore_eos=ignore_eos,
@@ -1167,9 +1132,6 @@ def save_to_pytorch_benchmark_format(
 
 def add_cli_args(parser: argparse.ArgumentParser):
     add_dataset_parser(parser)
-    # Override defaults from add_dataset_parser (vllm_compat may set different values)
-    parser.set_defaults(custom_output_len=1024)
-
     parser.add_argument(
         "--label",
         type=str,
@@ -1225,7 +1187,7 @@ def add_cli_args(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--model",
         type=str,
-        default="Qwen/Qwen2.5-3B",
+        default="Qwen/Qwen2.5-72B",
         help="Name of the model running at cara service also, so we can use its tokenizer to avoid redownloading.",
     )
     parser.add_argument(
@@ -1247,12 +1209,6 @@ def add_cli_args(parser: argparse.ArgumentParser):
         - Other custom values can be supported via plugins.""",
     )
     parser.add_argument("--use-beam-search", action="store_true")
-    parser.add_argument(
-        "--request-id-prefix",
-        type=str,
-        default="",
-        help="Prefix for request IDs.",
-    )
     parser.add_argument(
         "--logprobs",
         type=int,
@@ -1315,13 +1271,11 @@ def add_cli_args(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--save-detailed",
         action="store_true",
-        help=(
-            "Save results and include per-request response_details "
-            "(request_id, prompt, input_len, output_len, response, ttft, itl, "
-            "e2el, scheduling_overhead, model, host, instance_id, error, "
-            "broadcast_results). Equivalent to enabling --save-result and "
-            "adding detailed fields."
-        ),
+        help="When saving the results, include the response_details field "
+        "containing all per-request metrics (request_id, prompt, input_len, "
+        "output_len, response, ttft, itl, e2el, scheduling_overhead, model, "
+        "host, instance_id, error, broadcast_results). "
+        "If not specified, only summary metrics are saved.",
     )
     parser.add_argument(
         "--append-result",
@@ -1389,9 +1343,13 @@ def add_cli_args(parser: argparse.ArgumentParser):
         "goodput, refer to DistServe paper: https://arxiv.org/pdf/2401.09670 "
         "and the blog: https://hao-ai-lab.github.io/blogs/distserve",
     )
-    # NOTE: --request-id-prefix is added by add_dataset_parser (from vLLM or
-    # our compatibility layer). Avoid redefining it here to prevent argparse
-    # conflicts on older/newer vLLM versions.
+    parser.add_argument(
+        "--request-id-prefix",
+        type=str,
+        required=False,
+        default=f"bench-{uuid.uuid4().hex[:8]}-",
+        help="Specify the prefix of request id.",
+    )
 
     sampling_group = parser.add_argument_group("sampling parameters")
     sampling_group.add_argument(
@@ -1507,7 +1465,6 @@ def add_cli_args(parser: argparse.ArgumentParser):
         type=json.loads,
         default=None,
     )
-
 
 
 def main(args: argparse.Namespace) -> dict[str, Any]:
@@ -1714,8 +1671,7 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
             del result_json["response_details"]
 
     # Save to file
-    # Also save when --save-detailed is specified (implies saving results)
-    if args.save_result or args.append_result or args.save_detailed:
+    if args.save_result or args.append_result:
         base_model_id = model_id.split("/")[-1]
         max_concurrency_str = (
             f"-concurrency{args.max_concurrency}"
@@ -1744,13 +1700,9 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
             file_name = f"{label}-{dataset_prefix}{args.request_rate}qps{max_concurrency_str}-{base_model_id}-{current_dt}.json"  # noqa
         if args.result_filename:
             file_name = args.result_filename
-        # Expand and absolutize result_dir and filename for copy-paste friendliness
         if args.result_dir:
-            result_dir = os.path.abspath(os.path.expanduser(args.result_dir))
-            os.makedirs(result_dir, exist_ok=True)
-            file_name = os.path.join(result_dir, file_name)
-        # Always store and print an absolute path
-        file_name = os.path.abspath(os.path.expanduser(file_name))
+            os.makedirs(args.result_dir, exist_ok=True)
+            file_name = os.path.join(args.result_dir, file_name)
         with open(
             file_name, mode="a+" if args.append_result else "w", encoding="utf-8"
         ) as outfile:
@@ -1763,14 +1715,6 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
         # Print the saved filename for easy tracking
         print("\n" + "=" * 50)
         print(f"Results saved to: {file_name}")
-        # Print companion PyTorch benchmark file as well
-        pt_file = f"{os.path.splitext(file_name)[0]}.pytorch.json"
-        if os.path.exists(pt_file):
-            print(f"PyTorch benchmark saved to: {pt_file}")
-        # Quick copy-paste commands for convenience
-        print(f"Open in vim: vim {file_name}")
-        if os.path.exists(pt_file):
-            print(f"Open PT file in vim: vim {pt_file}")
         print("=" * 50 + "\n")
 
     return result_json

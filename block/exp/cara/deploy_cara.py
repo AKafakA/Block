@@ -5,13 +5,6 @@ import sys
 import argparse
 import subprocess
 from typing import Dict, List
-from concurrent.futures import ThreadPoolExecutor, as_completed
-
-
-# --- Constants ---
-# Sleep times for deployment (in seconds)
-FRESH_DEPLOY_SLEEP_SECONDS = 600  # Time to download models from HuggingFace
-NORMAL_DEPLOY_SLEEP_SECONDS = 10  # Time to start already-cached models
 
 
 # --- Helpers ---
@@ -38,8 +31,10 @@ def parse_host_file(filepath: str) -> Dict[str, List[str]]:
     return node_pool
 
 
+    
+
+
 def run_ssh_cmd(host: str, commands: List[str], description: str):
-    """Execute SSH command synchronously (blocking). Used for sequential deployment."""
     print(f"[{description}] Connecting to {host}...")
 
     # --- CRITICAL FIX IS HERE ---
@@ -78,113 +73,6 @@ def run_ssh_cmd(host: str, commands: List[str], description: str):
         print(f"  [TIMEOUT] Command took too long (check connection or extend timeout).")
     except Exception as e:
         print(f"  [ERROR] Connection failed: {str(e)}")
-
-
-def run_ssh_cmd_async(host: str, commands: List[str], description: str) -> Dict:
-    """Execute SSH command and return result dict (for parallel deployment)."""
-    valid_commands = [c for c in commands if c and c.strip()]
-    full_command = " && ".join(valid_commands)
-
-    ssh_params = [
-        "ssh",
-        "-o", "StrictHostKeyChecking=no",
-        "-o", "UserKnownHostsFile=/dev/null",
-        host,
-        full_command
-    ]
-
-    try:
-        result = subprocess.run(ssh_params, capture_output=True, text=True, timeout=900)
-        return {
-            "host": host,
-            "description": description,
-            "success": result.returncode == 0,
-            "returncode": result.returncode,
-            "stdout": result.stdout.strip() if result.stdout else "",
-            "stderr": result.stderr.strip() if result.stderr else "",
-        }
-    except subprocess.TimeoutExpired:
-        return {
-            "host": host,
-            "description": description,
-            "success": False,
-            "error": "TIMEOUT: Command took too long (>15 minutes)"
-        }
-    except Exception as e:
-        return {
-            "host": host,
-            "description": description,
-            "success": False,
-            "error": f"Connection failed: {str(e)}"
-        }
-
-
-def deploy_parallel(tasks: List[tuple], max_workers: int = 20) -> bool:
-    """
-    Deploy to multiple hosts in parallel.
-
-    Args:
-        tasks: List of (host, commands, description) tuples
-        max_workers: Maximum parallel SSH connections
-
-    Returns:
-        True if all deployments succeeded, False otherwise
-    """
-    if not tasks:
-        return True
-
-    print(f"\n{'='*60}")
-    print(f"Starting parallel deployment to {len(tasks)} hosts...")
-    print(f"Max parallel connections: {max_workers}")
-    print(f"{'='*60}\n")
-
-    all_success = True
-    completed = 0
-    total = len(tasks)
-
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        # Submit all tasks
-        future_to_task = {
-            executor.submit(run_ssh_cmd_async, host, commands, description): (host, description)
-            for host, commands, description in tasks
-        }
-
-        # Process results as they complete
-        for future in as_completed(future_to_task):
-            host, description = future_to_task[future]
-            completed += 1
-
-            try:
-                result = future.result()
-                if result["success"]:
-                    print(f"[{completed}/{total}] ✓ {host} - {description}")
-                    # Print important output (condensed)
-                    if result.get("stdout") and "Deployment completed" in result["stdout"]:
-                        print(f"         → Deployment completed successfully")
-                else:
-                    all_success = False
-                    print(f"[{completed}/{total}] ✗ {host} - {description}")
-                    if "error" in result:
-                        print(f"         → Error: {result['error']}")
-                    else:
-                        print(f"         → Exit code: {result.get('returncode', 'unknown')}")
-                        if result.get("stderr"):
-                            # Print first 200 chars of stderr
-                            stderr_preview = result["stderr"][:200]
-                            print(f"         → {stderr_preview}...")
-            except Exception as e:
-                all_success = False
-                print(f"[{completed}/{total}] ✗ {host} - {description}")
-                print(f"         → Exception: {str(e)}")
-
-    print(f"\n{'='*60}")
-    if all_success:
-        print(f"✓ All {total} deployments completed successfully!")
-    else:
-        print(f"✗ Some deployments failed. Check logs above.")
-    print(f"{'='*60}\n")
-
-    return all_success
 
 
 def to_ollama_tag(hf_name: str) -> str:
@@ -286,31 +174,10 @@ def get_vllm_commands(model_path: str, hf_token: str, precision: str, vllm_param
         cmds.append(f"export VLLM_ATTENTION_BACKEND={backend_value}")
         cmds.append(f"echo 'Using attention backend: {backend_value}'")
 
-    sleep_time = FRESH_DEPLOY_SLEEP_SECONDS if fresh_deploy else NORMAL_DEPLOY_SLEEP_SECONDS
+    sleep_time = 600 if fresh_deploy else 10
 
     cmds.extend([
-        # Ensure CUDA env and common library locations (covers CUDA 12.x + pip-installed NVIDIA libs)
-        "export CUDA_HOME=${CUDA_HOME:-/usr/local/cuda}",
-        # Dynamically add all nvidia lib paths from user's pip site-packages
-        (
-            "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:" \
-            "$CUDA_HOME/lib64:" \
-            "$CUDA_HOME/targets/x86_64-linux/lib:" \
-            "/usr/local/cuda-12.8/lib64:" \
-            "/usr/lib/x86_64-linux-gnu:" \
-            "$(python3 -c 'import site; print(site.getusersitepackages())')/nvidia/cudnn/lib:" \
-            "$(python3 -c 'import site; print(site.getusersitepackages())')/nvidia/cusparselt/lib:" \
-            "$(python3 -c 'import site; print(site.getusersitepackages())')/nvidia/nccl/lib:" \
-            "$(python3 -c 'import site; print(site.getusersitepackages())')/nvidia/nvjitlink/lib:" \
-            "$(python3 -c 'import site; print(site.getusersitepackages())')/nvidia/nvshmem/lib:" \
-            "$(python3 -c 'import site; print(site.getusersitepackages())')/nvidia/cublas/lib:" \
-            "$(python3 -c 'import site; print(site.getusersitepackages())')/nvidia/cuda_runtime/lib:" \
-            "/usr/local/lib/python3.10/dist-packages/nvidia/cudnn/lib:" \
-            "/usr/local/lib/python3.10/dist-packages/nvidia/cusparselt/lib:" \
-            "/usr/local/lib/python3.10/dist-packages/nvidia/nccl/lib:" \
-            "/usr/local/lib/python3.10/dist-packages/nvidia/nvshmem/lib"
-        ),
-        "export PATH=$PATH:$CUDA_HOME/bin:/usr/local/cuda-12.8/bin",
+        "export LD_LIBRARY_PATH=/usr/local/lib/python3.10/dist-packages/nvidia/nvshmem/lib:$LD_LIBRARY_PATH",
         "echo 'Step 4: Detecting GPU count...'",
         "export GPU_COUNT=$(python3 -c 'import torch; print(torch.cuda.device_count())')",
         "echo \"GPU_COUNT=$GPU_COUNT\"",
@@ -345,9 +212,11 @@ def get_predictor_deployment_commands(
     # Avoid port collision with backend by skipping backend_port if present
     predictor_ports = [p for p in predictor_ports if p != backend_port]
 
-    # Get data output directory for creating the directory structure
-    # (Other config settings like enable_data_collection, sample_rate are read directly by predictor from config file)
+    # Get data collection settings from predictor config (currently handled by config file)
+    _enable_data_collection = predictor_config.get("enable_data_collection", False)
+    _data_collection_sample_rate = predictor_config.get("data_collection_sample_rate", 1.0)
     data_output_dir = predictor_config.get("data_output_dir", "./training_data/cara")
+    _save_batch_size = predictor_config.get("save_batch_size", 100)
 
     # Build a single aggregated command string to avoid "& &&" join issues.
     header_parts = [
@@ -406,25 +275,15 @@ def get_predictor_deployment_commands(
 def get_ollama_commands(hf_name: str, num_parallel: int = 4, fresh_deploy: bool = False) -> List[str]:
     ollama_tag = to_ollama_tag(hf_name)
 
-    sleeping_time = FRESH_DEPLOY_SLEEP_SECONDS if fresh_deploy else NORMAL_DEPLOY_SLEEP_SECONDS
+    sleeping_time = 600 if fresh_deploy else 10
 
     cmds = [
         "if [ ! -d ~/ollama ]; then echo 'ERROR: ollama directory not found'; exit 1; fi",
         "cd ~/ollama",
         "echo 'Setting environment variables...'",
         # Export PATH to include Go and CUDA (same as in setup.sh)
-        "export CUDA_HOME=${CUDA_HOME:-/usr/local/cuda}",
-        "export PATH=$PATH:/usr/local/go/bin:$CUDA_HOME/bin:/usr/local/cuda-12.8/bin",
-        (
-            "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:" \
-            "$CUDA_HOME/lib64:" \
-            "$CUDA_HOME/targets/x86_64-linux/lib:" \
-            "/usr/local/cuda-12.8/lib64:" \
-            "/usr/lib/x86_64-linux-gnu:" \
-            "/usr/local/lib/python3.10/dist-packages/nvidia/cudnn/lib:" \
-            "/usr/local/lib/python3.10/dist-packages/nvidia/nccl/lib:" \
-            "/usr/local/lib/python3.10/dist-packages/cusparselt/lib"
-        ),
+        "export PATH=$PATH:/usr/local/go/bin:/usr/local/cuda-12.8/bin:/usr/local/cuda/bin",
+        "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda-12.8/lib64",
         # CRITICAL: Set OLLAMA_HOST to listen on all interfaces, not just localhost
         "export OLLAMA_HOST=0.0.0.0:11434",
         # Enable parallel request processing to maximize GPU utilization
@@ -473,8 +332,8 @@ def main():
     parser.add_argument("--fresh-deploy", action="store_true",
                         help="If set, it usually need much longer time to download models from HF and golang packages for Ollama.")
 
-    parser.add_argument("--no-deploy-predictors", dest="deploy_predictors", action="store_false", default=True,
-                        help="Skip deploying CARA predictors (default: predictors ARE deployed)")
+    parser.add_argument("--deploy-predictors", type=bool, default=True,
+                        help="Deploy CARA predictors alongside backend instances")
     parser.add_argument("--predictor-config", type=str,
                         default="block/config/cara/predictor_deployment_config.json",
                         help="Path to predictor deployment config")
@@ -490,14 +349,6 @@ def main():
             "Default: model_instance predictor"
         )
     )
-
-    parser.add_argument("--no-distribute-config", dest="distribute_config", action="store_false", default=True,
-                        help="Skip distributing config to remote nodes (default: config IS distributed)")
-
-    parser.add_argument("--sequential", dest="parallel", action="store_false", default=True,
-                        help="Deploy to nodes sequentially (slower, useful for debugging). Default: parallel deployment")
-    parser.add_argument("--max-parallel-workers", type=int, default=20,
-                        help="Maximum number of parallel SSH connections (default: 20)")
 
     args = parser.parse_args()
 
@@ -542,8 +393,8 @@ def main():
             with open(args.output, 'r') as f:
                 final_config = json.load(f)
             print(f"--- Loaded existing deployment config from {args.output} ---")
-        except (json.JSONDecodeError, IOError) as e:
-            print(f"--- Could not load existing config ({e}), starting fresh ---")
+        except:
+            print(f"--- Could not load existing config, starting fresh ---")
 
     print(f"--- Loaded {sum(len(v) for v in available_nodes.values())} nodes ---")
 
@@ -556,119 +407,19 @@ def main():
     else:
         print(f"--- Deploying all models ---")
 
-    # Deployment mode
-    if args.parallel:
-        print(f"--- Using PARALLEL deployment (max {args.max_parallel_workers} workers) ---")
-    else:
-        print(f"--- Using SEQUENTIAL deployment (slower, for debugging) ---")
-
     # 2. Allocation & Deployment
-    # Collect all deployment tasks for parallel execution
-    deployment_tasks = []
     for model_key, details in config.items():
         # Skip if not in the list of models to deploy
         if models_to_deploy and model_key not in models_to_deploy:
             print(f"\nSkipping: {model_key} (not in deployment list)")
+            # Still add to final config if it exists in output file
             continue
-
-        # When --models is used with an existing deployment config, use the
-        # already-allocated node_hosts instead of re-running allocation.
-        # This avoids the bug where re-allocation grabs nodes belonging to other models.
-        if models_to_deploy and model_key in final_config and 'node_hosts' in final_config[model_key]:
-            existing_hosts = final_config[model_key]['node_hosts']
-            print(f"\nRe-deploying: {model_key} to {len(existing_hosts)} existing hosts...")
-
-            # Build node_type -> hosts mapping from existing config to get correct vllm_params
-            if 'node_type' in details:
-                for ntype, node_config in details['node_type'].items():
-                    if isinstance(node_config, int):
-                        vllm_params = {}
-                    else:
-                        vllm_params = {k: v for k, v in node_config.items() if k != 'count'}
-                    # Find which existing hosts match this node type
-                    ntype_hosts = [h for h in existing_hosts if ntype in h.split('@')[-1]]
-                    if ntype_hosts:
-                        _deploy_hosts(ntype_hosts, vllm_params, ntype_label=ntype)
-            else:
-                _deploy_hosts(existing_hosts, {})
-
-            # Preserve existing config entry
-            final_config[model_key] = final_config[model_key]
-            continue
-
         print(f"\nProcessing: {model_key}...")
 
         # --- Allocation Logic ---
         new_entry = details.copy()
-        assigned_hosts = []  # Accumulate all hosts for config output
-
-        # --- SSH Deployment Logic (common fields) ---
-        backend = details.get('backend', 'vllm')
-        hf_name = details.get('hf_model_name')
-        precision = details.get('precision', 'fp16')
-
-        # Validate required fields before deployment
-        if not hf_name:
-            print(f"ERROR: Missing 'hf_model_name' for {model_key}")
-            sys.exit(1)
-        if backend not in ["vllm", "ollama"]:
-            print(f"ERROR: Invalid backend '{backend}' for {model_key}. Must be 'vllm' or 'ollama'")
-            sys.exit(1)
-
-        def _deploy_hosts(hosts: List[str], vllm_params: Dict, ntype_label: str = ""):
-            """Deploy model instances and predictors to a group of hosts with shared vllm_params."""
-            label_suffix = f" [{ntype_label}]" if ntype_label else ""
-            for host in hosts:
-                # Deploy model instances
-                if deploy_model_instances:
-                    # First, cleanup existing processes
-                    cleanup_cmds = get_cleanup_commands(backend)
-                    if cleanup_cmds:
-                        if args.parallel:
-                            deployment_tasks.append((host, cleanup_cmds, f"Cleanup ({model_key}{label_suffix})"))
-                        else:
-                            run_ssh_cmd(host, cleanup_cmds, f"Cleanup ({model_key}{label_suffix})")
-
-                    # Then deploy backend
-                    if backend == "vllm":
-                        if vllm_params:
-                            print(f"  vLLM params for {ntype_label or 'default'}: {vllm_params}")
-                        cmds = get_vllm_commands(hf_name, args.hf_token, precision, vllm_params,
-                                                 fresh_deploy=args.fresh_deploy)
-                        if args.parallel:
-                            deployment_tasks.append((host, cmds, f"Deploy vLLM ({model_key}{label_suffix})"))
-                        else:
-                            run_ssh_cmd(host, cmds, f"Deploying vLLM ({model_key}{label_suffix})")
-                    elif backend == "ollama":
-                        print(f"  Ollama parallel requests: {args.ollama_num_parallel}")
-                        cmds = get_ollama_commands(hf_name, num_parallel=args.ollama_num_parallel,
-                                                   fresh_deploy=args.fresh_deploy)
-                        if args.parallel:
-                            deployment_tasks.append((host, cmds, f"Deploy Ollama ({model_key}{label_suffix})"))
-                        else:
-                            run_ssh_cmd(host, cmds, f"Deploying Ollama ({model_key}{label_suffix})")
-
-                # Deploy predictors if requested
-                if deploy_predictors_flag:
-                    # Extract hostname from "user@hostname" format
-                    hostname = host.split("@")[-1] if "@" in host else host
-                    # Validate hostname exists in host_config
-                    if hostname not in host_config:
-                        print(f"ERROR: Hostname '{hostname}' not found in host_config ({args.host_config})")
-                        print(f"Available hosts: {list(host_config.keys())}")
-                        sys.exit(1)
-                    # Get backend_port from host_config (single source of truth!)
-                    backend_port = host_config[hostname]["backend_port"]
-                    predictor_cmds = get_predictor_deployment_commands(
-                        hostname=hostname,
-                        backend_port=backend_port,
-                        predictor_config=predictor_config,
-                        host_config=host_config
-                    )
-                    if args.parallel:
-                        deployment_tasks.append((host, predictor_cmds, f"Deploy Predictors ({model_key}{label_suffix})"))
-                    else:
-                        run_ssh_cmd(host, predictor_cmds, f"Deploying Predictors ({model_key}{label_suffix})")
+        assigned_hosts = []
+        vllm_params = {}  # Store vLLM-specific parameters
 
         if 'node_type' in details:
             for ntype, node_config in details['node_type'].items():
@@ -676,90 +427,73 @@ def main():
                 if isinstance(node_config, int):
                     # Old format: "d8545": 2
                     count = node_config
-                    vllm_params = {}
                 else:
                     # New format: "d8545": {"count": 2, "gpu-memory-utilization": 0.95, ...}
-                    count = node_config.get('count', 0)
+                    count = node_config.get('count', 1)
                     # Extract vLLM parameters (everything except 'count')
                     vllm_params = {k: v for k, v in node_config.items() if k != 'count'}
 
-                if (ntype not in available_nodes and count > 0) or len(available_nodes.get(ntype, [])) < count:
-                    print(f"CRITICAL ERROR: Not enough nodes of type {ntype} for {model_key} (requires {count}, available {len(available_nodes.get(ntype, []))})")
+                if ntype not in available_nodes or len(available_nodes[ntype]) < count:
+                    print(f"CRITICAL ERROR: Not enough nodes of type {ntype} for {model_key}")
+                    # In a real script you might want to continue, but exiting is safer here
                     sys.exit(1)
 
-                if count == 0:
-                    continue
                 nodes = available_nodes[ntype][:count]
                 # Remove used nodes from pool
                 available_nodes[ntype] = available_nodes[ntype][count:]
                 assigned_hosts.extend(nodes)
 
-                # Deploy this group of nodes with their specific vllm_params
-                _deploy_hosts(nodes, vllm_params, ntype_label=ntype)
-
             del new_entry['node_type']
             new_entry['node_hosts'] = assigned_hosts
         else:
             assigned_hosts = details.get('node_hosts', [])
-            # Deploy with default (empty) vllm_params
-            _deploy_hosts(assigned_hosts, {})
 
         final_config[model_key] = new_entry
 
-    # Execute all deployment tasks in parallel (if parallel mode enabled)
-    if args.parallel and deployment_tasks:
-        success = deploy_parallel(deployment_tasks, max_workers=args.max_parallel_workers)
-        if not success:
-            print("\n⚠ WARNING: Some deployments failed. Check logs above.")
-            print("Continuing with config generation and distribution...\n")
+        # --- SSH Deployment Logic ---
+        backend = details.get('backend', 'vllm')
+        hf_name = details.get('hf_model_name')
+        precision = details.get('precision', 'fp16')
+
+        for host in assigned_hosts:
+            # Optionally cleanup and deploy model instances
+            if deploy_model_instances:
+                # First, cleanup existing processes
+                cleanup_cmds = get_cleanup_commands(backend)
+                if cleanup_cmds:
+                    run_ssh_cmd(host, cleanup_cmds, f"Cleanup ({model_key})")
+
+                # Then deploy backend
+                if backend == "vllm":
+                    if vllm_params:
+                        print(f"  vLLM params: {vllm_params}")
+                    cmds = get_vllm_commands(hf_name, args.hf_token, precision, vllm_params,
+                                             fresh_deploy=args.fresh_deploy)
+                    run_ssh_cmd(host, cmds, f"Deploying vLLM ({model_key})")
+                elif backend == "ollama":
+                    print(f"  Ollama parallel requests: {args.ollama_num_parallel}")
+                    cmds = get_ollama_commands(hf_name, num_parallel=args.ollama_num_parallel,
+                                               fresh_deploy=args.fresh_deploy)
+                    run_ssh_cmd(host, cmds, f"Deploying Ollama ({model_key})")
+
+            # Deploy predictors if requested
+            if deploy_predictors_flag:
+                # Extract hostname from "user@hostname" format
+                hostname = host.split("@")[-1] if "@" in host else host
+                # Get backend_port from host_config (single source of truth!)
+                backend_port = host_config[hostname]["backend_port"]
+                predictor_cmds = get_predictor_deployment_commands(
+                    hostname=hostname,
+                    backend_port=backend_port,
+                    predictor_config=predictor_config,
+                    host_config=host_config
+                )
+                run_ssh_cmd(host, predictor_cmds, f"Deploying Predictors ({model_key})")
 
     # 3. Save Config
     with open(args.output, 'w') as f:
         json.dump(final_config, f, indent=2)
     print(f"\nDone! Final configuration saved to {args.output}")
-
-    # 4. Distribute config to all nodes (so scheduler can access it)
-    if args.distribute_config:
-        print(f"\n--- Distributing config to remote nodes ---")
-        all_hosts = []
-        for hosts in available_nodes.values():
-            all_hosts.extend(hosts)
-
-        # Add back the hosts we used for deployment
-        for model_key, details in final_config.items():
-            if 'node_hosts' in details:
-                all_hosts.extend(details['node_hosts'])
-
-        # Remove duplicates
-        all_hosts = list(set(all_hosts))
-
-        if not all_hosts:
-            print("Warning: No hosts found for config distribution")
-        else:
-            print(f"Distributing {args.output} to {len(all_hosts)} nodes...")
-            for host in all_hosts:
-                try:
-                    # Create remote directory if needed and copy config
-                    remote_path = f"~/Block/{args.output}"
-                    remote_dir = os.path.dirname(remote_path)
-
-                    scp_cmd = [
-                        "scp",
-                        "-o", "StrictHostKeyChecking=no",
-                        "-o", "UserKnownHostsFile=/dev/null",
-                        args.output,
-                        f"{host}:{remote_path}"
-                    ]
-
-                    result = subprocess.run(scp_cmd, capture_output=True, text=True, timeout=30)
-                    if result.returncode == 0:
-                        print(f"  ✓ {host}")
-                    else:
-                        print(f"  ✗ {host}: {result.stderr.strip()}")
-                except Exception as e:
-                    print(f"  ✗ {host}: {str(e)}")
-
-            print(f"Config distribution complete!")
 
 
 if __name__ == "__main__":

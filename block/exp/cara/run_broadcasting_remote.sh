@@ -16,20 +16,19 @@
 #   ./run_broadcasting_remote.sh TARGET_HOST [MODELS] [DATASET] [NUM_PROMPTS] [REQUEST_RATE] [OUTPUT_SUFFIX] [CUSTOM_DATASET_PATH]
 #
 # Examples:
-#   # Collect data from 3B, 7B, 14B models on CloudLab host
+#   # Collect data from all 4 models using v3 custom dataset (default)
 #   ./run_broadcasting_remote.sh asdwb@d8545-10s10301.wisc.cloudlab.us \
-#       "Qwen/Qwen2.5-3B Qwen/Qwen2.5-7B Qwen/Qwen2.5-14B" \
-#       sharegpt 100 inf test1
-#
-#   # Collect data with all models
-#   ./run_broadcasting_remote.sh user@host \
-#       "Qwen/Qwen2.5-3B Qwen/Qwen2.5-7B Qwen/Qwen2.5-14B Qwen/Qwen2.5-32B Qwen/Qwen2.5-72B" \
-#       sharegpt 500 2.0 full
-#
-#   # Use custom JSONL dataset (uploaded automatically to remote host)
-#   ./run_broadcasting_remote.sh user@host \
 #       "Qwen/Qwen2.5-3B Qwen/Qwen2.5-7B Qwen/Qwen2.5-14B Qwen/Qwen2.5-72B" \
-#       custom 500 inf initial_18node data/cara/best-route-extension.jsonl
+#       custom 500 inf test1 data/cara/best-route-v3-test-500.jsonl
+#
+#   # Full 20k run with rate limiting
+#   ./run_broadcasting_remote.sh asdwb@d8545-10s10301.wisc.cloudlab.us \
+#       "Qwen/Qwen2.5-3B Qwen/Qwen2.5-7B Qwen/Qwen2.5-14B Qwen/Qwen2.5-72B" \
+#       custom 20000 4.0 full_20k data/cara/best-route-v3.jsonl
+#
+# Environment variables for generation params (defaults shown):
+#   FREQUENCY_PENALTY=1.2 TEMPERATURE=0.0 REPETITION_PENALTY=1.0
+#   MAX_OUTPUT_TOKENS=1024 MAX_TOTAL_LEN=2048
 
 set -e  # Exit on error
 
@@ -38,17 +37,22 @@ set -e  # Exit on error
 # =============================================================================
 
 TARGET_HOST=${1:-"asdwb@d8545-10s10301.wisc.cloudlab.us"}
-BROADCAST_MODELS=${2:-"Qwen/Qwen2.5-3B Qwen/Qwen2.5-7B Qwen/Qwen2.5-14B"}
-DATASET_NAME=${3:-"sharegpt"}
-NUM_PROMPTS=${4:-100}
+BROADCAST_MODELS=${2:-"Qwen/Qwen2.5-3B Qwen/Qwen2.5-7B Qwen/Qwen2.5-14B Qwen/Qwen2.5-72B"}
+DATASET_NAME=${3:-"custom"}
+NUM_PROMPTS=${4:-500}
 REQUEST_RATE=${5:-inf}
 OUTPUT_SUFFIX=${6:-"broadcast_data"}
-LOCAL_CUSTOM_DATASET_PATH=${7:-""}  # Local path to custom JSONL dataset
+CUSTOM_DATASET_PATH=${7:-"data/cara/best-route-v3-test-500.jsonl"}
 
 # Remote paths
 REMOTE_WORK_DIR="Block"
-SHAREGPT_DATASET_PATH="~/dataset/sharegpt/sharegpt_random_10k.jsonl"
-REMOTE_CUSTOM_DATASET_DIR="~/dataset/cara"
+
+# Generation parameters (forwarded to test_broadcasting.sh via env vars)
+FREQUENCY_PENALTY=${FREQUENCY_PENALTY:-1.2}
+TEMPERATURE=${TEMPERATURE:-0.0}
+REPETITION_PENALTY=${REPETITION_PENALTY:-1.0}
+MAX_OUTPUT_TOKENS=${MAX_OUTPUT_TOKENS:-1024}
+MAX_TOTAL_LEN=${MAX_TOTAL_LEN:-2048}
 
 # SSH options
 SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
@@ -69,11 +73,13 @@ echo "CONFIGURATION:"
 echo "  Broadcast Models:     ${BROADCAST_MODELS}"
 echo "  Dataset:              ${DATASET_NAME}"
 if [ "${DATASET_NAME}" = "custom" ]; then
-    echo "  Local Dataset Path:   ${LOCAL_CUSTOM_DATASET_PATH}"
+    echo "  Dataset Path:         ${CUSTOM_DATASET_PATH}"
 fi
 echo "  Number of Prompts:    ${NUM_PROMPTS}"
 echo "  Request Rate:         ${REQUEST_RATE} qps"
 echo "  Output Suffix:        ${OUTPUT_SUFFIX}"
+echo "  Generation:           temp=${TEMPERATURE}, freq_penalty=${FREQUENCY_PENALTY}, rep_penalty=${REPETITION_PENALTY}"
+echo "  Max Output/Total:     ${MAX_OUTPUT_TOKENS} / ${MAX_TOTAL_LEN}"
 echo ""
 echo "========================================================================"
 echo ""
@@ -100,39 +106,19 @@ if ! ssh ${SSH_OPTS} ${TARGET_HOST} "[ -f ${REMOTE_WORK_DIR}/block/config/cara/m
 fi
 echo "✅ Model deployment config found"
 
-# Check if dataset exists (for sharegpt or custom)
-if [ "${DATASET_NAME}" = "sharegpt" ]; then
-    if ! ssh ${SSH_OPTS} ${TARGET_HOST} "[ -f ${SHAREGPT_DATASET_PATH} ]"; then
-        echo "⚠️  ShareGPT dataset not found at: ${SHAREGPT_DATASET_PATH}"
-        echo "Attempting to download dataset..."
-
-        DATASET_LINK="https://huggingface.co/datasets/anon8231489123/ShareGPT_Vicuna_unfiltered/resolve/main/ShareGPT_V3_unfiltered_cleaned_split.json"
-        ssh ${SSH_OPTS} ${TARGET_HOST} \
-            "mkdir -p ~/dataset/sharegpt && wget -O ${SHAREGPT_DATASET_PATH} ${DATASET_LINK}" || {
-            echo "❌ Failed to download dataset"
-            echo "Please manually download ShareGPT dataset to ${SHAREGPT_DATASET_PATH} on remote host"
+# Check if custom dataset exists on remote
+if [ "${DATASET_NAME}" = "custom" ]; then
+    if ! ssh ${SSH_OPTS} ${TARGET_HOST} "[ -f ${REMOTE_WORK_DIR}/${CUSTOM_DATASET_PATH} ]"; then
+        echo "⚠️  Custom dataset not found on remote: ${REMOTE_WORK_DIR}/${CUSTOM_DATASET_PATH}"
+        echo "Uploading from local..."
+        scp ${SSH_OPTS} "${CUSTOM_DATASET_PATH}" "${TARGET_HOST}:${REMOTE_WORK_DIR}/${CUSTOM_DATASET_PATH}" || {
+            echo "❌ Failed to upload dataset"
             exit 1
         }
-        echo "✅ Dataset downloaded successfully"
+        echo "✅ Dataset uploaded successfully"
     else
-        echo "✅ ShareGPT dataset found"
+        echo "✅ Custom dataset found on remote"
     fi
-elif [ "${DATASET_NAME}" = "custom" ]; then
-    if [ -z "${LOCAL_CUSTOM_DATASET_PATH}" ]; then
-        echo "❌ Custom dataset requires a local dataset path as the 7th argument"
-        echo "Usage: ./run_broadcasting_remote.sh HOST MODELS custom NUM_PROMPTS RATE SUFFIX /path/to/dataset.jsonl"
-        exit 1
-    fi
-    if [ ! -f "${LOCAL_CUSTOM_DATASET_PATH}" ]; then
-        echo "❌ Local custom dataset not found: ${LOCAL_CUSTOM_DATASET_PATH}"
-        exit 1
-    fi
-    DATASET_FILENAME=$(basename "${LOCAL_CUSTOM_DATASET_PATH}")
-    REMOTE_CUSTOM_DATASET_PATH="${REMOTE_CUSTOM_DATASET_DIR}/${DATASET_FILENAME}"
-    echo "Uploading custom dataset to remote host..."
-    ssh ${SSH_OPTS} ${TARGET_HOST} "mkdir -p ${REMOTE_CUSTOM_DATASET_DIR}"
-    scp ${SSH_OPTS} "${LOCAL_CUSTOM_DATASET_PATH}" "${TARGET_HOST}:${REMOTE_CUSTOM_DATASET_DIR}/${DATASET_FILENAME}"
-    echo "✅ Custom dataset uploaded to ${REMOTE_CUSTOM_DATASET_PATH}"
 fi
 
 echo ""
@@ -146,28 +132,21 @@ echo "-------------------------------------------------"
 echo "Executing test_broadcasting.sh on ${TARGET_HOST}..."
 echo ""
 
-# Build remote command with optional custom dataset path
-# Forward generation parameter env vars if set
-ENV_PREFIX=""
-[ -n "${REPETITION_PENALTY}" ] && ENV_PREFIX="${ENV_PREFIX}REPETITION_PENALTY=${REPETITION_PENALTY} "
-[ -n "${FREQUENCY_PENALTY}" ] && ENV_PREFIX="${ENV_PREFIX}FREQUENCY_PENALTY=${FREQUENCY_PENALTY} "
-[ -n "${TEMPERATURE}" ] && ENV_PREFIX="${ENV_PREFIX}TEMPERATURE=${TEMPERATURE} "
-[ -n "${MAX_OUTPUT_TOKENS}" ] && ENV_PREFIX="${ENV_PREFIX}MAX_OUTPUT_TOKENS=${MAX_OUTPUT_TOKENS} "
-[ -n "${MAX_TOTAL_LEN}" ] && ENV_PREFIX="${ENV_PREFIX}MAX_TOTAL_LEN=${MAX_TOTAL_LEN} "
-
-REMOTE_CMD="cd ${REMOTE_WORK_DIR} && ${ENV_PREFIX}bash block/exp/cara/test_broadcasting.sh \
+# Execute the test script remotely with generation params forwarded as env vars
+ssh ${SSH_OPTS} ${TARGET_HOST} "cd ${REMOTE_WORK_DIR} && \
+    FREQUENCY_PENALTY=${FREQUENCY_PENALTY} \
+    TEMPERATURE=${TEMPERATURE} \
+    REPETITION_PENALTY=${REPETITION_PENALTY} \
+    MAX_OUTPUT_TOKENS=${MAX_OUTPUT_TOKENS} \
+    MAX_TOTAL_LEN=${MAX_TOTAL_LEN} \
+    bash block/exp/cara/test_broadcasting.sh \
     '${BROADCAST_MODELS}' \
     ${DATASET_NAME} \
     ${NUM_PROMPTS} \
     ${REQUEST_RATE} \
-    ${OUTPUT_SUFFIX}"
-
-if [ "${DATASET_NAME}" = "custom" ]; then
-    REMOTE_CMD="${REMOTE_CMD} ${REMOTE_CUSTOM_DATASET_PATH}"
-fi
-
-# Execute the test script remotely
-ssh ${SSH_OPTS} ${TARGET_HOST} "${REMOTE_CMD}"
+    ${OUTPUT_SUFFIX} \
+    _ \
+    ${CUSTOM_DATASET_PATH}"
 
 if [ $? -ne 0 ]; then
     echo ""

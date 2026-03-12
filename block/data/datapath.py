@@ -48,3 +48,9 @@ GSM8K_DATASET_NAME = "gsm8k"
 SQUAD_DATASET_NAME = "squad"
 CNN_DAILYMAIL_DATASET_NAME = "cnn_dailymail"
 AI2_ARC_DATASET_NAME = "ai2_arc"
+
+# lmsys/lmsys-chat-1m: 1M real chat conversations with language tags and response labels
+LMSYS_DATASET_NAME = "lmsys/lmsys-chat-1m"
+LMSYS_PARQUET_FILES = [
+    f"data/train-{i:05d}-of-00006-*.parquet" for i in range(6)
+]

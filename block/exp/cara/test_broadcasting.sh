@@ -18,30 +18,22 @@
 #   - Customized vLLM with cara backend at ~/vllm
 #
 # Usage:
-#   ./test_broadcasting.sh [MODELS] [DATASET] [NUM_PROMPTS] [REQUEST_RATE] [OUTPUT_SUFFIX] [CUSTOM_DATASET_PATH]
+#   ./test_broadcasting.sh [MODELS] [DATASET] [NUM_PROMPTS] [REQUEST_RATE] [OUTPUT_SUFFIX] [6th_unused] [CUSTOM_DATASET_PATH]
 #
 # Examples:
-#   # Collect data from 3B, 7B, 14B models using ShareGPT dataset
-#   ./test_broadcasting.sh "Qwen/Qwen2.5-3B Qwen/Qwen2.5-7B Qwen/Qwen2.5-14B" sharegpt 100 inf test1
+#   # Collect data from all 4 models using custom v3 dataset (default)
+#   ./test_broadcasting.sh "Qwen/Qwen2.5-3B Qwen/Qwen2.5-7B Qwen/Qwen2.5-14B Qwen/Qwen2.5-72B" custom 500 inf test1 _ data/cara/best-route-v3-test-500.jsonl
 #
-#   # Collect data from all models with rate limiting
-#   ./test_broadcasting.sh "Qwen/Qwen2.5-3B Qwen/Qwen2.5-7B Qwen/Qwen2.5-14B Qwen/Qwen2.5-32B Qwen/Qwen2.5-72B" sharegpt 500 2.0 full
+#   # Collect data with rate limiting for full 20k run
+#   ./test_broadcasting.sh "Qwen/Qwen2.5-3B Qwen/Qwen2.5-7B Qwen/Qwen2.5-14B Qwen/Qwen2.5-72B" custom 20000 4.0 full_20k _ data/cara/best-route-v3.jsonl
+#
+#   # Override generation params via env vars
+#   FREQUENCY_PENALTY=0.0 TEMPERATURE=0.1 ./test_broadcasting.sh ...
 #
 #   # Use random prompts for quick testing
 #   ./test_broadcasting.sh "Qwen/Qwen2.5-3B Qwen/Qwen2.5-7B" random 50 inf debug
-#
-#   # Use custom JSONL dataset (format: {id, prompt} per line)
-#   ./test_broadcasting.sh "Qwen/Qwen2.5-3B Qwen/Qwen2.5-7B" custom 500 inf test1 ~/dataset/cara/best-route-extension.jsonl
 
 set -e  # Exit on error
-
-# =============================================================================
-# NVIDIA Library Path (needed for user-installed PyTorch with pip)
-# =============================================================================
-NVIDIA_LIB_BASE="$HOME/.local/lib/python3.10/site-packages/nvidia"
-if [ -d "$NVIDIA_LIB_BASE" ]; then
-    export LD_LIBRARY_PATH=$(find "$NVIDIA_LIB_BASE" -name 'lib' -type d 2>/dev/null | tr '\n' ':')${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
-fi
 
 # =============================================================================
 # Configuration Parameters
@@ -52,9 +44,9 @@ fi
 BROADCAST_MODELS=${1:-"Qwen/Qwen2.5-3B Qwen/Qwen2.5-7B Qwen/Qwen2.5-14B"}
 
 # Dataset selection
-DATASET_NAME=${2:-"sharegpt"}  # Options: sharegpt, random, sonnet, custom
+DATASET_NAME=${2:-"custom"}  # Options: custom, sharegpt, random, sonnet
+CUSTOM_DATASET_PATH=${7:-"data/cara/best-route-v3-test-500.jsonl"}  # Path for custom JSONL dataset
 SHAREGPT_DATASET_PATH="~/dataset/sharegpt/sharegpt_random_10k.jsonl"  # Path for sharegpt dataset
-CUSTOM_DATASET_PATH=${6:-""}  # Path for custom JSONL dataset (used when DATASET_NAME=custom)
 
 # Benchmark parameters
 NUM_PROMPTS=${3:-100}  # Number of prompts to process
@@ -71,19 +63,19 @@ MODEL_CONFIG="block/config/cara/model_deployment.json"
 HOST_CONFIG="block/config/host_configs.json"
 OUTPUT_DIR="experiment_output/cara_broadcast_training_data"
 
-# Server parameters (overridable via environment variables)
+# Server parameters
 REPETITION_PENALTY=${REPETITION_PENALTY:-1.0}
+SCHEDULING_STRATEGY="random"  # Doesn't matter for broadcasting (all models queried)
+
+# Generation parameters (passed to benchmark_serving.py)
 FREQUENCY_PENALTY=${FREQUENCY_PENALTY:-1.2}
 TEMPERATURE=${TEMPERATURE:-0.0}
-
-# Output length control (overridable via environment variables)
-MAX_OUTPUT_TOKENS=${MAX_OUTPUT_TOKENS:-1024}  # max_tokens sent to vLLM per request
-MAX_TOTAL_LEN=${MAX_TOTAL_LEN:-4096}         # prompt + output cap
-SCHEDULING_STRATEGY="random"  # Doesn't matter for broadcasting (all models queried)
+MAX_OUTPUT_TOKENS=${MAX_OUTPUT_TOKENS:-1024}
+MAX_TOTAL_LEN=${MAX_TOTAL_LEN:-2048}
 
 # Detailed metrics to save for training
 # IMPORTANT: Must include 'response' and 'prompts' to collect actual text for quality estimation
-SAVE_DETAILED="true"  # Boolean flag: save per-request response_details
+SAVE_DETAILED="prompts response ttft itl e2el input_lens output_lens models hosts instance_ids"
 
 # Random dataset parameters (only used if DATASET_NAME=random)
 RANDOM_INPUT_LEN=256
@@ -106,20 +98,18 @@ echo "CONFIGURATION:"
 echo "  CARA Server:          ${CARA_URL}"
 echo "  Broadcast Models:     ${BROADCAST_MODELS}"
 echo "  Dataset:              ${DATASET_NAME}"
-if [ "${DATASET_NAME}" = "sharegpt" ]; then
-    echo "  Dataset Path:         ${SHAREGPT_DATASET_PATH}"
-elif [ "${DATASET_NAME}" = "custom" ]; then
+if [ "${DATASET_NAME}" = "custom" ]; then
     echo "  Dataset Path:         ${CUSTOM_DATASET_PATH}"
+elif [ "${DATASET_NAME}" = "sharegpt" ]; then
+    echo "  Dataset Path:         ${SHAREGPT_DATASET_PATH}"
 fi
+echo "  Generation:           temp=${TEMPERATURE}, freq_penalty=${FREQUENCY_PENALTY}, rep_penalty=${REPETITION_PENALTY}"
+echo "  Max Output Tokens:    ${MAX_OUTPUT_TOKENS}"
+echo "  Max Total Len:        ${MAX_TOTAL_LEN}"
 echo "  Number of Prompts:    ${NUM_PROMPTS}"
 echo "  Request Rate:         ${REQUEST_RATE} qps"
 echo "  Output Directory:     ${OUTPUT_DIR}"
 echo "  Output Suffix:        ${OUTPUT_SUFFIX}"
-echo "  Max Output Tokens:    ${MAX_OUTPUT_TOKENS}"
-echo "  Max Total Length:     ${MAX_TOTAL_LEN}"
-echo "  Repetition Penalty:  ${REPETITION_PENALTY}"
-echo "  Frequency Penalty:   ${FREQUENCY_PENALTY}"
-echo "  Temperature:          ${TEMPERATURE}"
 echo ""
 echo "DATA COLLECTION:"
 echo "  Each request will be broadcasted to all selected models"
@@ -152,29 +142,21 @@ if [ ! -f "${MODEL_CONFIG}" ]; then
 fi
 echo "✅ Model config found: ${MODEL_CONFIG}"
 
-# Verify dataset exists if using sharegpt or custom
-if [ "${DATASET_NAME}" = "sharegpt" ]; then
-    # Expand tilde in path
+# Verify dataset exists
+if [ "${DATASET_NAME}" = "custom" ]; then
+    EXPANDED_DATASET_PATH="${CUSTOM_DATASET_PATH/#\~/$HOME}"
+    if [ ! -f "${EXPANDED_DATASET_PATH}" ]; then
+        echo "❌ Custom dataset not found: ${EXPANDED_DATASET_PATH}"
+        exit 1
+    fi
+    echo "✅ Custom dataset found: ${EXPANDED_DATASET_PATH}"
+elif [ "${DATASET_NAME}" = "sharegpt" ]; then
     EXPANDED_DATASET_PATH="${SHAREGPT_DATASET_PATH/#\~/$HOME}"
     if [ ! -f "${EXPANDED_DATASET_PATH}" ]; then
         echo "❌ Dataset not found: ${EXPANDED_DATASET_PATH}"
-        echo "Please download ShareGPT dataset first"
-        echo "Example: wget -O ${EXPANDED_DATASET_PATH} https://huggingface.co/datasets/anon8231489123/ShareGPT_Vicuna_unfiltered/resolve/main/ShareGPT_V3_unfiltered_cleaned_split.json"
         exit 1
     fi
     echo "✅ Dataset found: ${EXPANDED_DATASET_PATH}"
-elif [ "${DATASET_NAME}" = "custom" ]; then
-    if [ -z "${CUSTOM_DATASET_PATH}" ]; then
-        echo "❌ Custom dataset requires a dataset path as the 6th argument"
-        echo "Usage: ./test_broadcasting.sh MODELS custom NUM_PROMPTS RATE SUFFIX /path/to/dataset.jsonl"
-        exit 1
-    fi
-    EXPANDED_CUSTOM_PATH="${CUSTOM_DATASET_PATH/#\~/$HOME}"
-    if [ ! -f "${EXPANDED_CUSTOM_PATH}" ]; then
-        echo "❌ Custom dataset not found: ${EXPANDED_CUSTOM_PATH}"
-        exit 1
-    fi
-    echo "✅ Custom dataset found: ${EXPANDED_CUSTOM_PATH}"
 fi
 
 echo ""
@@ -202,8 +184,6 @@ nohup python -m block.global_scheduler.cara.cara_serve \
   --host_config ${HOST_CONFIG} \
   --scheduling ${SCHEDULING_STRATEGY} \
   --repetition-penalty ${REPETITION_PENALTY} \
-  --frequency-penalty ${FREQUENCY_PENALTY} \
-  --temperature ${TEMPERATURE} \
   --broadcasting \
   --selected-broadcasted-models ${BROADCAST_MODELS} \
   --enable-predictor-feedback \
@@ -243,15 +223,15 @@ echo ""
 DATASET_ARGS=""
 if [ "${DATASET_NAME}" = "random" ]; then
     DATASET_ARGS="--dataset-name random --random-input-len ${RANDOM_INPUT_LEN} --random-output-len ${RANDOM_OUTPUT_LEN}"
+elif [ "${DATASET_NAME}" = "custom" ]; then
+    DATASET_ARGS="--dataset-name custom --dataset-path ${CUSTOM_DATASET_PATH} --custom-output-len ${MAX_OUTPUT_TOKENS} --max-total-len ${MAX_TOTAL_LEN}"
 elif [ "${DATASET_NAME}" = "sharegpt" ]; then
     DATASET_ARGS="--dataset-name sharegpt --dataset-path ${SHAREGPT_DATASET_PATH}"
 elif [ "${DATASET_NAME}" = "sonnet" ]; then
     DATASET_ARGS="--dataset-name sonnet"
-elif [ "${DATASET_NAME}" = "custom" ]; then
-    DATASET_ARGS="--dataset-name custom --dataset-path ${CUSTOM_DATASET_PATH}"
 else
     echo "❌ Unknown dataset: ${DATASET_NAME}"
-    echo "Supported datasets: sharegpt, random, sonnet, custom"
+    echo "Supported datasets: custom, sharegpt, random, sonnet"
     exit 1
 fi
 
@@ -267,9 +247,10 @@ python block/benchmark/cara/benchmark_serving.py \
   ${DATASET_ARGS} \
   --num-prompts ${NUM_PROMPTS} \
   --request-rate ${REQUEST_RATE} \
-  --custom-output-len ${MAX_OUTPUT_TOKENS} \
-  --max-total-len ${MAX_TOTAL_LEN} \
-  --save-detailed \
+  --temperature ${TEMPERATURE} \
+  --frequency-penalty ${FREQUENCY_PENALTY} \
+  --repetition-penalty ${REPETITION_PENALTY} \
+  --save-detailed ${SAVE_DETAILED} \
   --result-dir ${OUTPUT_DIR} \
   --result-filename ${RESULT_FILENAME} \
   --save-result

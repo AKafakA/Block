@@ -31,27 +31,34 @@ class ModelResponse:
 class ResponseFilter:
     """Filters out bad/invalid responses.
 
-    Filtering policy (per documented conclusions):
-    - Filter: empty, too short (<3 tokens), truncated (hit max_tokens),
-              failures/errors
-    - Keep: repetitive outputs (model should learn to predict this pattern)
-    - Store: compression_ratio as metadata for quality labeling
+    Checks for:
+    - Success/error flags
+    - Minimum output length
+    - Truncated responses (hitting max_length)
+    - High repetition using compression ratio
     """
 
     def __init__(self,
                  min_output_tokens: int = 3,
-                 max_output_tokens: int = 1024):
+                 max_output_tokens: int = 1024,
+                 min_compression_ratio: float = 0.2):
         """
         Args:
             min_output_tokens: Minimum valid output length
             max_output_tokens: Max output length (responses at this length are truncated)
+            min_compression_ratio: Minimum compression ratio.
+                                  Lower ratio = more repetition.
+                                  Typical values: 0.2-0.3 threshold
+                                  (repetitive text compresses to <20% of original)
         """
         self.min_output_tokens = min_output_tokens
         self.max_output_tokens = max_output_tokens
+        self.min_compression_ratio = min_compression_ratio
 
         logger.info(
             f"ResponseFilter initialized: "
-            f"min_tokens={min_output_tokens}, max_tokens={max_output_tokens}"
+            f"min_tokens={min_output_tokens}, max_tokens={max_output_tokens}, "
+            f"min_compression_ratio={min_compression_ratio}"
         )
 
     def is_valid(self, response: ModelResponse) -> Tuple[bool, str]:
@@ -73,33 +80,26 @@ class ResponseFilter:
             return False, f"Too short: {response.output_tokens} tokens"
 
         # Check if response was truncated (hit max length limit)
-        # Truncated responses are incomplete and not suitable for training
         if response.output_tokens >= self.max_output_tokens:
             return False, (
                 f"Truncated: output_tokens={response.output_tokens} "
-                f"(hit max_tokens={self.max_output_tokens})"
+                f"(hit max_length={self.max_output_tokens})"
             )
 
-        # NOTE: Repetitive outputs are intentionally NOT filtered.
-        # Per documented analysis, repetition is model-inherent and
-        # length-dependent (34.5% at 800-1024 tokens). The model should
-        # learn to predict this pattern. compression_ratio is stored as
-        # metadata instead.
+        # Check for excessive repetition using compression ratio
+        if response.generated_text:
+            compression_ratio = self._compute_compression_ratio(response.generated_text)
+            if compression_ratio < self.min_compression_ratio:
+                return False, (
+                    f"High repetition detected: "
+                    f"compression_ratio={compression_ratio:.3f} "
+                    f"(threshold={self.min_compression_ratio})"
+                )
+            logger.debug(
+                f"{response.model_name}: compression_ratio={compression_ratio:.3f}"
+            )
 
         return True, ""
-
-    def compute_compression_ratio(self, text: str) -> float:
-        """Compute compression ratio using zlib.
-
-        Repetitive text has low compression ratio (compresses well).
-        This is exposed as a public method for storing as metadata.
-
-        Returns:
-            Compression ratio in [0, 1] where:
-            - 1.0 = no compression (random/diverse text)
-            - 0.0 = perfect compression (highly repetitive)
-        """
-        return self._compute_compression_ratio(text)
 
     def _compute_compression_ratio(self, text: str) -> float:
         """Compute compression ratio using zlib.

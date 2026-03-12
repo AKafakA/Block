@@ -6,9 +6,7 @@ from typing import Any
 
 import aiohttp
 from tqdm import tqdm
-
-# Use compatibility layer for vLLM benchmarks (supports both old and new vLLM versions)
-from block.benchmark.cara.vllm_compat import RequestFunc, RequestFuncInput
+from vllm.benchmarks.lib.endpoint_request_func import RequestFunc, RequestFuncInput
 
 
 

@@ -258,13 +258,9 @@ class DataProcessor:
         # Build models dict
         models_dict = {}
         for resp in valid_responses:
-            compression_ratio = self.filter.compute_compression_ratio(
-                resp.generated_text
-            ) if resp.generated_text else 1.0
             models_dict[resp.model_name] = {
                 "output_length": resp.output_tokens,
                 "quality_score": quality_scores.get(resp.model_name, 0.0),
-                "compression_ratio": compression_ratio,
                 "ttft": resp.ttft,
                 "server_latency": resp.server_latency,
                 "instance_id": resp.instance_id,
@@ -501,8 +497,12 @@ def parse_args():
         default=1024,
         help="Max output tokens (responses at this length are truncated)"
     )
-    # NOTE: Repetitive outputs are intentionally NOT filtered per documented
-    # analysis. compression_ratio is stored as metadata instead.
+    parser.add_argument(
+        "--min-compression-ratio",
+        type=float,
+        default=0.2,
+        help="Minimum compression ratio (lower = more repetitive, filtered)"
+    )
     parser.add_argument(
         "--exclude-models",
         nargs="+",
@@ -604,7 +604,8 @@ def main():
         logger.info("\n[3/4] Creating response filter...")
         response_filter = ResponseFilter(
             min_output_tokens=args.min_output_tokens,
-            max_output_tokens=args.max_output_tokens
+            max_output_tokens=args.max_output_tokens,
+            min_compression_ratio=args.min_compression_ratio
         )
         logger.info("✓ Filter created")
 

@@ -34,16 +34,9 @@ logger = logging.getLogger(__name__)
 chat = False
 model_family = "Qwen"
 repetition_penalty = 1.0
-frequency_penalty = 0.0
-temperature = 0.0
 broadcasting_enabled = False
 broadcast_model_list: list[str] = []
 enable_predictor_feedback = False
-
-# Lightweight health endpoint for readiness probes
-@app.get("/health")
-async def health() -> Response:
-    return JSONResponse(content={"status": "ok"})
 
 
 def to_ollama_tag(hf_name: str) -> str:
@@ -68,17 +61,16 @@ async def completion(request: Request) -> Response:
     request_json["request_id"] = request_id
     served_requests.append(request_id)
     selected_instance = None
-    # Force server-side generation parameters (applies to all requests)
-    request_json["repetition_penalty"] = float(repetition_penalty)
-    request_json["frequency_penalty"] = float(frequency_penalty)
-    request_json["temperature"] = float(temperature)
-
     if chat:
         # Use /v1/chat/completions endpoint with messages format
         # This is cleaner and lets vLLM handle chat template automatically
         # Signal to vllm_instance to use chat endpoint
         request_json["use_chat_endpoint"] = True
         # Remove prompt since we're using messages
+
+        # Force the server-side repetition_penalty to prevent infinite repetition
+        # Override any client-provided value
+        request_json["repetition_penalty"] = float(repetition_penalty)
     try:
         # CARA: Query predictors before scheduling (for training data collection)
         # Only query predictors if feedback is enabled
@@ -223,12 +215,10 @@ async def init_app(
         instances_list: Optional[List[Instance]] = None,
 ) -> FastAPI:
     app = build_app(args)
-    global instances, start_time, scheduling, chat, model_family, repetition_penalty, frequency_penalty, temperature, broadcasting_enabled, broadcast_model_list, enable_predictor_feedback
+    global instances, start_time, scheduling, chat, model_family, repetition_penalty, broadcasting_enabled, broadcast_model_list, enable_predictor_feedback
     chat = args.chat
     model_family = args.model_family
     repetition_penalty = args.repetition_penalty
-    frequency_penalty = args.frequency_penalty
-    temperature = args.temperature
     model_config_path = args.model_config_path
     broadcasting_enabled = bool(getattr(args, "broadcasting", False))
     broadcast_model_list = list(getattr(args, "selected_broadcasted_models", []) or [])
@@ -389,12 +379,8 @@ if __name__ == "__main__":
                         help="Whether the model is a chat model to decide if stop words are appended")
     parser.add_argument("--model-family", type=str, default="Qwen",
                         help="Model family, used for append the stop words for chat models")
-    parser.add_argument("--repetition-penalty", type=float, default=1.1,
+    parser.add_argument("--repetition-penalty", type=float, default=1.0,
                         help="Repetition penalty to use for generation to avoid repetition")
-    parser.add_argument("--frequency-penalty", type=float, default=0.0,
-                        help="Frequency penalty (additive, proportional to token count)")
-    parser.add_argument("--temperature", type=float, default=0.0,
-                        help="Sampling temperature (0.0 = greedy, >0 adds randomness)")
     parser.add_argument("--enable-predictor-feedback", action="store_true",
                         help="Enable sending actual metrics back to predictor for training data collection")
     parser.add_argument("--feedback-sample-rate", type=float, default=1.0,

@@ -157,6 +157,81 @@ def load_ultrachat(sample_n: Optional[int] = None, seed: int = 1, split: str = "
     return df
 
 
+def load_lmsys(
+    sample_n: Optional[int] = None,
+    seed: int = 1,
+    lang: str = "English",
+) -> pd.DataFrame:
+    """Load LMSYS-Chat-1M conversations. Extract first user→assistant turn pair.
+
+    Args:
+        lang: Language filter. "all" keeps everything, otherwise filters by
+              the 'language' field (default: "English").
+
+    Returns DataFrame with ["id", "prompt", "response"].
+    """
+    if not _HAS_DATASETS:
+        raise ImportError(
+            "datasets is required for LMSYS loading. Install with: pip install datasets"
+        )
+
+    # Load all parquet shards via huggingface_hub (avoids gated dataset issues)
+    from huggingface_hub import hf_hub_download
+    dfs = []
+    shard_files = [
+        f"data/train-{i:05d}-of-00006" for i in range(6)
+    ]
+    # List actual filenames from the repo
+    from huggingface_hub import list_repo_files
+    all_files = list_repo_files(datapath.LMSYS_DATASET_NAME, repo_type="dataset")
+    parquet_files = [f for f in all_files if f.startswith("data/") and f.endswith(".parquet")]
+
+    for pf in parquet_files:
+        local = hf_hub_download(
+            repo_id=datapath.LMSYS_DATASET_NAME,
+            filename=pf,
+            repo_type="dataset",
+        )
+        dfs.append(pd.read_parquet(local))
+
+    df = pd.concat(dfs, ignore_index=True)
+
+    # Language filter
+    if lang.lower() != "all" and "language" in df.columns:
+        df = df[df["language"].str.lower() == lang.lower()].reset_index(drop=True)
+
+    records = []
+    for idx, row in df.iterrows():
+        convs = row.get("conversation", [])
+        if convs is None or len(convs) < 2:
+            continue
+
+        prompt_text = None
+        response_text = None
+        for msg in convs:
+            role = msg.get("role", "") if isinstance(msg, dict) else ""
+            content = msg.get("content", "") if isinstance(msg, dict) else ""
+            if role == "user" and prompt_text is None:
+                prompt_text = content
+            elif role == "assistant" and prompt_text is not None and response_text is None:
+                response_text = content
+                break
+
+        if not prompt_text or not response_text:
+            continue
+
+        records.append({
+            "id": f"lmsys/{row.get('conversation_id', idx)}",
+            "prompt": prompt_text,
+            "response": response_text,
+        })
+
+    result = pd.DataFrame(records)
+    if sample_n is not None and sample_n > 0 and len(result) > 0:
+        result = result.sample(n=min(sample_n, len(result)), random_state=seed)
+    return result
+
+
 def load_gsm8k(
     sample_n: Optional[int] = None,
     seed: int = 1,
@@ -331,11 +406,9 @@ def parse_args() -> argparse.Namespace:
         "code_ultra_feedback",
         "beaver_tails",
         "mix_instruct",
-        "ultrachat",
+        "lmsys",
         "gsm8k",
         "squad",
-        "cnn_dailymail",
-        "ai2_arc",
     ]
     p.add_argument(
         "--datasets",
@@ -402,6 +475,35 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default="Qwen/Qwen2.5-3B",
         help="HF tokenizer name for prompt length computation",
+    )
+    p.add_argument(
+        "--chat-lang",
+        type=str,
+        default="English",
+        help=(
+            "Language filter for conversation datasets (e.g. lmsys). "
+            "Use 'all' to disable filtering. Default: English."
+        ),
+    )
+    p.add_argument(
+        "--chat-max-response-tokens",
+        type=int,
+        default=None,
+        help=(
+            "For conversation datasets (e.g. lmsys) that have known assistant "
+            "responses, filter out prompts whose response exceeds this token count. "
+            "Non-conversation datasets without response labels are unaffected."
+        ),
+    )
+    p.add_argument(
+        "--chat-max-total-tokens",
+        type=int,
+        default=None,
+        help=(
+            "For conversation datasets (e.g. lmsys), filter out prompts where "
+            "prompt_tokens + response_tokens exceeds this. "
+            "Non-conversation datasets without response labels are unaffected."
+        ),
     )
 
     return p.parse_args()
@@ -505,6 +607,8 @@ def _load_all_full(datasets: List[str], seed: int, args) -> List[pd.DataFrame]:
             df = load_beaver_tails(sample_n=None, seed=seed)
         elif name == "mix_instruct":
             df = load_mix_instruct(sample_n=None, seed=seed)
+        elif name == "lmsys":
+            df = load_lmsys(sample_n=None, seed=seed, lang=getattr(args, 'chat_lang', 'English'))
         elif name == "ultrachat":
             df = load_ultrachat(sample_n=None, seed=seed)
         elif name == "gsm8k":
@@ -576,6 +680,73 @@ def _filter_df_by_token_length(
     return df.loc[keep].reset_index(drop=True)
 
 
+def _filter_df_by_response_length(
+    df: pd.DataFrame,
+    tokenizer: "AutoTokenizer",
+    max_response_tokens: Optional[int] = None,
+    max_total_tokens: Optional[int] = None,
+    batch_size: int = 256,
+) -> pd.DataFrame:
+    """Filter conversation dataset rows by known assistant response length.
+
+    Only applies to datasets with a 'response' column (e.g. lmsys).
+    Rows without a response value are kept as-is.
+    """
+    if "response" not in df.columns:
+        return df
+    if max_response_tokens is None and max_total_tokens is None:
+        return df
+    if df.empty:
+        return df
+
+    prompts = df["prompt"].tolist()
+    responses = df["response"].fillna("").tolist()
+    keep = [True] * len(prompts)
+
+    i = 0
+    while i < len(prompts):
+        batch_p = prompts[i:i + batch_size]
+        batch_r = responses[i:i + batch_size]
+
+        try:
+            enc_r = tokenizer(
+                batch_r, add_special_tokens=False, padding=False,
+                truncation=False, return_attention_mask=False,
+            )
+            r_lens = [len(ids) for ids in enc_r["input_ids"]]
+        except Exception:
+            r_lens = [len(tokenizer(x, add_special_tokens=False).input_ids) for x in batch_r]
+
+        if max_total_tokens is not None:
+            try:
+                enc_p = tokenizer(
+                    batch_p, add_special_tokens=False, padding=False,
+                    truncation=False, return_attention_mask=False,
+                )
+                p_lens = [len(ids) for ids in enc_p["input_ids"]]
+            except Exception:
+                p_lens = [len(tokenizer(x, add_special_tokens=False).input_ids) for x in batch_p]
+        else:
+            p_lens = [0] * len(batch_p)
+
+        for j in range(len(batch_p)):
+            resp = batch_r[j]
+            if not resp:
+                continue  # no response label → keep
+            if max_response_tokens is not None and r_lens[j] > max_response_tokens:
+                keep[i + j] = False
+            if max_total_tokens is not None and p_lens[j] + r_lens[j] > max_total_tokens:
+                keep[i + j] = False
+
+        i += batch_size
+
+    filtered = df.loc[keep].reset_index(drop=True)
+    removed = len(df) - len(filtered)
+    if removed > 0:
+        print(f"  Response-length filter removed {removed} rows ({100*removed/len(df):.1f}%)")
+    return filtered
+
+
 def _write_json_array(path: str, records: Iterable[dict]) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
@@ -606,6 +777,14 @@ def main() -> None:
         _filter_df_by_token_length(df, tokenizer, args.max_prompt_length)
         for df in full_dfs
     ]
+    # Apply response-length filter for conversation datasets (e.g. lmsys)
+    # that have known assistant response labels
+    if args.chat_max_response_tokens is not None or args.chat_max_total_tokens is not None:
+        for i, (name, df) in enumerate(zip(datasets, full_dfs)):
+            if "response" in df.columns:
+                print(f"Filtering {name} by chat response length...")
+                full_dfs[i] = _filter_df_by_response_length(
+                    df, tokenizer, args.chat_max_response_tokens, args.chat_max_total_tokens)
     capacities = [len(df) for df in full_dfs]
 
     counts = _assign_counts(
