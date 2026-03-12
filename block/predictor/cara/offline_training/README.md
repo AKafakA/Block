@@ -1,188 +1,238 @@
 # CARA Offline Training Data Preparation
 
-Tools for preparing training data for CARA model estimation from benchmark results.
+Unified preprocessing tool for preparing training data from CARA benchmark results.
 
 ## Overview
 
-This pipeline processes broadcast benchmark data to create clean training datasets for:
+This pipeline processes benchmark data (single-model or multi-model) to create clean training datasets for:
 1. **Length prediction**: prompt → output_length per model
 2. **Model quality estimation**: prompt → quality_score per model
+
+**Key Features:**
+- Auto-detects data format (single-model vs multi-model with `broadcast_results`)
+- Auto-detects all models from data (scans all requests for robustness)
+- Handles incomplete requests (exports to JSONL for re-running benchmark)
+- Multiple quality scoring methods: `llm_judge`, `similarity`, `compression`
+- Judge comparison analysis with correlation metrics
+- Divergent sample detection and export
 
 ## Pipeline Components
 
 ```
 Raw Benchmark Data (JSON)
          ↓
-   ResponseFilter (filter bad responses)
+   Format Detection (single-model or multi-model)
          ↓
-   Tokenizer (recount tokens)
+   Model Collection (scan all requests)
          ↓
-   ModelScorer (compute quality scores)
+   Response Filtering (errors, empty, truncated, repetition)
+         ↓
+   Quality Scoring (llm_judge / similarity / compression)
+         ↓
+   Incomplete Request Export (JSONL for re-running)
          ↓
 Training Data (JSON)
 ```
 
-### 1. Response Filtering (`response_filter.py`)
+### Data Formats Supported
+
+**Single-model format** (direct response in response_details):
+```json
+{
+  "response_details": [
+    {
+      "request_id": "1",
+      "prompt": "...",
+      "model": "Qwen/Qwen2.5-3B",
+      "response": "...",
+      "output_len": 256
+    }
+  ]
+}
+```
+
+**Multi-model format** (multiple models via `broadcast_results`):
+```json
+{
+  "response_details": [
+    {
+      "request_id": "1",
+      "prompt": "...",
+      "broadcast_results": [
+        {"model": "Qwen/Qwen2.5-3B", "generated_text": "...", "output_tokens": 200},
+        {"model": "Qwen/Qwen2.5-72B", "generated_text": "...", "output_tokens": 250}
+      ]
+    }
+  ]
+}
+```
+
+### Response Filtering
 
 Filters out low-quality responses:
 - **Error checking**: Removes failed requests
-- **Truncation detection**: Filters responses hitting max_length (incomplete)
-- **Repetition detection**: Uses zlib compression ratio (< 0.2 = repetitive)
+- **Empty detection**: Removes responses with ≤1 token
+- **Length filtering**: Configurable min/max output tokens
+- **Truncation detection**: Flags (optionally filters) responses hitting max_length
+- **Repetition detection**: Uses zlib compression ratio (< 0.2 = repetitive, optional filter)
 
-### 2. Model Scorers
+### Quality Scorers
 
-#### `similarity_scorer.py` (Default)
+#### `compression` (Fast, no dependencies)
+- Uses zlib compression ratio as quality proxy
+- Higher compression ratio = more diverse/less repetitive = better quality
+- **Best for**: Quick processing, no GPU needed
+
+#### `similarity` (Requires multi-model data)
 - Uses sentence-transformers embeddings
-- Computes cosine similarity to reference model (largest by default)
-- Fast, no LLM needed
-- **Best for**: Quick processing, semantic similarity
+- Computes cosine similarity to reference model
+- Requires `--reference-model` argument
+- **Best for**: Comparing model outputs semantically
 
-#### `llm_judge_scorer.py`
-- Uses separate LLM to judge quality
-- Evaluates correctness, helpfulness, harmlessness, coherence
-- Default: `Unbabel/M-Prometheus-7B`
-- **Best for**: Nuanced quality assessment
+#### `llm_judge` (Most accurate, GPU recommended)
+- Uses LLM to evaluate quality (correctness, helpfulness, coherence)
+- Supports multiple judges for comparison analysis
+- Supports batched inference for faster processing
+- Default: `Qwen/Qwen2.5-0.5B`
+- **Best for**: Nuanced quality assessment, safety-mixed datasets
 
 ## Usage
 
-### Basic Usage (Similarity Scoring)
+### Basic Usage (Single-Model Data)
 
 ```bash
-python -m block.predictor.cara.offline_training.prepare_training_data \
-  --input data/cara/cara-best-route-training.json \
-  --tokenizer Qwen/Qwen2.5-72B \
-  --scoring-method similarity \
-  --device cpu
+python -m block.predictor.cara.offline_training.prepare_benchmark_data \
+  --input cara_result/cara-benchmark.json \
+  --scoring-method compression \
+  --dataset-name sharegpt-3b
 ```
 
-**Output**: `data/cara/best-route_similarity_model_estimation_training.json`
-
-### Advanced Options
+### Multi-Model with Similarity Scoring
 
 ```bash
-python -m block.predictor.cara.offline_training.prepare_training_data \
+python -m block.predictor.cara.offline_training.prepare_benchmark_data \
   --input data/cara/cara-best-route-training.json \
-  --output data/cara/custom_output.json \
-  --dataset-name best-route \
-  --tokenizer Qwen/Qwen2.5-72B \
   --scoring-method similarity \
-  --embedding-model sentence-transformers/all-mpnet-base-v2 \
   --reference-model "Qwen/Qwen2.5-72B" \
-  --min-output-tokens 3 \
-  --max-output-tokens 1024 \
-  --min-compression-ratio 0.2 \
-  --device cuda \
-  --debug
+  --device cuda
 ```
 
 ### LLM Judge Scoring
 
 ```bash
-python -m block.predictor.cara.offline_training.prepare_training_data \
-  --input data/cara/cara-best-route-training.json \
-  --tokenizer Qwen/Qwen2.5-72B \
+python -m block.predictor.cara.offline_training.prepare_benchmark_data \
+  --input cara_result/cara-benchmark.json \
   --scoring-method llm_judge \
-  --judge-model Unbabel/M-Prometheus-7B \
-  --device cuda
+  --judge-models Qwen/Qwen2.5-0.5B \
+  --device cuda \
+  --batch-size 8
 ```
 
-### Custom Judge Prompt
+### Multi-Judge Comparison
+
+Compare multiple LLM judges to analyze scoring agreement:
 
 ```bash
-# Create custom_judge_prompt.txt with {prompt} and {response} placeholders
-python -m block.predictor.cara.offline_training.prepare_training_data \
-  --input data/cara/cara-best-route-training.json \
-  --tokenizer Qwen/Qwen2.5-72B \
-  --scoring-method llm_judge \
-  --judge-prompt custom_judge_prompt.txt \
-  --device cuda
+python -m block.predictor.cara.offline_training.prepare_benchmark_data \
+  --input cara_result/cara-benchmark.json \
+  --judge-models Qwen/Qwen2.5-0.5B Qwen/Qwen2.5-3B \
+  --compare-judges \
+  --divergence-threshold 0.3
 ```
 
-### Excluding Models
+**Output files:**
+- `{output}.json`: Training data with scores from all judges
+- `{output}_divergent.json`: Samples where judges disagree (diff > threshold)
 
-When some models are unavailable or have deployment issues:
+**Analysis includes:**
+- Per-judge statistics (mean, std, range, percentiles)
+- Global Pearson and Spearman correlation between judges
+- Per-request model ranking correlation (for multi-model data)
+- Score difference distribution
+
+### Handling Incomplete Requests
+
+For incomplete requests (missing some models), the tool exports them in JSONL format for re-running:
 
 ```bash
-# Exclude a single model
-python -m block.predictor.cara.offline_training.prepare_training_data \
-  --input data/cara/cara-best-route-training.json \
-  --exclude-models "Qwen/Qwen2.5-3B"
-
-# Exclude multiple models
-python -m block.predictor.cara.offline_training.prepare_training_data \
-  --input data/cara/cara-best-route-training.json \
-  --exclude-models "Qwen/Qwen2.5-3B" "Qwen/Qwen2.5-32B"
+python -m block.predictor.cara.offline_training.prepare_benchmark_data \
+  --input data/cara/broadcast_results.json \
+  --expected-models "Qwen/Qwen2.5-3B" "Qwen/Qwen2.5-7B" "Qwen/Qwen2.5-72B"
 ```
 
-### Requiring All Models
+**Output:**
+- `{output}_incomplete.jsonl`: Incomplete requests in benchmark format:
+  ```json
+  {"id": 0, "source": "incomplete/request_id", "prompt": "..."}
+  ```
 
-When you want only requests with complete model coverage (all non-excluded models responded):
-
+Re-run benchmark with the incomplete requests:
 ```bash
-# Exclude 3B and require all remaining models (72B, 32B, 14B, 7B)
-python -m block.predictor.cara.offline_training.prepare_training_data \
-  --input data/cara/cara-best-route-training.json \
-  --exclude-models "Qwen/Qwen2.5-3B" \
-  --require-all-models
-
-# This ensures every request has responses from 72B, 32B, 14B, and 7B
-# Requests missing any of these models will be filtered out
+python -m block.benchmark.cara.benchmark_serving \
+  --dataset-name custom \
+  --dataset-path output_incomplete.jsonl \
+  ...
 ```
 
-**Benefits:**
-- Ensures consistent model coverage across all training examples
-- Prevents bias from partial model coverage
-- Better for training quality estimators that compare all models
+### Allow Incomplete Requests
 
-### Custom Reference Model
-
-The reference model is used for similarity scoring (always gets score 1.0):
+By default, only requests with all expected models are kept. To allow partial coverage:
 
 ```bash
-# Use 32B as reference instead of default 72B
-python -m block.predictor.cara.offline_training.prepare_training_data \
-  --input data/cara/cara-best-route-training.json \
-  --reference-model "Qwen/Qwen2.5-32B"
+python -m block.predictor.cara.offline_training.prepare_benchmark_data \
+  --input data/cara/broadcast_results.json \
+  --allow-incomplete
+```
 
-# Important: Requests where the reference model's response is filtered
-# will be completely excluded to ensure consistent scoring
+### Filtering Options
+
+```bash
+python -m block.predictor.cara.offline_training.prepare_benchmark_data \
+  --input data/cara/benchmark.json \
+  --min-output-tokens 3 \
+  --max-output-tokens 1024 \
+  --filter-truncated \
+  --filter-high-repetition \
+  --min-compression-ratio 0.2
 ```
 
 ## Command Line Arguments
 
-### Required
-- `--tokenizer`: HuggingFace tokenizer name or path
-
 ### Input/Output
-- `--input`: Input JSON file (default: `data/cara/cara-best-route-training.json`)
-- `--output`: Output JSON file (default: auto-generated)
-- `--dataset-name`: Dataset name for output filename (default: `best-route`)
+- `-i, --input`: Input benchmark JSON file (required)
+- `-o, --output`: Output JSON file (default: auto-generated)
+- `--dataset-name`: Dataset name for output metadata (default: `benchmark`)
 
-### Scoring
-- `--scoring-method`: `similarity` or `llm_judge` (default: `similarity`)
-- `--embedding-model`: Embedding model for similarity (default: `sentence-transformers/all-MiniLM-L6-v2`)
-- `--judge-model`: Judge LLM model (default: `Unbabel/M-Prometheus-7B`)
-- `--judge-prompt`: Custom judge prompt template file
-- `--reference-model`: Reference model for similarity (default: auto-detect largest)
+### Model Configuration
+- `--expected-models`: Override auto-detected models (space-separated)
+- `--allow-incomplete`: Allow requests missing some models
 
 ### Filtering
 - `--min-output-tokens`: Minimum valid output length (default: 3)
-- `--max-output-tokens`: Max output before truncation (default: 1024)
-- `--min-compression-ratio`: Min compression ratio (default: 0.2)
-- `--exclude-models`: Models to exclude from processing (space-separated list)
-- `--require-all-models`: Only keep requests where all non-excluded models have valid responses
-- `--reference-model`: Reference model for similarity scoring (default: Qwen/Qwen2.5-72B)
+- `--max-output-tokens`: Max output for truncation detection (default: 1024)
+- `--filter-truncated`: Filter out truncated responses
+- `--filter-high-repetition`: Filter out highly repetitive responses
+- `--min-compression-ratio`: Threshold for repetition (default: 0.2)
 
-### Other
-- `--device`: Device for models (`cpu`, `cuda`)
+### Quality Scoring
+- `--scoring-method`: `llm_judge`, `similarity`, `compression`, `none` (default: `llm_judge`)
+- `--reference-model`: Reference model for similarity scoring (required for similarity)
+- `--judge-models`: Judge model(s) for llm_judge (default: `Qwen/Qwen2.5-0.5B`)
+- `--compare-judges`: Enable judge comparison analysis
+- `--divergence-threshold`: Score diff threshold for divergent samples (default: 0.3)
+- `--device`: Device for scoring models (default: `cpu`)
+- `--batch-size`: Batch size for LLM judge (default: 8)
+
+### Output Options
+- `--include-response`: Include full response text in output
 - `--debug`: Enable debug logging
 
 ## Output Format
 
 ```json
 {
-  "dataset_name": "best-route",
-  "scoring_method": "similarity",
+  "dataset_name": "benchmark",
+  "scoring_method": "llm_judge",
   "num_requests": 13500,
   "models": [
     "Qwen/Qwen2.5-72B",
@@ -199,7 +249,9 @@ python -m block.predictor.cara.offline_training.prepare_training_data \
       "models": {
         "Qwen/Qwen2.5-72B": {
           "output_length": 271,
-          "quality_score": 1.0,
+          "quality_score": 0.85,
+          "compression_ratio": 0.45,
+          "is_truncated": false,
           "ttft": 0.0503,
           "server_latency": 1.6928,
           "instance_id": "Qwen-2.5-72B_0",
@@ -207,7 +259,9 @@ python -m block.predictor.cara.offline_training.prepare_training_data \
         },
         "Qwen/Qwen2.5-32B": {
           "output_length": 245,
-          "quality_score": 0.8723,
+          "quality_score": 0.82,
+          "compression_ratio": 0.42,
+          "is_truncated": false,
           "ttft": 0.0421,
           "server_latency": 1.4521,
           "instance_id": "Qwen-2.5-32B_0",
@@ -219,7 +273,7 @@ python -m block.predictor.cara.offline_training.prepare_training_data \
 }
 ```
 
-## Embedding Models
+## Embedding Models (for similarity scoring)
 
 ### Fast (Default)
 - `sentence-transformers/all-MiniLM-L6-v2` (384-dim, ~80MB)
@@ -236,7 +290,10 @@ python -m block.predictor.cara.offline_training.prepare_training_data \
   - Best for: Balance between speed and quality
   - Speed: ~2000 sent/sec on CPU
 
-## Judge Models
+## Judge Models (for LLM judge scoring)
+
+### Fast (Default)
+- `Qwen/Qwen2.5-0.5B` (0.5B, very fast)
 
 ### Recommended
 - `Unbabel/M-Prometheus-7B` (7B, specialized for evaluation)
@@ -249,7 +306,7 @@ python -m block.predictor.cara.offline_training.prepare_training_data \
 
 ```bash
 # Core dependencies
-pip install transformers torch
+pip install transformers torch numpy scipy
 
 # For similarity scoring
 pip install sentence-transformers
@@ -261,54 +318,42 @@ pip install accelerate
 ## Example Workflow
 
 ```bash
-# 1. Prepare training data with similarity scoring
-python -m block.predictor.cara.offline_training.prepare_training_data \
+# 1. Preprocess single-model benchmark data
+python -m block.predictor.cara.offline_training.prepare_benchmark_data \
+  --input cara_result/cara-3b-benchmark.json \
+  --scoring-method compression \
+  --dataset-name sharegpt-3b
+
+# 2. Or preprocess multi-model broadcast data with LLM judge
+python -m block.predictor.cara.offline_training.prepare_benchmark_data \
   --input data/cara/cara-best-route-training.json \
-  --tokenizer Qwen/Qwen2.5-72B \
-  --scoring-method similarity \
+  --scoring-method llm_judge \
+  --judge-models Qwen/Qwen2.5-0.5B \
   --device cuda
 
-# Output: data/cara/best-route_similarity_model_estimation_training.json
-
-# 2. Use the processed data for training
+# 3. Use the processed data for training
 python -m block.predictor.cara.offline_training.train_length_predictor \
-  --input data/cara/best-route_similarity_model_estimation_training.json \
+  --input data/cara/benchmark_llm_judge_training.json \
   --model-name Qwen/Qwen2.5-72B
 ```
 
 ## Statistics Example
 
 ```
-================================================================================
+============================================================
 PROCESSING STATISTICS
-================================================================================
-Total requests: 13500
-Valid requests: 12845
-Filtered requests: 655
-Filtered responses: 2301
-Models processed: 5
-  - Qwen/Qwen2.5-14B
-  - Qwen/Qwen2.5-32B
-  - Qwen/Qwen2.5-3B
-  - Qwen/Qwen2.5-72B
-  - Qwen/Qwen2.5-7B
-
-Top filter reasons:
-  - Truncated: output_tokens=1024 (hit max_length=1024): 1523
-  - High repetition detected: compression_ratio=0.156 (threshold=0.2): 534
-  - Too short: 3 tokens: 178
-  - Response marked as failed: timeout: 66
-================================================================================
-
-✅ Saved training data to: data/cara/best-route_similarity_model_estimation_training.json
-   Requests: 12845
-   Models: 5
-     - Qwen/Qwen2.5-14B
-     - Qwen/Qwen2.5-32B
-     - Qwen/Qwen2.5-3B
-     - Qwen/Qwen2.5-72B
-     - Qwen/Qwen2.5-7B
-   File size: 127.34 MB
+============================================================
+Total requests: 20000
+Total model responses: 80000
+Valid responses: 75234
+Valid requests (with all models): 18500
+Incomplete requests: 1500
+Filtered responses (empty): 712
+Filtered responses (too short): 234
+Filtered responses (truncated): 1620
+Filtered responses (error): 0
+Filtered responses (high repetition): 2200
+============================================================
 ```
 
 ## Troubleshooting
@@ -320,19 +365,28 @@ For large datasets or LLM judge scoring:
 # Use CPU device
 --device cpu
 
+# Or use smaller batch size
+--batch-size 4
+
 # Or use smaller embedding model
 --embedding-model sentence-transformers/all-MiniLM-L6-v2
-
-# Or process in batches (for custom implementation)
 ```
 
-### Tokenizer Issues
+### LLM Judge Fails to Parse Ratings
+
+The LLM judge may output non-numeric text. Failed scores are marked as `None` and requests with failures are filtered out. Check the log for:
+```
+WARNING - Failed to parse rating for model: 'some text'. Marking as invalid (None)
+```
+
+### Similarity Scoring Requires Reference Model
 
 ```bash
-# Make sure to use the same tokenizer as the model
---tokenizer Qwen/Qwen2.5-72B  # If benchmarked with Qwen
-
-# Add trust_remote_code if needed (handled automatically)
+# Error: --scoring-method=similarity requires --reference-model
+python -m block.predictor.cara.offline_training.prepare_benchmark_data \
+  --input data.json \
+  --scoring-method similarity \
+  --reference-model "Qwen/Qwen2.5-72B"  # Add this
 ```
 
 ### Slow Processing
@@ -341,9 +395,18 @@ For large datasets or LLM judge scoring:
 # Use GPU for scoring
 --device cuda
 
-# Use smaller/faster embedding model
---embedding-model sentence-transformers/all-MiniLM-L6-v2
+# Increase batch size for LLM judge
+--batch-size 16
 
-# Reduce debug logging
-# (remove --debug flag)
+# Use smaller/faster embedding model for similarity
+--embedding-model sentence-transformers/all-MiniLM-L6-v2
 ```
+
+## Comparing Scripts
+
+| Script | Purpose | Data Format |
+|--------|---------|-------------|
+| `prepare_benchmark_data.py` | Unified preprocessing (recommended) | Single-model or multi-model |
+| `prepare_training_data.py` | Legacy multi-model preprocessing | Multi-model (broadcast_results) only |
+
+**Note:** `prepare_benchmark_data.py` is the recommended unified script that handles both data formats and includes all features (auto-detection, incomplete request handling, multi-judge comparison).

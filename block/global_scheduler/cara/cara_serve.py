@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 chat = False
 model_family = "Qwen"
 repetition_penalty = 1.0
-frequency_penalty = 0.0
+frequency_penalty = 1.2
 temperature = 0.0
 broadcasting_enabled = False
 broadcast_model_list: list[str] = []
@@ -386,11 +386,15 @@ if __name__ == "__main__":
     parser.add_argument("--model-family", type=str, default="Qwen",
                         help="Model family, used for append the stop words for chat models")
     parser.add_argument("--repetition-penalty", type=float, default=1.0,
-                        help="Repetition penalty to use for generation (1.0 = no penalty)")
-    parser.add_argument("--frequency-penalty", type=float, default=0.0,
-                        help="Frequency penalty (additive, proportional to token count)")
+                        help="Repetition penalty (multiplicative, 1.0 = no penalty). "
+                             "Applied to previously generated tokens regardless of frequency.")
+    parser.add_argument("--frequency-penalty", type=float, default=1.2,
+                        help="Frequency penalty (additive, proportional to token count, default=1.2). "
+                             "Penalizes tokens based on how many times they appear in the output so far. "
+                             "Prevents degenerate repetition and keeps output_tokens under max_tokens. "
+                             "Tuned via sweep: best survival rate at 1.2 (see sweep_broadcasting.sh).")
     parser.add_argument("--temperature", type=float, default=0.0,
-                        help="Sampling temperature (0.0 = greedy, >0 adds randomness)")
+                        help="Sampling temperature (0.0 = greedy deterministic, >0 adds randomness)")
     parser.add_argument("--enable-predictor-feedback", action="store_true",
                         help="Enable sending actual metrics back to predictor for training data collection")
     parser.add_argument("--feedback-sample-rate", type=float, default=1.0,

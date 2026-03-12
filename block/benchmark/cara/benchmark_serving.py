@@ -1575,8 +1575,11 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
             if v is not None
         }
 
-        # Sampling parameters are only supported by openai-compatible backend.
-        if sampling_params and args.backend not in OPENAI_COMPATIBLE_BACKENDS:
+        # Sampling parameters are only supported by openai-compatible backends.
+        # CARA uses OpenAI-compatible endpoints, so include it here.
+        if sampling_params and args.backend not in (
+            *OPENAI_COMPATIBLE_BACKENDS, "cara"
+        ):
             raise ValueError(
                 "Sampling parameters are only supported by openai-compatible backends."
             )

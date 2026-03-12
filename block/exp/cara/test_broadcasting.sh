@@ -67,15 +67,16 @@ OUTPUT_DIR="experiment_output/cara_broadcast_training_data"
 REPETITION_PENALTY=${REPETITION_PENALTY:-1.0}
 SCHEDULING_STRATEGY="random"  # Doesn't matter for broadcasting (all models queried)
 
-# Generation parameters (passed to benchmark_serving.py)
+# Generation parameters (passed to BOTH cara_serve.py server AND benchmark_serving.py client)
+# frequency_penalty=1.2 prevents degenerate repetition (tuned via sweep_broadcasting.sh)
 FREQUENCY_PENALTY=${FREQUENCY_PENALTY:-1.2}
 TEMPERATURE=${TEMPERATURE:-0.0}
 MAX_OUTPUT_TOKENS=${MAX_OUTPUT_TOKENS:-1024}
 MAX_TOTAL_LEN=${MAX_TOTAL_LEN:-2048}
 
-# Detailed metrics to save for training
-# IMPORTANT: Must include 'response' and 'prompts' to collect actual text for quality estimation
-SAVE_DETAILED="prompts response ttft itl e2el input_lens output_lens models hosts instance_ids"
+# Save detailed per-request metrics (boolean flag)
+# Includes: request_id, prompt, input_len, output_len, response, ttft, itl, e2el, model, host, instance_id, broadcast_results
+SAVE_DETAILED=true
 
 # Random dataset parameters (only used if DATASET_NAME=random)
 RANDOM_INPUT_LEN=256
@@ -184,6 +185,8 @@ nohup python -m block.global_scheduler.cara.cara_serve \
   --host_config ${HOST_CONFIG} \
   --scheduling ${SCHEDULING_STRATEGY} \
   --repetition-penalty ${REPETITION_PENALTY} \
+  --frequency-penalty ${FREQUENCY_PENALTY} \
+  --temperature ${TEMPERATURE} \
   --broadcasting \
   --selected-broadcasted-models ${BROADCAST_MODELS} \
   --enable-predictor-feedback \
@@ -250,7 +253,7 @@ python block/benchmark/cara/benchmark_serving.py \
   --temperature ${TEMPERATURE} \
   --frequency-penalty ${FREQUENCY_PENALTY} \
   --repetition-penalty ${REPETITION_PENALTY} \
-  --save-detailed ${SAVE_DETAILED} \
+  --save-detailed \
   --result-dir ${OUTPUT_DIR} \
   --result-filename ${RESULT_FILENAME} \
   --save-result
