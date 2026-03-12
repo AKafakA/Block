@@ -28,7 +28,29 @@ parallel-ssh -t 0 -h block/config/pascal_hosts "sudo apt-get install -y cuda-dri
 parallel-ssh -t 0 -h block/config/ampere_hosts "pip install --upgrade torch"
 parallel-ssh -t 0 -h block/config/volta_hosts "pip install --upgrade torch"
 parallel-ssh -t 0 -h block/config/hosts "pip install --upgrade "ray[cgraph]""
-parallel-ssh -t 0 -h block/config/hosts "echo 'export PATH=$PATH:/usr/local/cuda-12.8/bin:$PATH' >> ~/.bashrc && echo 'export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda-12.8/lib64:$LD_LIBRARY_PATH' >> ~/.bashrc && source ~/.bashrc"
+# Set environment variables BEFORE the interactive guard in .bashrc
+# so they work for non-interactive SSH commands (ssh host "command")
+parallel-ssh -t 0 -h block/config/hosts 'python3 -c "
+with open(\"/users/asdwb/.bashrc\", \"r\") as f:
+    content = f.read()
+marker = \"# === Environment (sourced for ALL shells) ===\"
+if marker in content:
+    print(\"Env block already present, skipping\")
+else:
+    env_block = (
+        marker + chr(10)
+        + \"export CUDA_HOME=/usr/local/cuda\" + chr(10)
+        + \"export PATH=\\\"\\${PATH}:\\${CUDA_HOME}/bin:/usr/local/cuda-12.8/bin\\\"\" + chr(10)
+        + \"export LD_LIBRARY_PATH=\\\"\\${LD_LIBRARY_PATH}:\\${CUDA_HOME}/lib64:/usr/local/cuda-12.8/lib64:\\${CUDA_HOME}/targets/x86_64-linux/lib:/usr/lib/x86_64-linux-gnu\\\"\" + chr(10)
+        + \"for dir in \\${HOME}/.local/lib/python3.10/site-packages/nvidia/*/lib /usr/local/lib/python3.10/dist-packages/nvidia/*/lib; do [ -d \\\"\\${dir}\\\" ] && export LD_LIBRARY_PATH=\\\"\\${dir}:\\${LD_LIBRARY_PATH}\\\"; done\" + chr(10)
+        + \"export PYTHONPATH=\\\"\\${HOME}/vllm:\\${PYTHONPATH}\\\"\" + chr(10)
+        + \"# === End environment block ===\" + chr(10) + chr(10)
+    )
+    content = content.replace(\"# If not running interactively\", env_block + \"# If not running interactively\", 1)
+    with open(\"/users/asdwb/.bashrc\", \"w\") as f:
+        f.write(content)
+    print(\"Env block inserted before interactive guard\")
+"'
 
 echo "cuda installation completed on all hosts and now tested with nvidia-smi..."
 parallel-ssh -t 0 -h block/config/hosts "sudo nvidia-smi -mig 0"

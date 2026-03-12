@@ -97,6 +97,11 @@ class VllmInstance(Instance):
         api_url = self.chat_completions_url if use_chat else self.completions_url
 
         # Build appropriate payload based on endpoint type
+        # Read server-injected sampling params (set by cara_serve.py)
+        _temperature = payload.get("temperature", 0.0)
+        _repetition_penalty = payload.get("repetition_penalty", 1.0)
+        _frequency_penalty = payload.get("frequency_penalty", 0.0)
+
         if use_chat:
             # Chat completions endpoint - use messages format
             vllm_payload = {
@@ -104,8 +109,9 @@ class VllmInstance(Instance):
                 "messages": [
                     {"role": "user", "content": payload["prompt"]},
                 ],
-                "temperature": 0.0,
-                "repetition_penalty": payload.get("repetition_penalty", 1.0),
+                "temperature": _temperature,
+                "repetition_penalty": _repetition_penalty,
+                "frequency_penalty": _frequency_penalty,
                 "max_completion_tokens": payload["max_tokens"],
                 "stream": True,
                 "stream_options": {
@@ -118,8 +124,9 @@ class VllmInstance(Instance):
             vllm_payload = {
                 "model": self._model_name,
                 "prompt": payload["prompt"],
-                "temperature": 0.0,
-                "repetition_penalty": payload.get("repetition_penalty", 1.0),
+                "temperature": _temperature,
+                "repetition_penalty": _repetition_penalty,
+                "frequency_penalty": _frequency_penalty,
                 "max_tokens": payload["max_tokens"],
                 "logprobs": None,
                 "stream": True,
