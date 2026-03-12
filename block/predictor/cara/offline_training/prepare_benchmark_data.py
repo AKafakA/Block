@@ -14,34 +14,28 @@ Features:
 - Judge comparison analysis with correlation metrics
 - Divergent sample detection and export
 
-Usage (single-model):
+Usage (both similarity + LLM judge, default):
     python -m block.predictor.cara.offline_training.prepare_benchmark_data \\
-        --input cara_result/cara-benchmark.json \\
-        --scoring-method llm_judge \\
-        --judge-models Qwen/Qwen2.5-0.5B
+        --input data/cara/broadcast_v3_20k.json \\
+        --scoring-method all \\
+        --include-response \\
+        --device cuda
 
-Usage (multi-model with similarity scoring):
+Usage (similarity only):
     python -m block.predictor.cara.offline_training.prepare_benchmark_data \\
-        --input data/cara/cara-best-route-training.json \\
+        --input data/cara/broadcast_v3_20k.json \\
         --scoring-method similarity \\
         --reference-model "Qwen/Qwen2.5-72B"
-
-Usage (multi-judge comparison):
-    python -m block.predictor.cara.offline_training.prepare_benchmark_data \\
-        --input cara_result/cara-benchmark.json \\
-        --judge-models Qwen/Qwen2.5-0.5B Qwen/Qwen2.5-3B \\
-        --compare-judges \\
-        --divergence-threshold 0.3
 
 Output files:
 - {output}.json: Training data with quality scores
 - {output}_incomplete.jsonl: Incomplete requests for re-running (benchmark format)
 - {output}_divergent.json: Samples where judges disagree (if --compare-judges)
 
-Output format:
+Output schema (model-related fields only, no latency):
 {
     "dataset_name": "...",
-    "scoring_method": "llm_judge" | "similarity" | "compression",
+    "scoring_method": "all" | "llm_judge" | "similarity" | "compression",
     "num_requests": N,
     "models": ["Qwen/Qwen2.5-3B", "Qwen/Qwen2.5-72B", ...],
     "requests": [
@@ -52,13 +46,13 @@ Output format:
             "models": {
                 "Qwen/Qwen2.5-3B": {
                     "output_length": 256,
-                    "quality_score": 0.85,
+                    "response": "generated text...",
+                    "similarity_score": 0.85,
+                    "llm_judge_scores": {
+                        "Qwen_Qwen2.5-7B-Instruct": 0.7
+                    },
                     "compression_ratio": 0.45,
-                    "is_truncated": false,
-                    "ttft": 0.5,
-                    "server_latency": 2.3,
-                    "instance_id": "...",
-                    "host": "..."
+                    "is_truncated": false
                 },
                 ...
             }
@@ -257,10 +251,6 @@ def process_model_response(
     response_text: str,
     output_len: int,
     error: str,
-    ttft: float,
-    server_latency: float,
-    instance_id: str,
-    host: str,
     min_output_tokens: int,
     max_output_tokens: int,
     filter_truncated: bool,
@@ -270,15 +260,16 @@ def process_model_response(
 ) -> Optional[Dict]:
     """Process a single model's response with filtering.
 
+    Only keeps model-related fields (output_length, response, quality scores).
+    Latency fields (ttft, server_latency, etc.) are excluded — they are
+    meaningless from broadcasting (concurrent contention) and will be
+    collected separately via generate_latency_benchmark.py.
+
     Args:
         model_name: Name of the model
         response_text: Generated response text
         output_len: Number of output tokens
         error: Error message if any
-        ttft: Time to first token
-        server_latency: End-to-end latency
-        instance_id: Instance identifier
-        host: Host name
         min_output_tokens: Minimum output length
         max_output_tokens: Maximum output length
         filter_truncated: Whether to filter truncated responses
@@ -326,13 +317,8 @@ def process_model_response(
 
     return {
         "output_length": output_len,
-        "quality_score": None,  # Will be filled by scorer
         "compression_ratio": round(compression_ratio, 4),
         "is_truncated": is_truncated,
-        "ttft": ttft,
-        "server_latency": server_latency,
-        "instance_id": instance_id,
-        "host": host,
         "_response": response_text,
     }
 
@@ -393,10 +379,6 @@ def process_benchmark_data(
                     response_text=br.get("generated_text", ""),
                     output_len=br.get("output_tokens", 0),
                     error=br.get("error", ""),
-                    ttft=br.get("ttft", 0.0),
-                    server_latency=br.get("server_latency", 0.0),
-                    instance_id=br.get("instance_id", "unknown"),
-                    host=br.get("host", "unknown"),
                     min_output_tokens=min_output_tokens,
                     max_output_tokens=max_output_tokens,
                     filter_truncated=filter_truncated,
@@ -419,10 +401,6 @@ def process_benchmark_data(
                     response_text=detail.get("response", ""),
                     output_len=detail.get("output_len", 0),
                     error=detail.get("error", ""),
-                    ttft=detail.get("ttft", 0.0),
-                    server_latency=detail.get("e2el", 0.0),
-                    instance_id=detail.get("instance_id", "unknown"),
-                    host=detail.get("host", "unknown"),
                     min_output_tokens=min_output_tokens,
                     max_output_tokens=max_output_tokens,
                     filter_truncated=filter_truncated,
@@ -501,9 +479,9 @@ def compute_quality_scores_similarity(
         # Score using similarity
         scores = scorer.score(prompt, responses)
 
-        # Store scores in model data
+        # Store scores in model data as similarity_score
         for model_name, model_data in req["models"].items():
-            model_data["quality_score"] = scores.get(model_name, 0.5)
+            model_data["similarity_score"] = scores.get(model_name, 0.5)
 
     logger.info(f"Completed similarity scoring for {len(requests)} requests")
 
@@ -525,8 +503,8 @@ def compute_quality_scores_compression(requests: List[Dict]) -> None:
 
             # Normalize: typical range is 0.2 - 0.6 for text
             # Map to [0, 1] where 0.2 -> 0.0 and 0.6+ -> 1.0
-            quality_score = max(0.0, min(1.0, (compression_ratio - 0.2) / 0.4))
-            model_data["quality_score"] = round(quality_score, 4)
+            compression_score = max(0.0, min(1.0, (compression_ratio - 0.2) / 0.4))
+            model_data["compression_score"] = round(compression_score, 4)
 
 
 def compute_quality_scores_llm_judge(
@@ -594,10 +572,16 @@ def compute_quality_scores_llm_judge(
                     flat_items.append((prompt, llm_model_name, ""))
                     direct_fail_positions.append(len(index_map) - 1)
 
+        # Ensure llm_judge_scores dict exists for each model
+        for req in requests:
+            for model_data in req["models"].values():
+                if "llm_judge_scores" not in model_data:
+                    model_data["llm_judge_scores"] = {}
+
         # Process in batches using scorer.score_pairs()
         # Results are aligned with flat_items order
         direct_fail_set = set(direct_fail_positions)
-        judge_key = f"quality_score_{judge_model.replace('/', '_')}"
+        judge_key = judge_model.replace('/', '_')
         seen_requests = set()
 
         for start in range(0, len(flat_items), batch_size):
@@ -617,7 +601,7 @@ def compute_quality_scores_llm_judge(
 
                 if pos in direct_fail_set:
                     # Force failure (empty response)
-                    requests[req_idx]["models"][llm_model_name][judge_key] = None
+                    requests[req_idx]["models"][llm_model_name]["llm_judge_scores"][judge_key] = None
                     judge_failures += 1
                     failed_indices.add(req_idx)
                     continue
@@ -628,7 +612,7 @@ def compute_quality_scores_llm_judge(
                 else:
                     total_scored += 1
 
-                requests[req_idx]["models"][llm_model_name][judge_key] = score
+                requests[req_idx]["models"][llm_model_name]["llm_judge_scores"][judge_key] = score
 
         logger.info(f"Completed {judge_model}: {total_scored} scores, {judge_failures} failures")
 
@@ -637,14 +621,6 @@ def compute_quality_scores_llm_judge(
 
         # Free memory
         del scorer
-
-    # Set primary quality_score to first judge's scores
-    if judge_models:
-        primary_judge = judge_models[0]
-        judge_key = f"quality_score_{primary_judge.replace('/', '_')}"
-        for req in requests:
-            for model_data in req["models"].values():
-                model_data["quality_score"] = model_data.get(judge_key)
 
     logger.info(f"\nTotal requests with scoring failures: {len(failed_indices)}")
 
@@ -698,11 +674,12 @@ def analyze_judge_scores(
 
     for req in requests:
         for judge in judge_models:
-            judge_key = f"quality_score_{judge.replace('/', '_')}"
+            judge_key = judge.replace("/", "_")
             request_scores = {}
             for model in llm_models:
                 if model in req["models"]:
-                    score = req["models"][model].get(judge_key)
+                    judge_scores = req["models"][model].get("llm_judge_scores", {})
+                    score = judge_scores.get(judge_key)
                     all_scores_flat[judge].append(score)
                     request_scores[model] = score
             scores_by_request[judge].append(request_scores)
@@ -890,10 +867,11 @@ def find_divergent_samples(
             # Extract scores from each judge
             scores = []
             score_by_judge = {}
+            judge_scores = model_data.get("llm_judge_scores", {})
             for judge in judge_models:
-                judge_key = f"quality_score_{judge.replace('/', '_')}"
-                if judge_key in model_data:
-                    score = model_data[judge_key]
+                judge_key = judge.replace("/", "_")
+                if judge_key in judge_scores:
+                    score = judge_scores[judge_key]
                     scores.append(score)
                     score_by_judge[judge] = score
 
@@ -907,7 +885,7 @@ def find_divergent_samples(
                     "request_id": req["request_id"],
                     "llm_model": model_name,
                     "prompt": req["prompt"],
-                    "response": model_data.get("_response", ""),
+                    "response": model_data.get("response", ""),
                     "scores": score_by_judge,
                     "max_difference": max_diff,
                     "mean_score": float(np.mean(scores)),
@@ -1008,14 +986,18 @@ def save_training_data(
         scoring_method: Scoring method used
         include_response: If True, include full response text
     """
-    # Clean up internal fields
+    # Clean up internal fields and finalize schema
     for req in requests:
-        # Remove _missing_models field
         if "_missing_models" in req:
             del req["_missing_models"]
         for model_data in req["models"].values():
-            if not include_response and "_response" in model_data:
-                del model_data["_response"]
+            if "_response" in model_data:
+                if include_response:
+                    model_data["response"] = model_data.pop("_response")
+                else:
+                    del model_data["_response"]
+            # Remove legacy quality_score (replaced by similarity_score + llm_judge_scores)
+            model_data.pop("quality_score", None)
 
     output_data = {
         "dataset_name": dataset_name,
@@ -1112,21 +1094,22 @@ def parse_args():
     parser.add_argument(
         "--scoring-method",
         type=str,
-        choices=["llm_judge", "similarity", "compression", "none"],
-        default="llm_judge",
-        help="Quality scoring method. 'similarity' requires --reference-model and multi-model data."
+        choices=["llm_judge", "similarity", "compression", "none", "all"],
+        default="all",
+        help="Quality scoring method. 'all' runs both similarity and llm_judge. "
+             "'similarity' requires --reference-model and multi-model data."
     )
     parser.add_argument(
         "--reference-model",
         type=str,
-        default=None,
-        help="Reference model for similarity scoring (e.g., Qwen/Qwen2.5-72B). Required for --scoring-method=similarity."
+        default="Qwen/Qwen2.5-72B",
+        help="Reference model for similarity scoring (e.g., Qwen/Qwen2.5-72B)."
     )
     parser.add_argument(
         "--judge-models",
         type=str,
         nargs="+",
-        default=["Qwen/Qwen2.5-0.5B"],
+        default=["Qwen/Qwen2.5-7B-Instruct"],
         help="Judge model(s) for llm_judge scoring. Pass multiple with --compare-judges for comparison."
     )
     parser.add_argument(
@@ -1252,7 +1235,7 @@ def main():
         # =================================================================
         # Validate reference model for similarity scoring
         # =================================================================
-        if args.scoring_method == "similarity":
+        if args.scoring_method in ("similarity", "all"):
             if not args.reference_model:
                 logger.error("--scoring-method=similarity requires --reference-model")
                 return 1
@@ -1320,9 +1303,20 @@ def main():
         logger.info("\n[4/5] Computing quality scores...")
         failed_indices = set()
 
-        if args.scoring_method == "compression":
-            compute_quality_scores_compression(requests)
-        elif args.scoring_method == "llm_judge":
+        run_similarity = args.scoring_method in ("similarity", "all")
+        run_llm_judge = args.scoring_method in ("llm_judge", "all")
+        run_compression = args.scoring_method == "compression"
+
+        if run_similarity:
+            logger.info("\n--- Similarity scoring ---")
+            compute_quality_scores_similarity(
+                requests,
+                reference_model=args.reference_model,
+                device=args.device,
+            )
+
+        if run_llm_judge:
+            logger.info("\n--- LLM judge scoring ---")
             failed_indices = compute_quality_scores_llm_judge(
                 requests,
                 judge_models=args.judge_models,
@@ -1333,13 +1327,11 @@ def main():
                 score_max=args.score_max,
                 use_rationale=not args.disable_rationale,
             )
-        elif args.scoring_method == "similarity":
-            compute_quality_scores_similarity(
-                requests,
-                reference_model=args.reference_model,
-                device=args.device,
-            )
-        else:
+
+        if run_compression:
+            compute_quality_scores_compression(requests)
+
+        if args.scoring_method == "none":
             logger.info("Skipping quality scoring (method=none)")
 
         # Filter out requests with failed scores
