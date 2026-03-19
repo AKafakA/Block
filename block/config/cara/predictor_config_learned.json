@@ -1,0 +1,80 @@
+{
+  "predictor_type": "learned",
+  "schedule_trace_timeout": 5,
+  "enable_data_collection": false,
+
+  "bucket_classifier": {
+    "model_dir": "/mydata/models/cara/bucket_classifier",
+    "encoder_name": "answerdotai/ModernBERT-base",
+    "bucket_size": 64,
+    "max_buckets": 16,
+    "max_length": 1024,
+    "model_map": {
+      "Qwen/Qwen2.5-3B": "Qwen_Qwen2.5-3B_length_bucket",
+      "Qwen/Qwen2.5-7B": "Qwen_Qwen2.5-7B_length_bucket",
+      "Qwen/Qwen2.5-14B": "Qwen_Qwen2.5-14B_length_bucket",
+      "Qwen/Qwen2.5-72B": "Qwen_Qwen2.5-72B_length_bucket"
+    }
+  },
+
+  "xgboost_ttft": {
+    "model_dir": "/mydata/models/cara/xgboost_ttft"
+  },
+
+  "tpot_lookup": {
+    "qwen2.5-3b_p100": 0.045,
+    "qwen2.5-3b_a30": 0.025,
+    "qwen2.5-7b_a30": 0.035,
+    "qwen2.5-14b_v100": 0.055,
+    "qwen2.5-72b_a100": 0.065
+  },
+
+  "quality_predictor": {
+    "type": "knn",
+    "model_dir": "/mydata/models/cara/knn_quality",
+    "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+    "k": 10
+  },
+
+  "instance_metadata": {
+    "qwen2.5-3b_p100": {
+      "model_name": "Qwen/Qwen2.5-3B",
+      "gpu_type": "p100",
+      "cost_per_token": 0.001
+    },
+    "qwen2.5-3b_a30": {
+      "model_name": "Qwen/Qwen2.5-3B",
+      "gpu_type": "a30",
+      "cost_per_token": 0.002
+    },
+    "qwen2.5-7b_a30": {
+      "model_name": "Qwen/Qwen2.5-7B",
+      "gpu_type": "a30",
+      "cost_per_token": 0.003
+    },
+    "qwen2.5-14b_v100": {
+      "model_name": "Qwen/Qwen2.5-14B",
+      "gpu_type": "v100",
+      "cost_per_token": 0.005
+    },
+    "qwen2.5-72b_a100": {
+      "model_name": "Qwen/Qwen2.5-72B",
+      "gpu_type": "a100",
+      "cost_per_token": 0.015
+    }
+  },
+
+  "scoring_weights": {
+    "w_latency": 0.3,
+    "w_cost": 0.3,
+    "w_quality": 0.4
+  },
+
+  "slo_defaults": {
+    "ttft_slo_ms": 5000,
+    "tpot_slo_ms": 200,
+    "budget_tokens": 256,
+    "quality_min": 0.3,
+    "budget_confidence_threshold": 0.5
+  }
+}

@@ -63,6 +63,8 @@ class CARABasePredictorConfig(ABC):
             allowed = {f.name for f in dataclass_fields(LSTMPredictorConfig)}
             filtered = {k: v for k, v in config_dict.items() if k in allowed}
             return LSTMPredictorConfig(**filtered)
+        elif predictor_type == "learned":
+            return LearnedPredictorConfig(raw_config=config_dict)
         else:
             raise ValueError(f"Unknown predictor_type: {predictor_type}")
 
@@ -128,3 +130,41 @@ class LSTMPredictorConfig(CARABasePredictorConfig):
         default=False,
         metadata={"help": "Whether to continue collecting data with trained model"}
     )
+
+
+@dataclass
+class LearnedPredictorConfig(CARABasePredictorConfig):
+    """Configuration for learned predictor (bucket classifier + XGBoost + KNN quality)."""
+
+    predictor_type: str = "learned"
+
+    # Store full config dict for sub-component configs
+    raw_config: Dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def bucket_config(self) -> Dict[str, Any]:
+        return self.raw_config.get("bucket_classifier", {})
+
+    @property
+    def xgboost_config(self) -> Dict[str, Any]:
+        return self.raw_config.get("xgboost_ttft", {})
+
+    @property
+    def tpot_lookup(self) -> Dict[str, float]:
+        return self.raw_config.get("tpot_lookup", {})
+
+    @property
+    def quality_config(self) -> Dict[str, Any]:
+        return self.raw_config.get("quality_predictor", {})
+
+    @property
+    def instance_metadata(self) -> Dict[str, Any]:
+        return self.raw_config.get("instance_metadata", {})
+
+    @property
+    def scoring_weights(self) -> Dict[str, float]:
+        return self.raw_config.get("scoring_weights", {})
+
+    @property
+    def slo_defaults(self) -> Dict[str, Any]:
+        return self.raw_config.get("slo_defaults", {})

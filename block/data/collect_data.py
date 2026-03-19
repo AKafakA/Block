@@ -100,9 +100,10 @@ def load_beaver_tails(sample_n: Optional[int] = None, seed: int = 1) -> pd.DataF
         return False
 
     harmful = df[df["category"].apply(is_prompt_harmful)].copy()
-    harmful = harmful[["prompt"]].drop_duplicates().reset_index()
+    harmful = harmful[["prompt", "category"]].drop_duplicates(subset=["prompt"]).reset_index()
     harmful["id"] = "beaver_tails/" + harmful["index"].astype(str)
-    harmful = harmful[["id", "prompt"]]
+    # Keep category dict so downstream can confirm harm type
+    harmful = harmful[["id", "prompt", "category"]]
     if sample_n is not None and sample_n > 0:
         harmful = harmful.sample(n=sample_n, random_state=seed)
     return harmful

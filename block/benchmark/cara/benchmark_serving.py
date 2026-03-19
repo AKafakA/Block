@@ -1550,6 +1550,20 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
 
     # Load the dataset.
     input_requests = get_samples(args, tokenizer)
+
+    # Build request_id → source mapping from original JSONL (if available)
+    _source_map: dict[str, str] = {}
+    if (args.dataset_name == "custom" and args.dataset_path
+            and not args.dataset_path.endswith("lmsys")):
+        try:
+            import json as _json
+            with open(args.dataset_path) as _f:
+                for _line in _f:
+                    _item = _json.loads(_line)
+                    _rid = args.request_id_prefix + str(_item.get("id", ""))
+                    _source_map[_rid] = _item.get("source", "")
+        except Exception:
+            pass  # best-effort
     goodput_config_dict = check_goodput_args(args)
 
     backend = args.backend
@@ -1667,6 +1681,13 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
 
     # Merge with benchmark result
     result_json = {**result_json, **benchmark_result}
+
+    # Inject dataset source into response_details if available
+    if _source_map and "response_details" in result_json:
+        for req in result_json["response_details"]:
+            rid = req.get("request_id", "")
+            if rid in _source_map:
+                req["source"] = _source_map[rid]
 
     # If --save-detailed is not set, remove the response_details field
     if not args.save_detailed:

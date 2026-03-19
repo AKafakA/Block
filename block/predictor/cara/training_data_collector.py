@@ -67,7 +67,9 @@ class TrainingDataCollector:
         request_id: str,
         num_prompt_tokens: int,
         num_predicted_output_tokens: int,
-        schedule_state: ScheduleState
+        schedule_state: ScheduleState,
+        probe_latency_ms: float = None,
+        prediction_latency_ms: float = None,
     ) -> bool:
         """Log a prediction context.
 
@@ -76,6 +78,8 @@ class TrainingDataCollector:
             num_prompt_tokens: Number of prompt tokens
             num_predicted_output_tokens: Predicted output tokens
             schedule_state: Current schedule state
+            probe_latency_ms: Time to fetch vLLM endpoints (ms)
+            prediction_latency_ms: Total /predict call time (ms)
 
         Returns:
             True if this request will be collected, False otherwise
@@ -92,7 +96,9 @@ class TrainingDataCollector:
             num_predicted_output_tokens=num_predicted_output_tokens,
             schedule_state=schedule_state,
             instance_id=instance_id,
-            prediction_timestamp=time.time()
+            prediction_timestamp=time.time(),
+            probe_latency_ms=probe_latency_ms,
+            prediction_latency_ms=prediction_latency_ms,
         )
 
         self.pending_predictions[request_id] = example

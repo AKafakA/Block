@@ -3,6 +3,12 @@
     "hf_model_name": "Qwen/Qwen2.5-72B",
     "precision": "fp16",
     "backend": "vllm",
+    "vllm_params": {
+      "max-model-len": 8192,
+      "gpu-memory-utilization": 0.95,
+      "enforce-eager": true,
+      "use_hf_cache": true
+    },
     "node_hosts": [
       "asdwb@d8545-10s10505.wisc.cloudlab.us",
       "asdwb@d8545-10s10301.wisc.cloudlab.us"
@@ -19,6 +25,11 @@
     "hf_model_name": "Qwen/Qwen2.5-14B",
     "precision": "fp16",
     "backend": "vllm",
+    "vllm_params": {
+      "max-model-len": 8192,
+      "gpu-memory-utilization": 0.85,
+      "use_hf_cache": true
+    },
     "node_hosts": [
       "asdwb@c4130-110133.wisc.cloudlab.us",
       "asdwb@c4130-110533.wisc.cloudlab.us",
@@ -29,6 +40,9 @@
     "hf_model_name": "Qwen/Qwen2.5-7B",
     "precision": "fp16",
     "backend": "vllm",
+    "vllm_params": {
+      "max-model-len": 8192
+    },
     "node_hosts": [
       "asdwb@d7525-10s10317.wisc.cloudlab.us",
       "asdwb@d7525-10s10331.wisc.cloudlab.us",
@@ -41,6 +55,9 @@
     "hf_model_name": "Qwen/Qwen2.5-3B",
     "precision": "fp16",
     "backend": "vllm",
+    "vllm_params": {
+      "max-model-len": 8192
+    },
     "node_hosts": [
       "asdwb@d7525-10s10319.wisc.cloudlab.us",
       "asdwb@d7525-10s10339.wisc.cloudlab.us",

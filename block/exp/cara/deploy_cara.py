@@ -177,7 +177,7 @@ def get_vllm_commands(model_path: str, hf_token: str, precision: str, vllm_param
     sleep_time = 600 if fresh_deploy else 10
 
     cmds.extend([
-        "export LD_LIBRARY_PATH=/usr/local/lib/python3.10/dist-packages/nvidia/nvshmem/lib:$LD_LIBRARY_PATH",
+        "export LD_LIBRARY_PATH=$(python3 -c 'import nvidia, os, glob; print(\":\".join(glob.glob(os.path.join(nvidia.__path__[0], \"*\", \"lib\"))))' 2>/dev/null):$LD_LIBRARY_PATH",
         "echo 'Step 4: Detecting GPU count...'",
         "export GPU_COUNT=$(python3 -c 'import torch; print(torch.cuda.device_count())')",
         "echo \"GPU_COUNT=$GPU_COUNT\"",
@@ -194,7 +194,10 @@ def get_predictor_deployment_commands(
     hostname: str,
     backend_port: int,
     predictor_config: Dict,
-    host_config: Dict
+    host_config: Dict,
+    predictor_type: str = "dummy",
+    config_path: str = "block/config/cara/predictor_deployment_config.json",
+    instance_type: str = "unknown",
 ) -> List[str]:
     """Generate commands to deploy CARA predictors on a host.
 
@@ -203,11 +206,13 @@ def get_predictor_deployment_commands(
         backend_port: Backend port from host_config
         predictor_config: Predictor deployment configuration
         host_config: Host configuration containing predictor_ports
+        predictor_type: Type of predictor ('dummy' or 'learned')
+        config_path: Path to predictor config file on remote host
+        instance_type: Instance type identifier for learned predictor
 
     Returns:
         List of shell commands to deploy predictors
     """
-    predictor_type = predictor_config.get("predictor_type", "dummy")
     predictor_ports = host_config[hostname]["predictor_ports"]
     # Avoid port collision with backend by skipping backend_port if present
     predictor_ports = [p for p in predictor_ports if p != backend_port]
@@ -232,23 +237,28 @@ def get_predictor_deployment_commands(
     # Start all predictors in background within one grouped command after cd
     bg_cmds = []
     for predictor_port in predictor_ports:
-        bg_cmds.append(
-            (
-                f"nohup $PYTHON_BIN -u -m block.predictor.cara.cara_predictor_api_server "
-                f"--host 0.0.0.0 "
-                f"--port {predictor_port} "
-                f"--backend-port {backend_port} "
-                f"--hostname {hostname} "
-                f"--config-path block/config/cara/predictor_deployment_config.json "
-                f"> experiment_output/logs/predictor_{predictor_port}.log 2>&1 < /dev/null &"
-            )
+        cmd_parts = [
+            f"nohup $PYTHON_BIN -u -m block.predictor.cara.cara_predictor_api_server",
+            f"--host 0.0.0.0",
+            f"--port {predictor_port}",
+            f"--backend-port {backend_port}",
+            f"--hostname {hostname}",
+            f"--config-path {config_path}",
+        ]
+        # Add instance-type for learned predictor
+        if predictor_type == "learned":
+            cmd_parts.append(f"--instance-type {instance_type}")
+        cmd_parts.append(
+            f"> experiment_output/logs/predictor_{predictor_port}.log 2>&1 < /dev/null &"
         )
+        bg_cmds.append(" ".join(cmd_parts))
 
     # Group background launches so the outer command does not end with '&'.
     # Detect usable python binary inside the group.
     group_cmd = (
         "cd Block && ( "
         "export PYTHONUNBUFFERED=1; "
+        "export PYTHONPATH=$HOME/Block:$PYTHONPATH; "
         "PYTHON_BIN=${PREDICTOR_PYTHON_BIN:-$(command -v python3 || command -v python)}; "
         + " ".join(bg_cmds) +
         " true )"
@@ -349,6 +359,15 @@ def main():
             "Default: model_instance predictor"
         )
     )
+    parser.add_argument("--predictor-type", type=str, default="dummy",
+                        choices=["dummy", "learned"],
+                        help="Type of predictor to deploy (dummy or learned)")
+    parser.add_argument("--learned-predictor-config", type=str,
+                        default="block/config/cara/predictor_config_learned.json",
+                        help="Path to learned predictor config (used when --predictor-type=learned)")
+    parser.add_argument("--model-checkpoint-dir", type=str,
+                        default="/mydata/models/cara",
+                        help="Base directory containing trained model checkpoints")
 
     args = parser.parse_args()
 
@@ -447,6 +466,9 @@ def main():
             new_entry['node_hosts'] = assigned_hosts
         else:
             assigned_hosts = details.get('node_hosts', [])
+            # Support top-level vllm_params for node_hosts format
+            if 'vllm_params' in details:
+                vllm_params = details['vllm_params']
 
         final_config[model_key] = new_entry
 
@@ -482,11 +504,28 @@ def main():
                 hostname = host.split("@")[-1] if "@" in host else host
                 # Get backend_port from host_config (single source of truth!)
                 backend_port = host_config[hostname]["backend_port"]
+
+                # Determine predictor type and config path
+                pred_type = args.predictor_type
+                if pred_type == "learned":
+                    pred_config_path = args.learned_predictor_config
+                    # Infer instance_type from model key and node type
+                    model_short = hf_name.split("/")[-1].lower() if hf_name else "unknown"
+                    match = re.search(r'@([a-zA-Z0-9]+)-', host)
+                    node_type = match.group(1) if match else "unknown"
+                    inst_type = f"{model_short}_{node_type}"
+                else:
+                    pred_config_path = "block/config/cara/predictor_deployment_config.json"
+                    inst_type = "unknown"
+
                 predictor_cmds = get_predictor_deployment_commands(
                     hostname=hostname,
                     backend_port=backend_port,
                     predictor_config=predictor_config,
-                    host_config=host_config
+                    host_config=host_config,
+                    predictor_type=pred_type,
+                    config_path=pred_config_path,
+                    instance_type=inst_type,
                 )
                 run_ssh_cmd(host, predictor_cmds, f"Deploying Predictors ({model_key})")
 

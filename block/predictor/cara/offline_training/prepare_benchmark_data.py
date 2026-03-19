@@ -70,6 +70,8 @@ from typing import Dict, List, Optional
 from dataclasses import dataclass, field
 from collections import defaultdict
 
+import re
+
 import numpy as np
 
 logging.basicConfig(
@@ -77,6 +79,85 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Datasets/source prefixes where all prompts are harmful and should be refused.
+# beaver_tails: all prompts pre-filtered to harmful-only in collect_data.py.
+# reward_bench subsets: explicitly labeled as should-refuse.
+HARMFUL_DATASETS = {'beaver_tails'}
+HARMFUL_SOURCE_PREFIXES = {
+    'refusals-dangerous', 'refusals-offensive',
+    'xstest-should-refuse', 'donotanswer',
+}
+
+
+def tag_harmful_requests(requests: list) -> int:
+    """Tag requests that should be refused based on their source/dataset field.
+
+    Uses the `dataset`, `source`, and `category` fields propagated from
+    collect_data.py output. No external dataset loading needed.
+
+    Detection logic:
+    - beaver_tails: confirmed harmful if `category` dict has any True flag
+      (collect_data.py pre-filters to harmful-only, category confirms)
+    - reward_bench: harmful if source prefix matches refuse subsets
+
+    Args:
+        requests: List of processed request dicts (modified in place).
+
+    Returns:
+        Number of requests tagged as harmful.
+    """
+    count = 0
+    for req in requests:
+        dataset = req.get("dataset", "")
+        source = req.get("source", "")
+        source_prefix = source.split("/")[0] if "/" in source else source
+
+        is_harmful = False
+        if dataset in HARMFUL_DATASETS:
+            # beaver_tails: confirm via category dict if available
+            category = req.get("category", {})
+            if category and any(category.values()):
+                is_harmful = True
+            elif not category:
+                # No category field (old data without it) — trust dataset tag
+                is_harmful = True
+        elif source_prefix in HARMFUL_SOURCE_PREFIXES:
+            is_harmful = True
+
+        req['_is_harmful'] = is_harmful
+        if is_harmful:
+            count += 1
+    return count
+
+
+def strip_chat_template(prompt: str) -> str:
+    """Strip Qwen ChatML template tags from prompt, returning raw user content.
+
+    Handles the pattern:
+        <|im_start|>system\nYou are a helpful assistant.<|im_end|>
+        <|im_start|>user\n{actual_prompt}<|im_end|>
+        <|im_start|>assistant\n
+
+    Returns the raw user prompt text without any chat template markup.
+    """
+    if "<|im_start|>" not in prompt:
+        return prompt
+
+    # Extract user message content from ChatML format
+    user_match = re.search(
+        r'<\|im_start\|>user\n(.*?)<\|im_end\|>',
+        prompt,
+        re.DOTALL,
+    )
+    if user_match:
+        return user_match.group(1).strip()
+
+    # Fallback: strip all ChatML tags
+    cleaned = re.sub(r'<\|im_start\|>\w*\n?', '', prompt)
+    cleaned = re.sub(r'<\|im_end\|>\n?', '', cleaned)
+    cleaned = cleaned.replace("You are a helpful assistant.", "").strip()
+    return cleaned
 
 
 @dataclass
@@ -418,10 +499,20 @@ def process_benchmark_data(
         # Build processed request
         processed_request = {
             "request_id": request_id,
-            "prompt": prompt,
+            "prompt": strip_chat_template(prompt),
             "input_len": input_len,
             "models": models_data,
         }
+
+        # Propagate dataset source if available
+        source = detail.get("source", "")
+        if source:
+            # Extract dataset name from source (e.g. "reward_bench/123" → "reward_bench")
+            processed_request["dataset"] = source.split("/")[0] if "/" in source else source
+            processed_request["source"] = source
+        # Propagate harm category from beaver_tails (confirms prompt is harmful)
+        if "category" in detail:
+            processed_request["category"] = detail["category"]
 
         # Check completeness
         available_models = set(models_data.keys())
@@ -511,11 +602,12 @@ def compute_quality_scores_llm_judge(
     requests: List[Dict],
     judge_models: List[str],
     device: str = "cuda",
-    batch_size: int = 8,
+    batch_size: int = 32,
     hf_token: Optional[str] = None,
     score_min: int = 1,
     score_max: int = 10,
     use_rationale: bool = True,
+    use_flash_attention: bool = True,
 ) -> set:
     """Compute quality scores using multiple LLM judges for all models in each request.
 
@@ -528,6 +620,7 @@ def compute_quality_scores_llm_judge(
         score_min: Minimum score value for rating scale
         score_max: Maximum score value for rating scale
         use_rationale: Whether to use rationale-based prompting (improves accuracy)
+        use_flash_attention: Whether to use flash attention 2
 
     Returns:
         Set of request indices that had scoring failures (to be filtered out)
@@ -549,6 +642,7 @@ def compute_quality_scores_llm_judge(
             score_min=score_min,
             score_max=score_max,
             use_rationale=use_rationale,
+            use_flash_attention=use_flash_attention,
         )
 
         total_scored = 0
@@ -556,20 +650,24 @@ def compute_quality_scores_llm_judge(
 
         # Build a flat list of (prompt, model_name, response) and an index map
         flat_items: List[Tuple[str, str, str]] = []
+        flat_is_harmful: List[bool] = []
         index_map: List[Tuple[int, str]] = []  # (req_idx, model_name)
         direct_fail_positions: List[int] = []
 
         for idx, req in enumerate(requests):
             prompt = req["prompt"]
+            harmful = req.get("_is_harmful", False)
             for llm_model_name, model_data in req["models"].items():
                 response = model_data.get("_response", "")
                 if response:
                     index_map.append((idx, llm_model_name))
                     flat_items.append((prompt, llm_model_name, response))
+                    flat_is_harmful.append(harmful)
                 else:
                     # Mark as direct failure to preserve prior semantics
                     index_map.append((idx, llm_model_name))
                     flat_items.append((prompt, llm_model_name, ""))
+                    flat_is_harmful.append(harmful)
                     direct_fail_positions.append(len(index_map) - 1)
 
         # Ensure llm_judge_scores dict exists for each model
@@ -586,7 +684,8 @@ def compute_quality_scores_llm_judge(
 
         for start in range(0, len(flat_items), batch_size):
             chunk = flat_items[start:start + batch_size]
-            chunk_scores = scorer.score_pairs(chunk)
+            chunk_harmful = flat_is_harmful[start:start + batch_size]
+            chunk_scores = scorer.score_pairs(chunk, is_harmful=chunk_harmful)
 
             # Apply this chunk's results immediately (for progressive logging)
             for local_idx, score in enumerate(chunk_scores):
@@ -990,6 +1089,9 @@ def save_training_data(
     for req in requests:
         if "_missing_models" in req:
             del req["_missing_models"]
+        # Promote _is_harmful to output field
+        if req.pop("_is_harmful", False):
+            req["is_harmful"] = True
         for model_data in req["models"].values():
             if "_response" in model_data:
                 if include_response:
@@ -1132,7 +1234,7 @@ def parse_args():
     parser.add_argument(
         "--batch-size",
         type=int,
-        default=8,
+        default=32,
         help="Batch size for LLM judge inference (higher = faster but more memory)"
     )
     parser.add_argument(
@@ -1157,6 +1259,25 @@ def parse_args():
         "--disable-rationale",
         action="store_true",
         help="Disable rationale/reasoning step in judge prompt (faster but less accurate)"
+    )
+    parser.add_argument(
+        "--no-flash-attention",
+        action="store_true",
+        help="Disable flash attention 2 for LLM judge model loading"
+    )
+    parser.add_argument(
+        "--safety-only",
+        action="store_true",
+        help="Only score harmful/safety prompts (skip normal prompts). "
+             "Useful for re-scoring safety prompts without re-running the full pipeline."
+    )
+    parser.add_argument(
+        "--source-map",
+        type=Path,
+        default=None,
+        help="JSONL file from collect_data.py with 'source' and 'prompt' fields. "
+             "Used to recover dataset source for broadcast data that lost it. "
+             "Joins by stripped prompt text."
     )
 
     # Output options
@@ -1298,6 +1419,33 @@ def main():
         requests = complete_requests
 
         # =================================================================
+        # Step 3.5: Recover source info and tag harmful prompts
+        # =================================================================
+        # If source fields are missing, recover from --source-map JSONL
+        if args.source_map and args.source_map.exists():
+            logger.info(f"Recovering source info from {args.source_map}...")
+            source_lookup = {}
+            with open(args.source_map) as f:
+                for line in f:
+                    item = json.loads(line)
+                    key = item.get("prompt", "").strip()
+                    source_lookup[key] = item.get("source", "")
+            recovered = 0
+            for req in requests:
+                if not req.get("source"):
+                    key = strip_chat_template(req["prompt"]).strip()
+                    source = source_lookup.get(key, "")
+                    if source:
+                        req["source"] = source
+                        req["dataset"] = source.split("/")[0] if "/" in source else source
+                        recovered += 1
+            logger.info(f"Recovered source for {recovered}/{len(requests)} requests")
+
+        logger.info("Detecting harmful prompts for safety-aware scoring...")
+        n_harmful = tag_harmful_requests(requests)
+        logger.info(f"Tagged {n_harmful}/{len(requests)} requests as harmful (will use safety judge template)")
+
+        # =================================================================
         # Step 4: Compute quality scores
         # =================================================================
         logger.info("\n[4/5] Computing quality scores...")
@@ -1307,10 +1455,21 @@ def main():
         run_llm_judge = args.scoring_method in ("llm_judge", "all")
         run_compression = args.scoring_method == "compression"
 
-        if run_similarity:
+        # --safety-only: only re-score harmful prompts, skip the rest
+        if args.safety_only:
+            safety_requests = [r for r in requests if r.get("_is_harmful", False)]
+            if not safety_requests:
+                logger.warning("--safety-only set but no harmful prompts found, skipping scoring")
+            else:
+                logger.info(f"--safety-only: scoring {len(safety_requests)} harmful prompts only")
+                requests_to_score = safety_requests
+        else:
+            requests_to_score = requests
+
+        if run_similarity and not args.safety_only:
             logger.info("\n--- Similarity scoring ---")
             compute_quality_scores_similarity(
-                requests,
+                requests_to_score,
                 reference_model=args.reference_model,
                 device=args.device,
             )
@@ -1318,7 +1477,7 @@ def main():
         if run_llm_judge:
             logger.info("\n--- LLM judge scoring ---")
             failed_indices = compute_quality_scores_llm_judge(
-                requests,
+                requests_to_score,
                 judge_models=args.judge_models,
                 device=args.device,
                 batch_size=args.batch_size,
@@ -1326,6 +1485,7 @@ def main():
                 score_min=args.score_min,
                 score_max=args.score_max,
                 use_rationale=not args.disable_rationale,
+                use_flash_attention=not args.no_flash_attention,
             )
 
         if run_compression:

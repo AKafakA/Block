@@ -495,8 +495,8 @@ def parse_args():
     parser.add_argument(
         "--score-max",
         type=int,
-        default=4,
-        help="Maximum score value for judge rating scale (default: 4 to match human ratings)"
+        default=10,
+        help="Maximum score value for judge rating scale (default: 10)"
     )
     parser.add_argument(
         "--disable-rationale",

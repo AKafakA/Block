@@ -58,8 +58,8 @@ def evaluate(estimator: KNNEstimator, test_data: list) -> dict:
             pred_len = pred["length_mean"]
             length_errors[model_name].append(abs(true_len - pred_len))
 
-            # Quality
-            true_q = true_vals.get("quality_score", 0)
+            # Quality (supports both old and new schema)
+            true_q = KNNEstimator._extract_quality(true_vals)
             pred_q = pred["quality_score"]
             quality_errors[model_name].append(abs(true_q - pred_q))
 
@@ -121,9 +121,13 @@ def main():
     parser.add_argument("--device", default="cpu", help="Device for embeddings")
     args = parser.parse_args()
 
-    # Load training data
+    # Load training data (supports both JSON and JSONL)
     with open(args.input) as f:
-        train_data = json.load(f)["requests"]
+        if args.input.endswith(".jsonl"):
+            train_data = [json.loads(line) for line in f]
+        else:
+            raw = json.load(f)
+            train_data = raw["requests"] if "requests" in raw else raw
     logger.info(f"Training data: {len(train_data)} requests")
 
     # Build KNN index
@@ -143,7 +147,11 @@ def main():
     # Evaluate on test data if provided
     if args.test_input:
         with open(args.test_input) as f:
-            test_data = json.load(f)["requests"]
+            if args.test_input.endswith(".jsonl"):
+                test_data = [json.loads(line) for line in f]
+            else:
+                raw = json.load(f)
+                test_data = raw["requests"] if "requests" in raw else raw
         logger.info(f"Test data: {len(test_data)} requests")
 
         t0 = time.time()

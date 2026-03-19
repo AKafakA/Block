@@ -1,14 +1,26 @@
-"""Generate synthetic requests with controlled (input_len, output_len) pairs
-and send them through the CARA scheduler to collect latency training data
-for the XGBoost latency predictor.
+"""Generate requests and send them through the CARA scheduler to collect
+latency training data for the XGBoost latency predictor.
 
-Requests use dummy prompts (repeated tokens trimmed to exact token count)
-because latency prediction only depends on sequence lengths, not content.
+Instance state is captured per-request by the sidecar predictor running on
+each vLLM node (cara_predictor_api_server). cara_serve must be started with
+--enable-predictor-feedback for data collection to work.
+
+Supports two length-sampling modes:
+  1. Synthetic: lognormal/uniform/fixed distributions (default)
+  2. Real-data: sample prompts from preprocessed training data
 
 Usage:
+    # Synthetic lengths
     python -m block.predictor.cara.offline_training.generate_latency_benchmark \
         --host 127.0.0.1 --port 8200 \
         --num-prompts 20000 --request-rate 18 \
+        --output latency_data/qps_18.jsonl
+
+    # Real-data prompts from preprocessed training data
+    python -m block.predictor.cara.offline_training.generate_latency_benchmark \
+        --host 127.0.0.1 --port 8200 \
+        --num-prompts 20000 --request-rate 18 \
+        --real-data data/cara/training_data/cara_v3_all_training.json \
         --output latency_data/qps_18.jsonl
 """
 
@@ -31,6 +43,52 @@ import numpy as np
 from tqdm.asyncio import tqdm
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Real-data length sampling
+# ---------------------------------------------------------------------------
+
+
+def sample_real_requests(
+    data_path: str,
+    num: int,
+    rng: np.random.Generator,
+    max_tokens: int = 1024,
+) -> tuple[list[str], np.ndarray, np.ndarray]:
+    """Sample real prompts and input_lens from training data.
+
+    max_tokens is passed through as the output cap for all requests,
+    matching the broadcasting cap so models generate natural responses.
+
+    Returns:
+        prompts (list[str]), input_lens, output_lens (numpy arrays, all max_tokens)
+    """
+    with open(data_path) as f:
+        if data_path.endswith(".jsonl"):
+            requests = [json.loads(line) for line in f]
+        else:
+            data = json.load(f)
+            requests = data["requests"]
+    n_total = len(requests)
+
+    input_lens_all = np.array([req["input_len"] for req in requests])
+    prompts_all = [req["prompt"] for req in requests]
+
+    indices = rng.choice(n_total, size=num, replace=True)
+    sampled_prompts = [prompts_all[i] for i in indices]
+    output_lens = np.full(num, max_tokens, dtype=int)
+    return sampled_prompts, input_lens_all[indices], output_lens
+
+
+def sample_real_lengths(
+    data_path: str,
+    num: int,
+    rng: np.random.Generator,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Legacy: sample only lengths (for synthetic prompt mode)."""
+    _, input_lens, output_lens = sample_real_requests(data_path, num, rng)
+    return input_lens, output_lens
+
 
 # ---------------------------------------------------------------------------
 # Sampling helpers
@@ -106,6 +164,7 @@ class LatencyRecord:
     output_len: int = 0          # actual completion tokens
     max_tokens: int = 0          # requested max_tokens
     ttft: float = 0.0            # time to first token (server-reported)
+    tpot: float = 0.0            # time per output token (from ITL mean)
     e2el: float = 0.0            # client-side end-to-end latency
     server_latency: float = 0.0  # server-reported E2E
     scheduling_overhead: float = 0.0
@@ -115,6 +174,7 @@ class LatencyRecord:
     success: bool = False
     error: str = ""
     timestamp: float = 0.0       # request start time (epoch)
+    request_rate: float = 0.0    # QPS level for this run
 
 
 # ---------------------------------------------------------------------------
@@ -128,12 +188,13 @@ async def send_request(
     input_len: int,
     max_tokens: int,
     request_id: str,
+    model_name: str = "cara",
 ) -> LatencyRecord:
     """Send a single completion request and return a LatencyRecord."""
 
     payload = {
         "request_id": request_id,
-        "model": "cara",
+        "model": model_name,
         "prompt": prompt,
         "prompt_len": input_len,
         "max_tokens": max_tokens,
@@ -155,9 +216,29 @@ async def send_request(
         async with session.post(api_url, json=payload, headers=headers) as resp:
             if resp.status == 200:
                 data = await resp.json()
-                if data.get("success", False):
+                record.e2el = time.perf_counter() - st
+
+                # Detect response format: CARA coordinator vs raw vLLM (OpenAI-compatible)
+                if "choices" in data:
+                    # Raw vLLM OpenAI-compatible format
+                    choices = data.get("choices", [])
+                    usage = data.get("usage", {})
+                    if choices:
+                        record.success = True
+                        record.output_len = usage.get("completion_tokens", 0)
+                        record.model = data.get("model", "")
+                        record.server_latency = record.e2el  # no separate server_latency
+                        record.scheduling_overhead = 0.0
+                        # vLLM doesn't return TTFT/ITL in non-streaming mode
+                        # TPOT estimate: (e2el - estimated_prefill) / output_tokens
+                        if record.output_len > 0:
+                            record.tpot = record.e2el / record.output_len
+                    else:
+                        record.error = "Empty choices in vLLM response"
+
+                elif data.get("success", False):
+                    # CARA coordinator format
                     record.success = True
-                    record.e2el = time.perf_counter() - st
                     record.output_len = data.get("output_tokens", 0)
                     record.ttft = data.get("ttft", 0.0)
                     record.model = data.get("model", "")
@@ -165,9 +246,13 @@ async def send_request(
                     record.host = data.get("host", "")
                     record.server_latency = data.get("server_latency", 0.0)
                     record.scheduling_overhead = record.e2el - record.server_latency
+                    # Compute TPOT from ITL if available
+                    itl = data.get("itl", [])
+                    if itl and len(itl) > 0:
+                        record.tpot = sum(itl) / len(itl)  # already in seconds
+
                 else:
-                    record.e2el = time.perf_counter() - st
-                    record.error = data.get("error", "CARA server returned success=False")
+                    record.error = data.get("error", "Server returned success=False")
                     record.model = data.get("model", "")
                     record.instance_id = data.get("instance_id", "")
                     record.host = data.get("host", "")
@@ -191,27 +276,26 @@ async def run_benchmark(
     input_lens: np.ndarray,
     output_lens: np.ndarray,
     request_rate: float,
-    concurrency: int,
+    model_name: str = "cara",
 ) -> list[LatencyRecord]:
-    """Send all requests with rate-limiting and bounded concurrency."""
+    """Send all requests with Poisson rate limiting. No concurrency cap."""
 
     num_prompts = len(prompts)
-    semaphore = asyncio.Semaphore(concurrency)
     records: list[LatencyRecord] = []
     lock = asyncio.Lock()
 
     pbar = tqdm(total=num_prompts, desc="Sending requests")
 
     async def _task(idx: int) -> None:
-        async with semaphore:
-            rid = str(uuid.uuid4())
-            rec = await send_request(
-                session, api_url, prompts[idx],
-                int(input_lens[idx]), int(output_lens[idx]), rid,
-            )
-            async with lock:
-                records.append(rec)
-            pbar.update(1)
+        rid = str(uuid.uuid4())
+        rec = await send_request(
+            session, api_url, prompts[idx],
+            int(input_lens[idx]), int(output_lens[idx]), rid,
+            model_name=model_name,
+        )
+        async with lock:
+            records.append(rec)
+        pbar.update(1)
 
     timeout = aiohttp.ClientTimeout(total=600)  # 10 min per request
     async with aiohttp.ClientSession(timeout=timeout) as session:
@@ -282,7 +366,7 @@ def print_summary(records: list[LatencyRecord]) -> None:
     if failures:
         error_counts: dict[str, int] = {}
         for r in failures:
-            key = r.error[:80] if r.error else "unknown"
+            key = str(r.error)[:80] if r.error else "unknown"
             error_counts[key] = error_counts.get(key, 0) + 1
         print(f"\n  Error breakdown (top 5):")
         for err, cnt in sorted(error_counts.items(), key=lambda x: -x[1])[:5]:
@@ -305,8 +389,6 @@ def main() -> None:
     parser.add_argument("--num-prompts", type=int, default=20000)
     parser.add_argument("--request-rate", type=float, default=float("inf"),
                         help="Requests per second (inf = no rate limit)")
-    parser.add_argument("--concurrency", type=int, default=32,
-                        help="Max concurrent in-flight requests")
 
     # Input length distribution
     parser.add_argument("--input-len-dist", type=str, default="lognormal",
@@ -324,8 +406,22 @@ def main() -> None:
     parser.add_argument("--output-len-min", type=int, default=16)
     parser.add_argument("--output-len-max", type=int, default=512)
 
+    # Real-data mode (overrides synthetic distributions)
+    parser.add_argument("--real-data", type=str, default=None,
+                        help="Path to preprocessed training JSON; sample (input_len, output_len) "
+                             "from actual data distribution instead of synthetic")
+
+    # Model name for the /v1/completions payload (use actual model name for direct vLLM)
+    parser.add_argument("--model", type=str, default="cara",
+                        help="Model name in API payload. Use 'cara' for coordinator, "
+                             "or actual model name (e.g. 'Qwen/Qwen2.5-7B') for direct vLLM")
+
     # Tokenizer
     parser.add_argument("--tokenizer", type=str, default="Qwen/Qwen2.5-3B")
+
+    # Max tokens cap (should match broadcasting config)
+    parser.add_argument("--max-tokens", type=int, default=1024,
+                        help="Max output tokens per request (should match broadcasting cap)")
 
     # Output
     parser.add_argument("--output", type=str, required=True,
@@ -343,27 +439,35 @@ def main() -> None:
 
     rng = np.random.default_rng(args.seed)
 
-    # ---- 1. Sample (input_len, output_len) pairs ----
-    logger.info("Sampling %d (input_len, output_len) pairs ...", args.num_prompts)
-
-    input_lens = sample_lengths(
-        args.num_prompts,
-        args.input_len_dist,
-        args.input_len_mean,
-        args.input_len_std,
-        args.input_len_min,
-        args.input_len_max,
-        rng,
-    )
-    output_lens = sample_lengths(
-        args.num_prompts,
-        args.output_len_dist,
-        args.output_len_mean,
-        args.output_len_std,
-        args.output_len_min,
-        args.output_len_max,
-        rng,
-    )
+    # ---- 1. Sample requests ----
+    real_prompts: list[str] | None = None
+    if args.real_data:
+        logger.info("Sampling %d real requests from: %s",
+                     args.num_prompts, args.real_data)
+        real_prompts, input_lens, output_lens = sample_real_requests(
+            args.real_data, args.num_prompts, rng, max_tokens=args.max_tokens
+        )
+    else:
+        logger.info("Sampling %d (input_len, output_len) from synthetic distributions ...",
+                     args.num_prompts)
+        input_lens = sample_lengths(
+            args.num_prompts,
+            args.input_len_dist,
+            args.input_len_mean,
+            args.input_len_std,
+            args.input_len_min,
+            args.input_len_max,
+            rng,
+        )
+        output_lens = sample_lengths(
+            args.num_prompts,
+            args.output_len_dist,
+            args.output_len_mean,
+            args.output_len_std,
+            args.output_len_min,
+            args.output_len_max,
+            rng,
+        )
 
     logger.info(
         "Input lengths: mean=%.0f, min=%d, max=%d | Output lengths: mean=%.0f, min=%d, max=%d",
@@ -371,39 +475,44 @@ def main() -> None:
         output_lens.mean(), output_lens.min(), output_lens.max(),
     )
 
-    # ---- 2. Pre-generate dummy prompts ----
-    logger.info("Loading tokenizer %s ...", args.tokenizer)
-    from transformers import AutoTokenizer
-    tokenizer = AutoTokenizer.from_pretrained(args.tokenizer, trust_remote_code=True)
+    # ---- 2. Build prompts ----
+    if real_prompts is not None:
+        logger.info("Using %d real prompts from training data.", len(real_prompts))
+        prompts = real_prompts
+    else:
+        logger.info("Loading tokenizer %s ...", args.tokenizer)
+        from transformers import AutoTokenizer
+        tokenizer = AutoTokenizer.from_pretrained(args.tokenizer, trust_remote_code=True)
 
-    logger.info("Generating %d dummy prompts (this may take a moment) ...", args.num_prompts)
-    # Cache prompts by input_len to avoid redundant tokenizer work.
-    prompt_cache: dict[int, str] = {}
-    prompts: list[str] = []
-    for ilen in input_lens:
-        ilen = int(ilen)
-        if ilen not in prompt_cache:
-            prompt_cache[ilen] = build_dummy_prompt(ilen, tokenizer)
-        prompts.append(prompt_cache[ilen])
-
-    logger.info("Cached %d unique prompt lengths out of %d requests.",
-                len(prompt_cache), args.num_prompts)
+        logger.info("Generating %d dummy prompts ...", args.num_prompts)
+        prompt_cache: dict[int, str] = {}
+        prompts: list[str] = []
+        for ilen in input_lens:
+            ilen = int(ilen)
+            if ilen not in prompt_cache:
+                prompt_cache[ilen] = build_dummy_prompt(ilen, tokenizer)
+            prompts.append(prompt_cache[ilen])
+        logger.info("Cached %d unique prompt lengths.", len(prompt_cache))
 
     # ---- 3. Send requests ----
     api_url = f"http://{args.host}:{args.port}/v1/completions"
     logger.info(
-        "Sending %d requests to %s (rate=%.1f rps, concurrency=%d) ...",
-        args.num_prompts, api_url, args.request_rate, args.concurrency,
+        "Sending %d requests to %s (rate=%.1f rps) ...",
+        args.num_prompts, api_url, args.request_rate,
     )
 
-    records = asyncio.run(
-        run_benchmark(
-            api_url, prompts, input_lens, output_lens,
-            args.request_rate, args.concurrency,
-        )
-    )
+    # ---- 4. Run benchmark ----
+    records = asyncio.run(run_benchmark(
+        api_url, prompts, input_lens, output_lens,
+        args.request_rate,
+        model_name=args.model,
+    ))
 
-    # ---- 4. Save results ----
+    # Tag each record with request_rate
+    for rec in records:
+        rec.request_rate = args.request_rate
+
+    # ---- 5. Save results ----
     out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -411,9 +520,9 @@ def main() -> None:
         for rec in records:
             f.write(json.dumps(asdict(rec)) + "\n")
 
-    logger.info("Saved %d records to %s", len(records), out_path)
+    logger.info("Saved %d latency records to %s", len(records), out_path)
 
-    # ---- 5. Print summary ----
+    # ---- 6. Print summary ----
     print_summary(records)
 
 

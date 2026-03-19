@@ -11,11 +11,12 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 
 from block.global_scheduler.cara.cara_instance.Instance import Instance
-from block.server_utils import serve_http
+from block.server_utils_lite import serve_http
 from block.global_scheduler.cara.utils import set_ulimit
 import resource
 import logging
 import traceback
+import math
 
 STOP_WORD_MAPS = {
     "Qwen": ["<|im_start|>", "<|im_end|>"]
@@ -39,6 +40,17 @@ temperature = 0.0
 broadcasting_enabled = False
 broadcast_model_list: list[str] = []
 enable_predictor_feedback = False
+# Learned predictor instances (instance_id -> CARALearnedPredictor)
+learned_predictors: dict = {}
+# Scheduling config for multi-objective (loaded from predictor config)
+scoring_weights: dict = {"w_latency": 0.3, "w_cost": 0.3, "w_quality": 0.4}
+slo_defaults: dict = {
+    "ttft_slo_ms": 5000, "tpot_slo_ms": 200,
+    "budget_tokens": 256, "quality_min": 0.3,
+    "budget_confidence_threshold": 0.5,
+}
+# Instance metadata (instance_id -> {model_name, gpu_type, cost_per_token, instance_type})
+instance_meta: dict = {}
 
 
 def to_ollama_tag(hf_name: str) -> str:
@@ -107,8 +119,16 @@ async def completion(request: Request) -> Response:
         else:
             logger.debug(f"Request {request_id}: Skipping predictor queries (feedback disabled)")
 
+        # Extract optional RSO (Request Service Objectives) from request
+        rso = request_json.get("rso", {})
+        budget_tokens = rso.get("budget", slo_defaults.get("budget_tokens", 256))
+        ttft_slo_ms = rso.get("ttft_slo_ms", slo_defaults.get("ttft_slo_ms", 5000))
+        tpot_slo_ms = rso.get("tpot_slo_ms", slo_defaults.get("tpot_slo_ms", 200))
+        quality_min = rso.get("quality_min", slo_defaults.get("quality_min", 0.0))
+        prompt_text = request_json.get("prompt", "")
+
         # Broadcasting mode: query one instance per selected model, pick one as main response
-        # Non-broadcasting mode: use random/round-robin selection
+        # Non-broadcasting mode: use scheduling strategy selection
         if broadcasting_enabled and broadcast_model_list:
             # Normalize model names for matching (support HF name or Ollama tag)
             def _norm(name: str) -> str:
@@ -124,9 +144,11 @@ async def completion(request: Request) -> Response:
                 target_norms.add(_norm(m))
                 target_norms.add(_norm(tag))
 
-            # Pick at most one instance per requested model
+            # Pick at most one instance per requested model, rotating to spread load
             chosen: dict[str, Instance] = {}
-            for inst in instances:
+            shuffled = list(instances)
+            random.shuffle(shuffled)
+            for inst in shuffled:
                 model_key = _norm(inst._model_name)
                 if model_key in target_norms and inst._model_name not in chosen:
                     chosen[inst._model_name] = inst
@@ -174,13 +196,13 @@ async def completion(request: Request) -> Response:
                     "request_id": request_id,
                 }
         else:
-            # Non-broadcasting mode: use existing random/round-robin selection
-            if scheduling == "random":
-                selected_instance = random.choice(instances)
-            elif scheduling == "round_robin":
-                selected_instance = instances[num_requests % len(instances)]
-            else:
-                selected_instance = random.choice(instances)
+            # Non-broadcasting mode: use scheduling strategy
+            selected_instance = await _select_instance(
+                scheduling, instances, num_requests, request_json,
+                prompt_text, num_prompt_tokens, max_output_tokens,
+                budget_tokens, ttft_slo_ms, tpot_slo_ms, quality_min,
+                request_id,
+            )
 
             response_dict = await selected_instance.query_instance(
                 request_json,
@@ -206,6 +228,380 @@ async def completion(request: Request) -> Response:
             "model": selected_instance._model_name if selected_instance else "Unknown",
         }
         return JSONResponse(content=error_response, status_code=500)
+
+
+async def _get_instance_stats(instance: Instance) -> dict:
+    """Query /instance_stats from a vLLM instance. Returns empty dict on failure."""
+    try:
+        url = f"http://{instance._ip_address}:{instance._backend_port}/instance_stats"
+        async with aiohttp.ClientSession(
+            timeout=aiohttp.ClientTimeout(total=3)
+        ) as session:
+            async with session.get(url, ssl=False) as resp:
+                if resp.status == 200:
+                    return await resp.json()
+    except Exception:
+        pass
+    return {}
+
+
+async def _select_instance(
+    strategy: str,
+    all_instances: list,
+    req_count: int,
+    request_json: dict,
+    prompt_text: str,
+    num_prompt_tokens: int,
+    max_output_tokens: int,
+    budget_tokens: int,
+    ttft_slo_ms: float,
+    tpot_slo_ms: float,
+    quality_min: float,
+    request_id: str,
+) -> Instance:
+    """Select an instance based on the scheduling strategy."""
+
+    if strategy == "random":
+        return random.choice(all_instances)
+
+    elif strategy == "round_robin":
+        return all_instances[req_count % len(all_instances)]
+
+    elif strategy == "shortest_queue":
+        return await _schedule_shortest_queue(all_instances)
+
+    elif strategy == "quality_greedy":
+        return await _schedule_quality_greedy(all_instances)
+
+    elif strategy == "cost_greedy":
+        return await _schedule_cost_greedy(all_instances)
+
+    elif strategy == "length_aware":
+        return await _schedule_length_aware(
+            all_instances, prompt_text, num_prompt_tokens, max_output_tokens
+        )
+
+    elif strategy == "cara":
+        return await _schedule_cara(
+            all_instances, prompt_text, num_prompt_tokens, max_output_tokens,
+            budget_tokens, ttft_slo_ms, tpot_slo_ms, quality_min, request_id,
+        )
+
+    else:
+        logger.warning(f"Unknown scheduling strategy '{strategy}', falling back to random")
+        return random.choice(all_instances)
+
+
+async def _schedule_shortest_queue(all_instances: list) -> Instance:
+    """Pick instance with fewest pending requests."""
+    stats_tasks = [_get_instance_stats(inst) for inst in all_instances]
+    stats_list = await asyncio.gather(*stats_tasks, return_exceptions=True)
+
+    best_inst = all_instances[0]
+    best_queue = float("inf")
+
+    for inst, stats in zip(all_instances, stats_list):
+        if isinstance(stats, Exception) or not stats:
+            queue_len = inst.total_request  # fallback to total requests served
+        else:
+            queue_len = stats.get("num_running", 0) + stats.get("num_waiting", 0)
+        if queue_len < best_queue:
+            best_queue = queue_len
+            best_inst = inst
+
+    return best_inst
+
+
+def _model_size_key(model_name: str) -> int:
+    """Extract numeric model size from name for ordering (larger = higher)."""
+    import re
+    # Match patterns like "3B", "7B", "14B", "72B"
+    match = re.search(r'(\d+)[Bb]', model_name)
+    if match:
+        return int(match.group(1))
+    return 0
+
+
+async def _schedule_quality_greedy(all_instances: list) -> Instance:
+    """Pick largest model with shortest queue (quality-maximizing)."""
+    # Group by model size, pick largest group
+    by_size: dict[int, list] = {}
+    for inst in all_instances:
+        size = _model_size_key(inst._model_name)
+        by_size.setdefault(size, []).append(inst)
+
+    # Try from largest to smallest
+    for size in sorted(by_size.keys(), reverse=True):
+        group = by_size[size]
+        if group:
+            # Shortest queue within the group
+            stats_tasks = [_get_instance_stats(inst) for inst in group]
+            stats_list = await asyncio.gather(*stats_tasks, return_exceptions=True)
+
+            best_inst = group[0]
+            best_queue = float("inf")
+            for inst, stats in zip(group, stats_list):
+                if isinstance(stats, Exception) or not stats:
+                    queue_len = 999
+                else:
+                    queue_len = stats.get("num_running", 0) + stats.get("num_waiting", 0)
+                if queue_len < best_queue:
+                    best_queue = queue_len
+                    best_inst = inst
+            return best_inst
+
+    return random.choice(all_instances)
+
+
+async def _schedule_cost_greedy(all_instances: list) -> Instance:
+    """Pick smallest model with shortest queue (cost-minimizing)."""
+    by_size: dict[int, list] = {}
+    for inst in all_instances:
+        size = _model_size_key(inst._model_name)
+        by_size.setdefault(size, []).append(inst)
+
+    # Try from smallest to largest
+    for size in sorted(by_size.keys()):
+        group = by_size[size]
+        if group:
+            stats_tasks = [_get_instance_stats(inst) for inst in group]
+            stats_list = await asyncio.gather(*stats_tasks, return_exceptions=True)
+
+            best_inst = group[0]
+            best_queue = float("inf")
+            for inst, stats in zip(group, stats_list):
+                if isinstance(stats, Exception) or not stats:
+                    queue_len = 999
+                else:
+                    queue_len = stats.get("num_running", 0) + stats.get("num_waiting", 0)
+                if queue_len < best_queue:
+                    best_queue = queue_len
+                    best_inst = inst
+            return best_inst
+
+    return random.choice(all_instances)
+
+
+async def _schedule_length_aware(
+    all_instances: list, prompt_text: str,
+    num_prompt_tokens: int, max_output_tokens: int,
+) -> Instance:
+    """Use length prediction to route to instance that minimizes estimated
+    completion time (like L4/S3 baselines)."""
+    # Get predictions from learned predictors if available
+    stats_tasks = [_get_instance_stats(inst) for inst in all_instances]
+    stats_list = await asyncio.gather(*stats_tasks, return_exceptions=True)
+
+    best_inst = all_instances[0]
+    best_time = float("inf")
+
+    for inst, stats in zip(all_instances, stats_list):
+        if isinstance(stats, Exception) or not stats:
+            stats = {}
+
+        inst_id = inst._instance_id
+        predictor = learned_predictors.get(inst_id)
+
+        if predictor and prompt_text:
+            # Use learned predictor for length estimate
+            pred = predictor.predict_full(
+                prompt_text, num_prompt_tokens, max_output_tokens,
+                schedule_state=stats,
+            )
+            expected_length = pred["expected_length"]
+            tpot = pred["tpot"]
+            ttft = pred["ttft"]
+        else:
+            # Fallback: assume max output tokens
+            expected_length = max_output_tokens
+            tpot = 0.05
+            ttft = 1.0
+
+        # Estimated completion = TTFT + expected_length * TPOT + queue wait
+        queue_len = stats.get("num_running", 0) + stats.get("num_waiting", 0)
+        queue_wait = queue_len * expected_length * tpot  # rough estimate
+        est_time = ttft + expected_length * tpot + queue_wait
+
+        if est_time < best_time:
+            best_time = est_time
+            best_inst = inst
+
+    return best_inst
+
+
+async def _schedule_cara(
+    all_instances: list, prompt_text: str,
+    num_prompt_tokens: int, max_output_tokens: int,
+    budget_tokens: int, ttft_slo_ms: float, tpot_slo_ms: float,
+    quality_min: float, request_id: str,
+) -> Instance:
+    """Full multi-objective CARA scheduling.
+
+    1. Filter: P(tokens<=budget) < threshold → reject
+               predicted_ttft > SLO → reject
+               tpot > SLO → reject
+    2. Rank: score = w_lat * ttft_norm + w_cost * E[length] * cost_per_tok - w_qual * quality
+       Lower score is better.
+    """
+    w_lat = scoring_weights.get("w_latency", 0.3)
+    w_cost = scoring_weights.get("w_cost", 0.3)
+    w_qual = scoring_weights.get("w_quality", 0.4)
+    budget_threshold = slo_defaults.get("budget_confidence_threshold", 0.5)
+
+    # Get instance stats in parallel
+    stats_tasks = [_get_instance_stats(inst) for inst in all_instances]
+    stats_list = await asyncio.gather(*stats_tasks, return_exceptions=True)
+
+    candidates = []
+
+    for inst, stats in zip(all_instances, stats_list):
+        if isinstance(stats, Exception) or not stats:
+            stats = {}
+
+        inst_id = inst._instance_id
+        predictor = learned_predictors.get(inst_id)
+
+        if predictor and prompt_text:
+            pred = predictor.predict_full(
+                prompt_text, num_prompt_tokens, max_output_tokens,
+                schedule_state=stats, budget_tokens=budget_tokens,
+            )
+        else:
+            # Fallback for instances without learned predictors
+            meta = instance_meta.get(inst_id, {})
+            pred = {
+                "p_under_budget": 0.5,
+                "ttft": 1.0,
+                "tpot": 0.05,
+                "quality": 0.5,
+                "expected_length": max_output_tokens,
+                "cost_per_token": meta.get("cost_per_token", 0.01),
+            }
+
+        # --- Filter stage ---
+        # 1. Budget compliance
+        if pred["p_under_budget"] < budget_threshold:
+            logger.debug(
+                f"Request {request_id}: {inst_id} filtered (budget compliance "
+                f"{pred['p_under_budget']:.2f} < {budget_threshold})"
+            )
+            continue
+
+        # 2. TTFT SLO
+        predicted_ttft_ms = pred["ttft"] * 1000
+        if predicted_ttft_ms > ttft_slo_ms:
+            logger.debug(
+                f"Request {request_id}: {inst_id} filtered (TTFT "
+                f"{predicted_ttft_ms:.0f}ms > {ttft_slo_ms}ms)"
+            )
+            continue
+
+        # 3. TPOT SLO
+        predicted_tpot_ms = pred["tpot"] * 1000
+        if predicted_tpot_ms > tpot_slo_ms:
+            logger.debug(
+                f"Request {request_id}: {inst_id} filtered (TPOT "
+                f"{predicted_tpot_ms:.0f}ms > {tpot_slo_ms}ms)"
+            )
+            continue
+
+        # 4. Quality minimum
+        if pred["quality"] < quality_min:
+            logger.debug(
+                f"Request {request_id}: {inst_id} filtered (quality "
+                f"{pred['quality']:.2f} < {quality_min})"
+            )
+            continue
+
+        # --- Scoring ---
+        # Normalize TTFT to [0, 1] range (max 10s)
+        ttft_norm = min(pred["ttft"] / 10.0, 1.0)
+        # Cost component
+        cost = pred["expected_length"] * pred["cost_per_token"]
+        # Normalize cost (assume max ~$0.05 per request)
+        cost_norm = min(cost / 0.05, 1.0)
+        # Quality is already in [0, 1]
+        quality_norm = pred["quality"]
+
+        # Lower is better: latency and cost are penalties, quality is reward
+        score = w_lat * ttft_norm + w_cost * cost_norm - w_qual * quality_norm
+
+        candidates.append((score, inst, pred))
+
+    if not candidates:
+        # All filtered out — fall back to shortest queue
+        logger.warning(
+            f"Request {request_id}: all instances filtered by CARA, "
+            f"falling back to shortest_queue"
+        )
+        return await _schedule_shortest_queue(all_instances)
+
+    # Pick the candidate with the lowest score
+    candidates.sort(key=lambda x: x[0])
+    best_score, best_inst, best_pred = candidates[0]
+
+    logger.debug(
+        f"Request {request_id}: CARA selected {best_inst._instance_id} "
+        f"(score={best_score:.3f}, quality={best_pred['quality']:.2f}, "
+        f"ttft={best_pred['ttft']:.2f}s, E[len]={best_pred['expected_length']:.0f})"
+    )
+
+    return best_inst
+
+
+def _load_learned_predictors(config_path: str, all_instances: list):
+    """Load learned predictors for CARA multi-objective scheduling."""
+    global learned_predictors, scoring_weights, slo_defaults, instance_meta
+
+    try:
+        with open(config_path) as f:
+            config_dict = json.load(f)
+
+        from block.predictor.cara.cara_predictor_config import CARABasePredictorConfig
+        config = CARABasePredictorConfig.from_dict(config_dict)
+
+        # Update global scoring weights and SLO defaults
+        scoring_weights.update(config.scoring_weights)
+        slo_defaults.update(config.slo_defaults)
+
+        # Build instance_type mapping from instance metadata
+        inst_metadata = config.instance_metadata
+
+        for inst in all_instances:
+            # Try to determine instance type from model name + metadata
+            for inst_type, meta in inst_metadata.items():
+                if meta.get("model_name") == inst._model_name:
+                    instance_meta[inst._instance_id] = {
+                        **meta, "instance_type": inst_type
+                    }
+
+                    # Create learned predictor for this instance
+                    try:
+                        from block.predictor.cara.cara_learned_predictor import CARALearnedPredictor
+                        predictor = CARALearnedPredictor(
+                            config=config,
+                            port=inst._backend_port,
+                            hostname=inst._hostname,
+                            instance_type=inst_type,
+                        )
+                        learned_predictors[inst._instance_id] = predictor
+                        logger.info(
+                            f"Loaded learned predictor for {inst._instance_id} "
+                            f"(type={inst_type})"
+                        )
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to load learned predictor for {inst._instance_id}: {e}"
+                        )
+                    break
+
+        logger.info(
+            f"Loaded {len(learned_predictors)} learned predictors, "
+            f"scoring_weights={scoring_weights}"
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to load learned predictor config: {e}")
 
 
 def build_app(args: Namespace) -> FastAPI:
@@ -280,6 +676,10 @@ async def init_app(
 
     start_time = time.time()
     scheduling = args.scheduling
+
+    # Load learned predictors if using cara/length_aware scheduling
+    if scheduling in ("cara", "length_aware") and getattr(args, "predictor_config", None):
+        _load_learned_predictors(args.predictor_config, instances)
 
     # Log registered instances and routes
     logger.info(f"CARA Scheduler initialized with {len(instances)} instances:")
@@ -378,7 +778,8 @@ if __name__ == "__main__":
     parser.add_argument("--host_config", type=str,
                         default="block/config/host_configs.json")
     parser.add_argument("--scheduling", type=str, default="random",
-                        help="Scheduling strategy among instances: random, round_robin")
+                        help="Scheduling strategy: random, round_robin, shortest_queue, "
+                             "quality_greedy, cost_greedy, length_aware, cara")
     parser.add_argument("--debugging_logs", action="store_true",
                         help="Enable debug level logging")
     parser.add_argument("--chat", action="store_true",
@@ -403,6 +804,8 @@ if __name__ == "__main__":
                         help="Enable broadcasting to one instance per selected model for data collection")
     parser.add_argument("--selected-broadcasted-models", nargs='+', default=[],
                         help="List of model names/tags to broadcast to when broadcasting is enabled")
+    parser.add_argument("--predictor-config", type=str, default=None,
+                        help="Path to learned predictor config JSON (for cara/length_aware scheduling)")
     args = parser.parse_args()
     logger.info("Starting server with args: %s", str(args))
 

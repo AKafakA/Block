@@ -16,8 +16,20 @@ from fastapi.responses import JSONResponse, Response
 
 from block.predictor.cara.cara_predictor_config import CARABasePredictorConfig
 from block.predictor.cara.data_structures import PredictRequest
-from block.server_utils import serve_http
-from block.global_scheduler.cara.utils import set_ulimit
+try:
+    from block.server_utils import serve_http
+except ImportError:
+    from block.server_utils_lite import serve_http
+try:
+    from block.global_scheduler.cara.utils import set_ulimit
+except ImportError:
+    def set_ulimit():
+        """Fallback: try to raise file descriptor limit."""
+        import resource
+        try:
+            resource.setrlimit(resource.RLIMIT_NOFILE, (65536, 65536))
+        except (ValueError, resource.error):
+            pass
 
 TIMEOUT_KEEP_ALIVE = 5  # seconds
 app = FastAPI()
@@ -165,6 +177,20 @@ async def init_app(
             f"Created DummyCARAPredictor: hostname={args.hostname}, "
             f"backend_port={args.backend_port}, predictor_port={args.port}"
         )
+    elif config.predictor_type == "learned":
+        from block.predictor.cara.cara_learned_predictor import CARALearnedPredictor
+        # Determine instance_type from hostname (e.g., "d8545-xxx" → look up in config)
+        instance_type = getattr(args, "instance_type", "unknown")
+        predictor = CARALearnedPredictor(
+            config=config,
+            port=args.backend_port,
+            hostname=args.hostname,
+            instance_type=instance_type,
+        )
+        logger.info(
+            f"Created CARALearnedPredictor: hostname={args.hostname}, "
+            f"instance_type={instance_type}, backend_port={args.backend_port}"
+        )
     elif config.predictor_type == "lstm":
         # TODO: Implement LSTM predictor
         raise NotImplementedError("LSTM predictor not yet implemented")
@@ -237,6 +263,8 @@ if __name__ == "__main__":
                         help="Whether client certificate is required")
     parser.add_argument("--root-path", type=str, default=None,
                         help="FastAPI root_path when app is behind a proxy")
+    parser.add_argument("--instance-type", type=str, default="unknown",
+                        help="Instance type identifier (e.g., qwen2.5-3b_p100) for learned predictor")
 
     args = parser.parse_args()
 
