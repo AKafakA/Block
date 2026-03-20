@@ -23,7 +23,7 @@ USE_PROCESS_FOR_FRONTEND=true
 UPDATE_BLOCK_CODE=false
 UPDATE_VLLM_CODE=false
 RUN_EXP=true
-RESTART_VLLM=true
+RESTART_VLLM=false
 
 # Config for error heatmap experiment
 ENABLE_CHUNKED_PREFILL="true"
@@ -31,27 +31,26 @@ MODEL="meta-llama/Llama-2-7b-hf"
 DATASET_NAMES="sharegpt"
 SCHEDULER_NAME="min_new_request_latency"
 # Use moderate QPS where scheduling decisions matter
-QPS="28"
+QPS="30"
 PROFILING_SAMPLE_RATE=0.000
 USE_FOR_PROFILING_ONLY=false
-NUM_REQUEST=3000
+NUM_REQUEST=10000
 KEEP_ALL_METRICS=false
-N_SELECTED="12"
-OUTPUT_DIR_PREFIX="error_heatmap"
+N_SELECTED="2"
+OUTPUT_DIR_PREFIX="error_heatmap_po2"
 
 # Error levels for heatmap (percentage)
-LENGTH_ERROR_LEVELS="0 10 20 30 40 50"
-LATENCY_ERROR_LEVELS="0 10 20 30 40 50"
+LENGTH_ERROR_LEVELS="0 25 50 100"
+LATENCY_ERROR_LEVELS="0 25 50 100"
 
 AVAILABLE_INSTANCE="12"
 ENABLE_PREEMPTIVE_AUTO_PROVISIONING="false"
 MAX_SLO="0"
 
-TARGET_HOST=""  # Fill with your global scheduler host
+TARGET_HOST=""
 
 for model in $MODEL; do
-  echo "Running warmup script for ${model} model"
-  sh block/exp/end_to_end_exp_scripts/warmup.sh ${model} > /dev/null 2>&1
+  # Warmup skipped — vLLM deployed by setup block below
   if [ "$model" = "meta-llama/Llama-2-7b-hf" ]; then
     MODEL_TYPE="llama"
   elif [ "$model" = "Qwen/Qwen2-7B" ]; then
@@ -69,14 +68,18 @@ for model in $MODEL; do
     sh block/exp/reset.sh
     sleep 30
     nohup sh block/exp/run_exp_vllm.sh $BATCH_CAP $model false 0 $MAX_MODEL_LENGTH true $BACKEND_WORKERS $CHUNK_SIZE > /dev/null 2>&1 &
-    sleep 60
-    for suffix in $(seq 1 $PREDICTOR_WORKERS); do
+    sleep 90
+    for suffix in $(seq 1 7); do
+      nohup sh block/exp/run_exp_predictor_${suffix}.sh $PREDICTOR_CONFIG_PATH $SCHEDULER_NAME true $BATCH_CAP true $PREDICTOR_WORKERS $BRANCH_NAME $BATCH_SIZE_THRESHOLD_FOR_TIME_ESTIMATION $PREDICTOR_TIMEOUT_IN_SECONDS > /dev/null 2>&1 &
+    done
+    sleep 10
+    for suffix in $(seq 8 $PREDICTOR_WORKERS); do
       nohup sh block/exp/run_exp_predictor_${suffix}.sh $PREDICTOR_CONFIG_PATH $SCHEDULER_NAME true $BATCH_CAP true $PREDICTOR_WORKERS $BRANCH_NAME $BATCH_SIZE_THRESHOLD_FOR_TIME_ESTIMATION $PREDICTOR_TIMEOUT_IN_SECONDS > /dev/null 2>&1 &
     done
     sleep 60
 
     run_count=0
-    total_runs=37
+    total_runs=17
 
     for length_error in $LENGTH_ERROR_LEVELS; do
       for latency_error in $LATENCY_ERROR_LEVELS; do
@@ -92,7 +95,7 @@ for model in $MODEL; do
           # Run benchmark
           OUTPUT_DIR="${OUTPUT_DIR_PREFIX}/${dataset_name}/${SCHEDULER_NAME}/qps_${qps}_len_err_${length_error}_lat_err_${latency_error}"
 
-          parallel-ssh -i -t 0 --host $TARGET_HOST "cd Block && export PYTHONPATH=. && python block/benchmark/benchmark_serving.py --ip_ports 127.0.0.1:8200 --tokenizer $model --num_sampled_requests $NUM_REQUEST --dataset_type $dataset_name --dataset_path $dataset_path --qps $qps --backend block --log_filename benchmark.log --output_dir $OUTPUT_DIR --data_start_index $START_INDEX --trust_remote_code --max_request_len $MAX_MODEL_LENGTH --timeout_in_seconds $TIMEOUT_IN_SECONDS --use_estimated_response_lens"
+          parallel-ssh -i -t 0 --host $TARGET_HOST "cd Block && export PYTHONPATH=. && export HF_TOKEN= && python block/benchmark/benchmark_serving.py --ip_ports 127.0.0.1:8200 --tokenizer $model --num_sampled_requests $NUM_REQUEST --dataset_type $dataset_name --dataset_path $dataset_path --qps $qps --backend block --log_filename benchmark.log --output_dir $OUTPUT_DIR --data_start_index $START_INDEX --trust_remote_code --max_request_len $MAX_MODEL_LENGTH --timeout_in_seconds $TIMEOUT_IN_SECONDS --use_estimated_response_lens"
 
           sleep 5
           parallel-ssh --host $TARGET_HOST "cd Block && mkdir -p experiment_output/$OUTPUT_DIR/running_logs"

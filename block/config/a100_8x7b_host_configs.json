@@ -1,0 +1,82 @@
+{
+    "d8545-10s10301-gpu0": {
+        "backend_port": 8000,
+        "ip_address": "10.10.1.1",
+        "predictor_ports": [
+            8100,
+            8101,
+            8102,
+            8103
+        ]
+    },
+    "d8545-10s10301-gpu1": {
+        "backend_port": 8001,
+        "ip_address": "10.10.1.1",
+        "predictor_ports": [
+            8300,
+            8301,
+            8302,
+            8303
+        ]
+    },
+    "d8545-10s10301-gpu2": {
+        "backend_port": 8002,
+        "ip_address": "10.10.1.1",
+        "predictor_ports": [
+            8400,
+            8401,
+            8402,
+            8403
+        ]
+    },
+    "d8545-10s10301-gpu3": {
+        "backend_port": 8003,
+        "ip_address": "10.10.1.1",
+        "predictor_ports": [
+            8500,
+            8501,
+            8502,
+            8503
+        ]
+    },
+    "d8545-10s10505-gpu0": {
+        "backend_port": 8000,
+        "ip_address": "10.10.1.2",
+        "predictor_ports": [
+            8100,
+            8101,
+            8102,
+            8103
+        ]
+    },
+    "d8545-10s10505-gpu1": {
+        "backend_port": 8001,
+        "ip_address": "10.10.1.2",
+        "predictor_ports": [
+            8300,
+            8301,
+            8302,
+            8303
+        ]
+    },
+    "d8545-10s10505-gpu2": {
+        "backend_port": 8002,
+        "ip_address": "10.10.1.2",
+        "predictor_ports": [
+            8400,
+            8401,
+            8402,
+            8403
+        ]
+    },
+    "d8545-10s10505-gpu3": {
+        "backend_port": 8003,
+        "ip_address": "10.10.1.2",
+        "predictor_ports": [
+            8500,
+            8501,
+            8502,
+            8503
+        ]
+    }
+}

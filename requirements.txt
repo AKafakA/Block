@@ -25,3 +25,4 @@ jsonlines
 certifi
 orjson
 shapely==2.1.1
+transformers==4.50.3

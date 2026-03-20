@@ -28,18 +28,18 @@ ENABLE_CHUNKED_PREFILL="true"
 MODEL="meta-llama/Llama-2-7b-hf"
 DATASET_NAMES="sharegpt"
 # Compare Block vs Llumnix- under bursty conditions
-SCHEDULER_NAME="min_new_request_latency min_lunmnix_load"
+SCHEDULER_NAME="min_new_request_latency"
 # Test at moderate QPS levels where burstiness matters
-QPS="24 28 32"
+QPS="30"
 PROFILING_SAMPLE_RATE=0.000
 USE_FOR_PROFILING_ONLY=false
-NUM_REQUEST=5000
+NUM_REQUEST=10000
 KEEP_ALL_METRICS=false
-N_SELECTED="12"
-OUTPUT_DIR_PREFIX="burstiness"
+N_SELECTED="2"
+OUTPUT_DIR_PREFIX="burstiness_po2"
 
 # Burstiness levels: lower = more bursty (gamma distribution shape parameter)
-BURSTINESS_LEVELS="0.25 0.5 0.75 1.0"
+BURSTINESS_LEVELS="0.25 0.5 1.0 2.0"
 
 AVAILABLE_INSTANCE="12"
 ENABLE_PREEMPTIVE_AUTO_PROVISIONING="false"
@@ -48,11 +48,11 @@ MAX_SLO="0"
 # Note: Need to modify experiment.sh to pass burstiness to benchmark_serving.py
 # For now, we'll call benchmark directly with burstiness parameter
 
-TARGET_HOST=""  # Fill with your global scheduler host
+TARGET_HOST=""
 
 for model in $MODEL; do
-  echo "Running warmup script for ${model} model"
-  sh block/exp/end_to_end_exp_scripts/warmup.sh ${model} > /dev/null 2>&1
+  # Warmup skipped — vLLM and predictors already deployed
+  # sh block/exp/end_to_end_exp_scripts/warmup.sh ${model} > /dev/null 2>&1
   if [ "$model" = "meta-llama/Llama-2-7b-hf" ]; then
     MODEL_TYPE="llama"
   elif [ "$model" = "Qwen/Qwen2-7B" ]; then
@@ -81,8 +81,12 @@ for model in $MODEL; do
             sh block/exp/reset.sh
             sleep 30
             nohup sh block/exp/run_exp_vllm.sh $BATCH_CAP $model false 0 $MAX_MODEL_LENGTH true $BACKEND_WORKERS $CHUNK_SIZE > /dev/null 2>&1 &
-            sleep 60
-            for suffix in $(seq 1 $PREDICTOR_WORKERS); do
+            sleep 90
+            for suffix in $(seq 1 7); do
+              nohup sh block/exp/run_exp_predictor_${suffix}.sh $PREDICTOR_CONFIG_PATH $scheduler true $BATCH_CAP true $PREDICTOR_WORKERS $BRANCH_NAME $BATCH_SIZE_THRESHOLD_FOR_TIME_ESTIMATION $PREDICTOR_TIMEOUT_IN_SECONDS > /dev/null 2>&1 &
+            done
+            sleep 10
+            for suffix in $(seq 8 $PREDICTOR_WORKERS); do
               nohup sh block/exp/run_exp_predictor_${suffix}.sh $PREDICTOR_CONFIG_PATH $scheduler true $BATCH_CAP true $PREDICTOR_WORKERS $BRANCH_NAME $BATCH_SIZE_THRESHOLD_FOR_TIME_ESTIMATION $PREDICTOR_TIMEOUT_IN_SECONDS > /dev/null 2>&1 &
             done
             sleep 60
@@ -97,9 +101,9 @@ for model in $MODEL; do
           OUTPUT_DIR="${OUTPUT_DIR_PREFIX}/${dataset_name}/${scheduler}/qps_${qps}_burstiness_${burstiness}"
 
           if [ "$USE_LENGTH_ESTIMATION" = "true" ]; then
-            parallel-ssh -i -t 0 --host $TARGET_HOST "cd Block && export PYTHONPATH=. && python block/benchmark/benchmark_serving.py --ip_ports 127.0.0.1:8200 --tokenizer $model --num_sampled_requests $NUM_REQUEST --dataset_type $dataset_name --dataset_path $dataset_path --qps $qps --backend block --log_filename benchmark.log --output_dir $OUTPUT_DIR --data_start_index $START_INDEX --trust_remote_code --max_request_len $MAX_MODEL_LENGTH --timeout_in_seconds $TIMEOUT_IN_SECONDS --use_estimated_response_lens --distribution gamma --burstiness $burstiness"
+            parallel-ssh -i -t 0 --host $TARGET_HOST "cd Block && export PYTHONPATH=. && export HF_TOKEN= && python block/benchmark/benchmark_serving.py --ip_ports 127.0.0.1:8200 --tokenizer $model --num_sampled_requests $NUM_REQUEST --dataset_type $dataset_name --dataset_path $dataset_path --qps $qps --backend block --log_filename benchmark.log --output_dir $OUTPUT_DIR --data_start_index $START_INDEX --trust_remote_code --max_request_len $MAX_MODEL_LENGTH --timeout_in_seconds $TIMEOUT_IN_SECONDS --use_estimated_response_lens --distribution gamma --burstiness $burstiness"
           else
-            parallel-ssh -i -t 0 --host $TARGET_HOST "cd Block && export PYTHONPATH=. && python block/benchmark/benchmark_serving.py --ip_ports 127.0.0.1:8200 --tokenizer $model --num_sampled_requests $NUM_REQUEST --dataset_type $dataset_name --dataset_path $dataset_path --qps $qps --backend block --log_filename benchmark.log --output_dir $OUTPUT_DIR --data_start_index $START_INDEX --trust_remote_code --max_request_len $MAX_MODEL_LENGTH --timeout_in_seconds $TIMEOUT_IN_SECONDS --distribution gamma --burstiness $burstiness"
+            parallel-ssh -i -t 0 --host $TARGET_HOST "cd Block && export PYTHONPATH=. && export HF_TOKEN= && python block/benchmark/benchmark_serving.py --ip_ports 127.0.0.1:8200 --tokenizer $model --num_sampled_requests $NUM_REQUEST --dataset_type $dataset_name --dataset_path $dataset_path --qps $qps --backend block --log_filename benchmark.log --output_dir $OUTPUT_DIR --data_start_index $START_INDEX --trust_remote_code --max_request_len $MAX_MODEL_LENGTH --timeout_in_seconds $TIMEOUT_IN_SECONDS --distribution gamma --burstiness $burstiness"
           fi
 
           sleep 10
