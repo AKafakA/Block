@@ -37,13 +37,13 @@
 #
 # ============================================================================
 
-set -e
+# set -e removed: can cause premature exit on non-fatal errors
 
 # ============================================================================
 # CONFIGURATION
 # ============================================================================
 # SSH host for running benchmark (node0)
-BENCHMARK_HOST="asdwb@d8545-10s10305.wisc.cloudlab.us"
+BENCHMARK_HOST="asdwb@d8545-10s10301.wisc.cloudlab.us"
 
 # Internal IP for API endpoints
 NODE0_INTERNAL_IP="10.10.1.1"

@@ -28,7 +28,7 @@
 #
 # ============================================================================
 
-set -e
+# set -e removed: pkill returns non-zero when no processes found, which kills the script
 
 # ============================================================================
 # CLUSTER CONFIGURATION - Edit these for your cluster
@@ -197,11 +197,14 @@ deploy_predictors() {
     ssh_cmd "$NODE0_HOST" "scp -r ~/Block/cache/ ${NODE1_INTERNAL_IP}:~/Block/ 2>/dev/null || true"
 
     # Start all predictors on both nodes
+    # Port mapping: skip 8200 (global scheduler)
+    # GPU0->8100-8103, GPU1->8300-8303, GPU2->8400-8403, GPU3->8500-8503
+    PREDICTOR_BASE_PORTS="8100 8300 8400 8500"
     for host in "$NODE0_HOST" "$NODE1_HOST"; do
         log "Starting 16 predictors on $host..."
         ssh_cmd "$host" "cd ~/Block && export PYTHONPATH=. && \
-            for gpu in 0 1 2 3; do \
-                base_port=\$((8100 + gpu * 100)); \
+            gpu=0; \
+            for base_port in $PREDICTOR_BASE_PORTS; do \
                 backend_port=\$((8000 + gpu)); \
                 for p in 0 1 2 3; do \
                     pred_port=\$((base_port + p)); \
@@ -218,6 +221,7 @@ deploy_predictors() {
                         --port \$pred_port \
                         > experiment_output/logs/predictor_gpu\${gpu}_\${p}.log 2>&1 & \
                 done; \
+                gpu=\$((gpu + 1)); \
             done"
     done
 
