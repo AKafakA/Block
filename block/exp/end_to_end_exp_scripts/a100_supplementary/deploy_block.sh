@@ -42,7 +42,7 @@ NODE0_INTERNAL_IP="10.10.1.1"
 NODE1_INTERNAL_IP="10.10.1.2"
 
 # HuggingFace configuration
-HF_TOKEN="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"
+HF_TOKEN="${HF_TOKEN:?Set HF_TOKEN env var before running}"
 HF_HOME="/mydata/huggingface"
 
 # Model configuration

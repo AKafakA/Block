@@ -7,7 +7,7 @@ set -e
 cd ~/Code/llm/Block
 source .venv/bin/activate
 
-HF_TOKEN="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"
+HF_TOKEN="${HF_TOKEN:?Set HF_TOKEN env var before running}"
 REPO_ID="asdwb/cara_model_estimator"
 DATA_DIR="data/cara/training_data"
 SCRIPTS_DIR="block/predictor/cara/offline_training"
@@ -20,7 +20,7 @@ python3 << 'PYEOF'
 from huggingface_hub import HfApi
 import os
 
-api = HfApi(token=os.environ.get("HF_TOKEN", "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"))
+api = HfApi(token=os.environ.get("HF_TOKEN"))
 REPO_ID = "asdwb/cara_model_estimator"
 DATA_DIR = "data/cara/training_data"
 SCRIPTS_DIR = "block/predictor/cara/offline_training"
