@@ -53,7 +53,7 @@ CHUNK_SIZE=512            # Chunked prefill token budget
 
 # Block configuration paths
 BLOCK_HOST_CONFIG="block/config/a100_8x7b_host_configs.json"
-PREDICTOR_CONFIG="block/config/llama7b_a100_40gb_config.json"
+PREDICTOR_CONFIG="block/config/llama7b_a100_config.json"
 
 # Global scheduler settings
 NUM_INSTANCES=8
