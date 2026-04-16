@@ -8,3 +8,12 @@ cloudlab_reservation_request.md
 sync_a30_data.sh
 /tmp/
 *.log
+
+# Large data/results — not committed (migrated from Block repo)
+Block_paper/
+SoCC_revision/
+data/trace_data/
+data/profiling/
+data/length_estimation/
+__pycache__/
+*.pyc
