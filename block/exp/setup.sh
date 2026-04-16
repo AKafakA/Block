@@ -16,7 +16,7 @@ parallel-ssh -t 0 -h block/config/hosts "echo 'export PATH=\$PATH:/usr/local/cud
 parallel-ssh -t 0 -h block/config/hosts "sudo nvidia-smi -mig 0"
 # vLLM: sudo install gets .so files, then uv registers proper metadata for user
 parallel-ssh -t 0 -h block/config/hosts "git clone ${VLLM_GITHUB_LINK} && cd vllm && sudo VLLM_USE_PRECOMPILED=1 pip install --editable . && sudo chown -R \$(whoami) ~/vllm"
-parallel-ssh -t 0 -h block/config/hosts "cd vllm && ~/.local/bin/uv pip install -e . --no-deps --target ~/.local/lib/python3.10/site-packages"
+parallel-ssh -t 0 -h block/config/hosts "cd vllm && VLLM_USE_PRECOMPILED=1 ~/.local/bin/uv pip install -e . --no-deps --target ~/.local/lib/python3.10/site-packages"
 parallel-ssh -t 0 -h block/config/hosts "git clone ${BLOCK_GITHUB_LINK} && cd Block && git checkout main && pip install -r requirements.txt"
 parallel-ssh -t 0 -h block/config/hosts "rm -rf ~/cuda-repo-*.deb"
 parallel-ssh -t 0 -h block/config/hosts "pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu126"

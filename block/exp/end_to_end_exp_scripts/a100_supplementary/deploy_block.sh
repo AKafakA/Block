@@ -34,8 +34,8 @@ set -e
 # CLUSTER CONFIGURATION - Edit these for your cluster
 # ============================================================================
 # Node hostnames (SSH-accessible)
-NODE0_HOST="asdwb@d8545-10s10305.wisc.cloudlab.us"
-NODE1_HOST="asdwb@d8545-10s10505.wisc.cloudlab.us"
+NODE0_HOST="asdwb@d8545-10s10301.wisc.cloudlab.us"
+NODE1_HOST="asdwb@d8545-10s10305.wisc.cloudlab.us"
 
 # Internal IPs (for inter-node communication)
 NODE0_INTERNAL_IP="10.10.1.1"
@@ -47,7 +47,7 @@ HF_HOME="/mydata/huggingface"
 
 # Model configuration
 MODEL="meta-llama/Llama-2-7b-hf"
-MAX_NUM_SEQS=48           # Batch size per instance
+MAX_NUM_SEQS=96           # Batch size per instance (96 for A100, paper §6.5)
 MAX_MODEL_LEN=4096        # Maximum sequence length
 CHUNK_SIZE=512            # Chunked prefill token budget
 
@@ -58,7 +58,7 @@ PREDICTOR_CONFIG="block/config/llama7b_a100_40gb_config.json"
 # Global scheduler settings
 NUM_INSTANCES=8
 NUM_PREDICTORS_PER_INSTANCE=4
-PROFILING_SAMPLE_RATE=0.1
+PROFILING_SAMPLE_RATE=0.0
 PREDICTOR_TIMEOUT=2000
 BACKEND_TIMEOUT=3600
 
