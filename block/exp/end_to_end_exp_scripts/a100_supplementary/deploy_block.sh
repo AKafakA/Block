@@ -42,7 +42,8 @@ NODE0_INTERNAL_IP="10.10.1.1"
 NODE1_INTERNAL_IP="10.10.1.2"
 
 # HuggingFace configuration
-HF_TOKEN="${HF_TOKEN:?Set HF_TOKEN env var before running}"
+HF_TOKEN="${HF_TOKEN:-$(cat ~/.hf_token 2>/dev/null)}"
+if [ -z "$HF_TOKEN" ]; then echo "ERROR: Set HF_TOKEN or create ~/.hf_token" && exit 1; fi
 HF_HOME="/mydata/huggingface"
 
 # Model configuration
