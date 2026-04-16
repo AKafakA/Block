@@ -7,9 +7,11 @@ ENABLE_CHUNKED_PREFILL=$6
 NUM_WORKERS=$7
 MAX_NUM_BATCHED_TOKEN=$8
 USE_PROCESS_FOR_FRONTEND=$9
-# HF_TOKEN must be set in the environment before running experiments
-# export HF_TOKEN=your_token (see Block_paper/claude/tokens.md)
-HUGGINGFACE_TOKEN="${HF_TOKEN:?Set HF_TOKEN env var before running experiments}"
+# HF_TOKEN: read from environment, fall back to ~/.hf_token file
+HUGGINGFACE_TOKEN="${HF_TOKEN:-$(cat ~/.hf_token 2>/dev/null)}"
+if [ -z "$HUGGINGFACE_TOKEN" ]; then
+  echo "ERROR: Set HF_TOKEN env var or create ~/.hf_token file" && exit 1
+fi
 
 
 if [ "$UPDATE_CODE" = "true" ]; then

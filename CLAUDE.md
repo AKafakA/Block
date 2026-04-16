@@ -3,6 +3,14 @@
 ## What This Repo Is
 Block experiment repository for the SoCC 2026 camera-ready revision. Contains the Block predictive scheduler code, Vidur simulator, experiment scripts, and results. The Cara (NeurIPS) extension lives separately at `~/Code/llm/Block`.
 
+## Before Running Experiments
+
+**ALWAYS set HF_TOKEN before running any experiment scripts:**
+```bash
+export HF_TOKEN=<your_huggingface_token>  # see Block_paper/claude/tokens.md
+```
+This is required for downloading gated models (Llama-2). The token must be set in the local environment (where you run experiment scripts) AND in `~/.bashrc` on all remote cluster nodes.
+
 ## Critical Rules
 
 ### R1: Installation order is sacred
