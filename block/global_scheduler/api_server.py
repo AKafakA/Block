@@ -135,6 +135,15 @@ async def generate_benchmark(request: Request) -> Response:
                      'sampled_var_n_request': np.var([x['num_requests'] for x in predict_results]),
                      'num_preempted': sum([x['num_preempted'] for x in predict_results]),
                      'num_available_instances': len(instances)}
+    # Overhead breakdown: aggregate timing from predictor responses
+    if predict_results:
+        sim_times = [r.get('simulation_time_ms', 0) for r in predict_results]
+        query_times = [r.get('backend_query_time_ms', 0) for r in predict_results]
+        predict_times = [r.get('time_to_predict', 0) for r in predict_results]
+        single_metric['max_simulation_time_ms'] = max(sim_times) if sim_times else 0
+        single_metric['mean_simulation_time_ms'] = float(np.mean(sim_times)) if sim_times else 0
+        single_metric['max_backend_query_ms'] = max(query_times) if query_times else 0
+        single_metric['max_predict_time_ms'] = max(predict_times) if predict_times else 0
 
     if len(predict_results) == 0:
         selected_index = random.randint(0, len(instances) - 1)

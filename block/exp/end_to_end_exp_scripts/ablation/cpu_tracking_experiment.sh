@@ -24,15 +24,17 @@ RESTART_VLLM=false
 ENABLE_CHUNKED_PREFILL="true"
 MODEL="meta-llama/Llama-2-7b-hf"
 DATASET_NAMES="sharegpt"
-# Only Block scheduler
-SCHEDULER_NAME="min_new_request_latency"
+# Block (Po2, Po6, Fanout) + Llumnix-- + Random for CPU overhead comparison
+SCHEDULER_NAME="min_new_request_latency min_lunmnix_load random"
 # QPS to test
-QPS="24 32"
+QPS="20 24 28 32"
 PROFILING_SAMPLE_RATE=0.000
 USE_FOR_PROFILING_ONLY=false
 NUM_REQUEST=10000
 KEEP_ALL_METRICS=false
-N_SELECTED="12"
+# For Block scheduler: test N=2 (Po2), N=6 (medium), N=12 (Fanout)
+# Baselines (Llumnix--, Random) auto-use N=12 per experiment.sh logic
+N_SELECTED="2 6 12"
 OUTPUT_DIR_PREFIX="cpu_tracking"
 
 AVAILABLE_INSTANCE="12"
