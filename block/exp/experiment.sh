@@ -1,5 +1,6 @@
 # This script is used to run benchmark and global scheduler with the Block framework.
-TARGET_HOST=""
+# TARGET_HOST: first host in config/hosts (global scheduler + benchmark client)
+TARGET_HOST="$(head -1 block/config/hosts)"
 
 SCHEDULER_METRIC_TYPE=$1
 ENABLE_TIME_ESTIMATION=true
