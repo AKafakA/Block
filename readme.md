@@ -87,14 +87,26 @@ vidur # Same as original vidur repo but with new replica scheduler/revised simul
    ...
    # results under experiment_output/data/
    ```
- All testing scripts are located in the `block/exp/end_to_end_exp_scripts` directory. These scripts can be used to reproduce different experiments as follows:
- 
- - **`main_experiment.sh`**: Generates results for **Figure 6** (refer to **Section 5.3**).
- - **`auto_provision_exp.sh`**: Produces results for **Figure 8** (refer to **Section 5.5**).
- - **`config_search_experiment.sh`**: Used for testing with different batch size and chunk size, corresponding to **Table 2** (refer to **Section 5.6**).
- - **`extension_experiment.sh`**: Tests with the Qwen model and the BurstGPT dataset, also related to first 2 columns in **Table 2** (refer to **Section 5.6**).
- - **`prediction_experiment.sh`**: Provides results for debugging prediction accuracy **Figure 5** (refer to **Section 5.2.2**).
- - **`warmup.sh`**: Uswd for simple experiments and debugging, facilitating and warm-up models for other experiments
+ All testing scripts are located in the `block/exp/end_to_end_exp_scripts` directory:
+
+ **Main experiments (`a30_main/`):**
+ - **`main_experiment.sh`**: QPS sweep (20-36), capacity curves — **Figure 6** (§5.3)
+
+ **Ablation studies (`ablation/`):**
+ - **`po2_ablation_exp.sh`**: Power-of-Two (N=2) vs N=12 — **§6.8**
+ - **`burstiness_exp.sh`**: Gamma arrivals (α=0.25-2.0) — **§6.9**
+ - **`error_heatmap_exp.sh`**: Prediction noise sensitivity (4×4 grid) — **§6.10**
+ - **`cpu_tracking_experiment.sh`**: Predictor CPU/memory overhead — **§6.11**
+ - **`auto_provision_exp.sh`**: Auto-provisioning demonstration — **§5.5** / **Figure 8**
+ - **`config_search_experiment.sh`**: Batch size × chunk size sweep — **Table 2** (§5.6)
+ - **`extension_experiment.sh`**: Qwen2-7B + BurstGPT — **Table 2** (§5.6)
+ - **`prediction_experiment.sh`**: Length prediction accuracy — **Figure 5** (§5.2.2)
+ - **`block_nosim_ablation_exp.sh`**: Block-NoSim (no Vidur simulation) ablation
+
+ **A100 supplementary (`a100_supplementary/`):**
+ - **`full_comparison.sh`**: Block vs Llumnix (scheduling-only + migration) on A100 — **§6.7**
+ - **`a100_llama70b_exp.sh`**: A100 Llama-70B latency sweep
+ - **`a100_40gb_profiling.sh`**: Fresh A100-40GB hardware profiling
    
 	
 6. Plot and summarise results after all above experiments finished 
@@ -150,7 +162,21 @@ python block/benchmark/benchmark_serving.py
 
 ---
 
-## 7. Requirements
+## 7. Detailed Documentation
+
+See `docs/` for comprehensive guides:
+
+- **[docs/INDEX.md](docs/INDEX.md)** — Documentation overview and navigation
+- **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** — Step-by-step A30 + A100 deployment (installation order, CloudLab setup)
+- **[docs/EXPERIMENT_GUIDE.md](docs/EXPERIMENT_GUIDE.md)** — All experiment scripts, parameters, expected runtimes
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — System architecture and data flow
+- **[docs/RESULTS_SUMMARY.md](docs/RESULTS_SUMMARY.md)** — Key numbers: capacity, latency, robustness
+- **[docs/SOCC_REVISION.md](docs/SOCC_REVISION.md)** — SoCC revision status and added sections
+- **[docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md)** — Critical fixes and operational lessons
+
+---
+
+## 8. Requirements
 
 It was tested with this set of packages
 
@@ -164,7 +190,7 @@ Plase checking requirments.txt and `block/exp/setup.sh`
 
 ---
 
-## 8. Citation
+## 9. Citation
 
 If you find Block useful, please cite our paper:
 
@@ -182,7 +208,7 @@ If you find Block useful, please cite our paper:
 
 ---
 
-## 9. License
+## 10. License
 
 This work is released under the MIT license. See `LICENSE` for details.
 
