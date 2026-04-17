@@ -136,7 +136,7 @@ start_ray_cluster() {
 
     # Start Ray head on node0
     log "Starting Ray head node on $NODE0_HOST..."
-    ssh_cmd "$NODE0_HOST" "$LLUMNIX_VENV/bin/ray start --head --port=$RAY_PORT"
+    ssh_cmd "$NODE0_HOST" "$LLUMNIX_VENV/bin/ray start --head --port=$RAY_PORT --node-ip-address=$NODE0_INTERNAL_IP"
     sleep 10
 
     # Join from node1
