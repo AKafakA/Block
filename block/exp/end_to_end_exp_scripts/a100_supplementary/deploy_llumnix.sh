@@ -27,21 +27,22 @@
 #
 # ============================================================================
 
-set -e
+# set -e removed: pkill returns non-zero when no processes found
 
 # ============================================================================
 # CLUSTER CONFIGURATION - Edit these for your cluster
 # ============================================================================
 # Node hostnames (SSH-accessible)
-NODE0_HOST="asdwb@d8545-10s10305.wisc.cloudlab.us"
-NODE1_HOST="asdwb@d8545-10s10505.wisc.cloudlab.us"
+NODE0_HOST="asdwb@d8545-10s10301.wisc.cloudlab.us"
+NODE1_HOST="asdwb@d8545-10s10305.wisc.cloudlab.us"
 
 # Internal IPs (for inter-node communication)
 NODE0_INTERNAL_IP="10.10.1.1"
 NODE1_INTERNAL_IP="10.10.1.2"
 
 # HuggingFace configuration
-HF_TOKEN="${HF_TOKEN:?Set HF_TOKEN env var before running}"
+HF_TOKEN="${HF_TOKEN:-$(cat ~/.hf_token 2>/dev/null)}"
+if [ -z "$HF_TOKEN" ]; then echo "ERROR: Set HF_TOKEN or create ~/.hf_token" && exit 1; fi
 HF_HOME="/mydata/huggingface"
 
 # Model configuration
@@ -186,7 +187,7 @@ deploy_llumnix() {
             --max-num-seqs $MAX_NUM_SEQS \
             --dispatch-policy $DISPATCH_POLICY \
             --migration-backend rayrpc \
-            --enable-routine-migration \
+            --enable-migration \
             > experiment_output/logs/$log_file 2>&1 &"
 
     # Wait for Llumnix to be ready
