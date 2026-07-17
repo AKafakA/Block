@@ -342,6 +342,9 @@ class MeasureLatency:
         self._var_num_waiting_requests = []
         self._requested_timestamps = []
         self._num_preempted = []
+        self._cpu_percents = []
+        self._memory_rss_mb = []
+        self._cpu_cores = []
         self._sampled_mean_error_ratios = []
         self._sampled_predict_accuracies = []
         self._sampled_serving_latencies = []
@@ -409,6 +412,16 @@ class MeasureLatency:
                 self._num_preempted.append(output['num_preempted'])
             else:
                 self._num_preempted.append(None)
+            if 'mean_cpu_percent' in output:
+                self._cpu_percents.append(output['mean_cpu_percent'])
+            else:
+                self._cpu_percents.append(None)
+            if 'mean_memory_rss_mb' in output:
+                self._memory_rss_mb.append(output['mean_memory_rss_mb'])
+            else:
+                self._memory_rss_mb.append(None)
+            if 'cpu_cores' in output:
+                self._cpu_cores.append(output['cpu_cores'])
             if time_on_backend > 0:
                 overhead = latency - time_on_backend
             else:
@@ -557,6 +570,9 @@ async def benchmark(
         m._avg_num_waiting_requests, \
         m._var_num_waiting_requests, \
         m._num_preempted, \
+        m._cpu_percents, \
+        m._memory_rss_mb, \
+        m._cpu_cores, \
         m._sampled_mean_error_ratios, \
         m._sampled_predict_accuracies, \
         m._sampled_serving_latencies, \
@@ -801,6 +817,9 @@ def main():
      avg_num_waiting_requests,
      var_num_waiting_requests,
      num_preempted,
+     cpu_percents,
+     memory_rss_mb,
+     cpu_cores_list,
      sampled_mean_error_ratios,
      sampled_predict_accuracies,
      sampled_serving_latencies,
@@ -843,7 +862,10 @@ def main():
         "actual_qps": np.float32(actual_qps),
         "avg_gpu_blocks": np.array(avg_gpu_blocks),
         "var_gpu_blocks": np.array(var_gpu_blocks),
-        "num_preempted": np.array(num_preempted)
+        "num_preempted": np.array(num_preempted),
+        "cpu_percents": np.array([x for x in cpu_percents if x is not None], dtype=np.float64) if any(x is not None for x in cpu_percents) else np.array([]),
+        "memory_rss_mb": np.array([x for x in memory_rss_mb if x is not None], dtype=np.float64) if any(x is not None for x in memory_rss_mb) else np.array([]),
+        "cpu_cores": np.int32(cpu_cores_list[0]) if cpu_cores_list else np.int32(0)
     }
     # sampled data to do the profiling
     if sampled_predict_accuracies:

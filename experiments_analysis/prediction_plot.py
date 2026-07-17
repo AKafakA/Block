@@ -230,7 +230,8 @@ def plot_per_qps(experiments_set, output_dir, min_qps=1, max_qps=36):
                                  enable_x_label_at_left_corner=True,
                                  x_label="Sample ID: ",
                                  x_label_coords=(-0.32, -0.105),
-                                 max_num_samples=100)
+                                 max_num_samples=100,
+                                 ylim=(0.1, 0.5))  # unified Error Rate axis (row 1 only)
 
     plot_linea_scatter_for_multiple_qps(axs_for_prediction_overhead_ratio,
                                         sampled_predict_latency,

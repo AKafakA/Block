@@ -88,10 +88,12 @@ run_benchmark() {
     local num_requests=$3
     local output_dir=$4
 
-    # Determine port based on backend
+    # Determine port and estimated length flag based on backend
     local port
+    local est_flag=""
     if [ "$backend" = "block" ]; then
         port=$BLOCK_PORT
+        est_flag="--use_estimated_response_lens"
     else
         port=$LLUMNIX_PORT
     fi
@@ -127,6 +129,7 @@ run_benchmark() {
             --timeout_in_seconds $TIMEOUT_IN_SECONDS \
             --output_dir $output_dir \
             --log_filename ${backend}_qps${qps}_logs.txt \
+            $est_flag \
             2>&1 | tee /tmp/benchmark_${backend}_qps${qps}.log"
 
     log ""
@@ -141,8 +144,9 @@ run_qps_sweep() {
     local backend=$1
     local num_requests=${2:-$DEFAULT_NUM_REQUESTS}
     local qps_values=${3:-"16 20 24 28 32 36"}
+    local use_estimated=${4:-true}
 
-    log "Running QPS sweep for $backend"
+    log "Running QPS sweep for $backend (estimated_lens=$use_estimated)"
     log "QPS values: $qps_values"
     log "Requests per QPS: $num_requests"
     log ""
@@ -153,7 +157,7 @@ run_qps_sweep() {
         log "============================================"
 
         local output_dir="experiment_output/benchmark_output/${backend}_sweep/${backend}_qps${qps}"
-        run_benchmark "$backend" "$qps" "$num_requests" "$output_dir"
+        run_benchmark "$backend" "$qps" "$num_requests" "$output_dir" "$use_estimated"
 
         log ""
         log "Completed QPS=$qps, sleeping 30s before next run..."
@@ -203,14 +207,15 @@ main() {
             local backend=$2
             local num_requests=$3
             local qps_values=$4
+            local use_estimated=${5:-true}
 
             if [ -z "$backend" ]; then
-                echo "Usage: $0 sweep <block|llumnix> [num_requests] [qps_values]"
-                echo "Example: $0 sweep block 10000 \"16 20 24 28 32 36\""
+                echo "Usage: $0 sweep <block|llumnix> [num_requests] [qps_values] [use_estimated]"
+                echo "Example: $0 sweep block 10000 \"16 20 24 28 32 36\" true"
                 exit 1
             fi
 
-            run_qps_sweep "$backend" "$num_requests" "$qps_values"
+            run_qps_sweep "$backend" "$num_requests" "$qps_values" "$use_estimated"
             ;;
         sync)
             sync_results "$2" "$3"

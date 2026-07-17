@@ -120,16 +120,16 @@ MODEL="meta-llama/Llama-2-7b-hf"
 | Experiment Type | Data Location | Plot Location |
 |-----------------|---------------|---------------|
 | Main experiment | `experiment_output/data/main/` | `experiment_output/results/main/` |
-| Llumnix comparison | `experiment_output/data/SoCC_revision/llumnix_compare/` | `experiment_output/results/SoCC_revision/` |
-| Po2 ablation | `experiment_output/data/SoCC_revision/po2/` | `experiment_output/results/SoCC_revision/` |
-| Burstiness | `experiment_output/data/SoCC_revision/burstiness/` | `experiment_output/results/SoCC_revision/` |
-| Prediction error | `experiment_output/data/SoCC_revision/prediction_error/` | `experiment_output/results/SoCC_revision/` |
-| CPU overhead | `experiment_output/data/SoCC_revision/cpu_tracker/` | `experiment_output/results/SoCC_revision/` |
+| Llumnix comparison | `experiment_output/data/revision/llumnix_compare/` | `experiment_output/results/revision/` |
+| Po2 ablation | `experiment_output/data/revision/po2/` | `experiment_output/results/revision/` |
+| Burstiness | `experiment_output/data/revision/burstiness/` | `experiment_output/results/revision/` |
+| Prediction error | `experiment_output/data/revision/prediction_error/` | `experiment_output/results/revision/` |
+| CPU overhead | `experiment_output/data/revision/cpu_tracker/` | `experiment_output/results/revision/` |
 
 ---
 
 ## Related Documentation
 
-- `SoCC_revision/docs/LLUMNIX_COMPARISON_GUIDE.md` - Detailed Llumnix comparison guide
-- `SoCC_revision/docs/EXPERIMENT_RESULTS.md` - Complete experimental results
+- `revision/docs/LLUMNIX_COMPARISON_GUIDE.md` - Detailed Llumnix comparison guide
+- `revision/docs/EXPERIMENT_RESULTS.md` - Complete experimental results
 - `experiments_analysis/` - Plot generation scripts

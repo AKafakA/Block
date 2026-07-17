@@ -57,8 +57,12 @@ BLOCK_HOST_CONFIG="block/config/a100_8x7b_host_configs.json"
 PREDICTOR_CONFIG="block/config/llama7b_a100_config.json"
 
 # Global scheduler settings
+# NUM_QUERY_PREDICTOR controls scheduler N (8=Fanout, 2=Po2). Override via env: NUM_QUERY_PREDICTOR=2 sh deploy_block.sh ...
 NUM_INSTANCES=8
+NUM_QUERY_PREDICTOR="${NUM_QUERY_PREDICTOR:-8}"
 NUM_PREDICTORS_PER_INSTANCE=4
+# ENABLE_CP controls --enable-chunked-prefill flag for both vLLM and predictors. Override via env: ENABLE_CP=false sh deploy_block.sh ...
+ENABLE_CP="${ENABLE_CP:-true}"
 PROFILING_SAMPLE_RATE=0.0
 PREDICTOR_TIMEOUT=2000
 BACKEND_TIMEOUT=3600
@@ -90,7 +94,7 @@ wait_for_service() {
 
     log "Waiting for $service_name on $host:$port..."
     while [ $waited -lt $max_wait ]; do
-        if ssh_cmd "$host" "curl -s http://127.0.0.1:$port/health 2>/dev/null" | grep -qE "OK|healthy|running"; then
+        if ssh_cmd "$host" "curl -s --max-time 3 http://127.0.0.1:$port/v1/models 2>/dev/null || curl -s --max-time 3 http://127.0.0.1:$port/health 2>/dev/null" | grep -qE "detail|OK|healthy|model"; then
             log "$service_name is ready on port $port"
             return 0
         fi
@@ -123,12 +127,24 @@ stop_block() {
 # Deploy vLLM instances (8 total, 4 per node)
 # ============================================================================
 deploy_vllm() {
-    log "Deploying vLLM instances (8 total)..."
+    log "Deploying vLLM instances (8 total, CP=$ENABLE_CP)..."
+
+    # Build chunked prefill flag for vLLM (matches A30 experiment.sh logic exactly):
+    #   CP on:  --enable-chunked-prefill --max-num-batched-tokens 512  (CHUNK_SIZE)
+    #   CP off: (no flag)                --max-num-batched-tokens 4096 (MAX_MODEL_LEN)
+    # Predictor JSON config has both chunk_size=512 and max_tokens_in_batch=4096; predictor's
+    # --enable_chunked_prefill flag picks which one to use, so vLLM/predictor stay consistent.
+    local vllm_cp_flag=""
+    local vllm_max_tokens="--max-num-batched-tokens $MAX_MODEL_LEN"
+    if [ "$ENABLE_CP" = "true" ]; then
+        vllm_cp_flag="--enable-chunked-prefill"
+        vllm_max_tokens="--max-num-batched-tokens $CHUNK_SIZE"
+    fi
 
     for host in "$NODE0_HOST" "$NODE1_HOST"; do
-        log "Starting 4 vLLM instances on $host..."
         ssh_cmd "$host" "cd ~/Block && mkdir -p experiment_output/logs"
 
+        log "Starting 4 vLLM instances on $host (CP=$ENABLE_CP)..."
         ssh_cmd "$host" "cd ~/Block && \
             export HF_HOME=$HF_HOME && \
             export HF_TOKEN=$HF_TOKEN && \
@@ -141,63 +157,82 @@ deploy_vllm() {
                     --port \$port \
                     --max-num-seqs $MAX_NUM_SEQS \
                     --max-model-len $MAX_MODEL_LEN \
-                    --enable-chunked-prefill \
-                    --max-num-batched-tokens $CHUNK_SIZE \
+                    $vllm_cp_flag \
+                    $vllm_max_tokens \
                     > experiment_output/logs/vllm_gpu\${gpu}.log 2>&1 & \
             done"
     done
 
-    # Wait for all vLLM instances to be ready
-    log "Waiting for vLLM instances to load models (this may take 2-3 minutes)..."
-    for port in 8000 8001 8002 8003; do
-        wait_for_service "$NODE0_HOST" "$port" "vLLM (node0:$port)" 300 || return 1
-        wait_for_service "$NODE1_HOST" "$port" "vLLM (node1:$port)" 300 || return 1
+    log "Waiting 360s for all vLLM instances to load models (cudagraphs only when CP enabled)..."
+    sleep 360
+
+    # Verify all instances loaded
+    for host in "$NODE0_HOST" "$NODE1_HOST"; do
+        for port in 8000 8001 8002 8003; do
+            if ssh_cmd "$host" "curl -s --max-time 5 http://127.0.0.1:$port/v1/models 2>/dev/null" | grep -q "detail"; then
+                log "vLLM $host:$port - OK"
+            else
+                log "WARNING: vLLM $host:$port - NOT READY, waiting 60s more..."
+                sleep 60
+            fi
+        done
     done
 
-    log "All 8 vLLM instances are ready"
+    log "All 8 vLLM instances deployed"
 }
 
 # ============================================================================
 # Deploy Predictors (4 per instance = 32 total)
 # ============================================================================
 deploy_predictors() {
-    log "Deploying Block predictors (32 total)..."
+    log "Deploying Block predictors (32 total, CP=$ENABLE_CP)..."
 
-    # First, train predictor cache on one node
-    log "Training predictor model and building cache..."
-    ssh_cmd "$NODE0_HOST" "cd ~/Block && export PYTHONPATH=. && \
-        nohup python block/predictor/api_server.py \
-            --config_path $PREDICTOR_CONFIG \
-            --metric_type min_new_request_latency \
-            --enable_time_estimation true \
-            --batch_size_cap $MAX_NUM_SEQS \
-            --workers 1 \
-            --enable_chunked_prefill \
-            --threshold_batch_size_for_time_estimation 0 \
-            --predictor_timeout $PREDICTOR_TIMEOUT \
-            --predictor_index 0 \
-            --port 8100 \
-            > experiment_output/logs/predictor_cache_build.log 2>&1 &"
+    # Build chunked prefill flag for predictor (must match vLLM's CP setting)
+    local pred_cp_flag=""
+    if [ "$ENABLE_CP" = "true" ]; then
+        pred_cp_flag="--enable_chunked_prefill"
+    fi
 
-    # Wait for cache to be built (check for "Uvicorn running")
+    # Step 1: Each node builds its own cache (parallel, no cross-node scp)
+    log "Training predictor cache on each node (parallel)..."
+    for host in "$NODE0_HOST" "$NODE1_HOST"; do
+        ssh_cmd "$host" "cd ~/Block && pkill -f 'predictor/api_server' 2>/dev/null; rm -f experiment_output/logs/predictor_cache_build.log; export PYTHONPATH=. && \
+            nohup python block/predictor/api_server.py \
+                --config_path $PREDICTOR_CONFIG \
+                --metric_type min_new_request_latency \
+                --enable_time_estimation true \
+                --batch_size_cap $MAX_NUM_SEQS \
+                --workers 1 \
+                $pred_cp_flag \
+                --threshold_batch_size_for_time_estimation 0 \
+                --predictor_timeout $PREDICTOR_TIMEOUT \
+                --predictor_index 0 \
+                --port 8100 \
+                > experiment_output/logs/predictor_cache_build.log 2>&1 &" &
+    done
+    wait
+
+    # Wait for cache to be built on both nodes (check for "Uvicorn running")
+    log "Waiting for cache build on both nodes..."
     sleep 30
-    for i in {1..24}; do
-        if ssh_cmd "$NODE0_HOST" "grep -q 'Uvicorn running' ~/Block/experiment_output/logs/predictor_cache_build.log 2>/dev/null"; then
-            log "Predictor cache built successfully"
-            break
-        fi
-        sleep 5
+    for host in "$NODE0_HOST" "$NODE1_HOST"; do
+        for i in {1..24}; do
+            if ssh_cmd "$host" "grep -q 'Uvicorn running' ~/Block/experiment_output/logs/predictor_cache_build.log 2>/dev/null"; then
+                log "Cache built on $host"
+                break
+            fi
+            sleep 5
+        done
     done
 
-    # Stop the cache-building predictor
-    ssh_cmd "$NODE0_HOST" "pkill -f 'predictor/api_server' 2>/dev/null || true"
+    # Step 2: Kill cache-building predictors
+    log "Stopping cache-building predictors..."
+    for host in "$NODE0_HOST" "$NODE1_HOST"; do
+        ssh_cmd "$host" "pkill -f 'predictor/api_server' 2>/dev/null || true"
+    done
     sleep 3
 
-    # Copy cache to node1
-    log "Copying predictor cache to node1..."
-    ssh_cmd "$NODE0_HOST" "scp -r ~/Block/cache/ ${NODE1_INTERNAL_IP}:~/Block/ 2>/dev/null || true"
-
-    # Start all predictors on both nodes
+    # Step 3: Start all predictors on both nodes (parallel)
     # Port mapping: skip 8200 (global scheduler)
     # GPU0->8100-8103, GPU1->8300-8303, GPU2->8400-8403, GPU3->8500-8503
     PREDICTOR_BASE_PORTS="8100 8300 8400 8500"
@@ -215,7 +250,7 @@ deploy_predictors() {
                         --enable_time_estimation true \
                         --batch_size_cap $MAX_NUM_SEQS \
                         --workers 1 \
-                        --enable_chunked_prefill \
+                        $pred_cp_flag \
                         --threshold_batch_size_for_time_estimation 0 \
                         --predictor_timeout $PREDICTOR_TIMEOUT \
                         --predictor_index \$((gpu * 4 + p)) \
@@ -223,11 +258,32 @@ deploy_predictors() {
                         > experiment_output/logs/predictor_gpu\${gpu}_\${p}.log 2>&1 & \
                 done; \
                 gpu=\$((gpu + 1)); \
-            done"
+            done" &
     done
+    wait
 
     sleep 20
     log "All 32 predictors deployed"
+}
+
+# ============================================================================
+# Stop just predictors (for restart between scheduler types)
+# ============================================================================
+stop_predictors() {
+    log "Stopping predictors only..."
+    for host in "$NODE0_HOST" "$NODE1_HOST"; do
+        ssh_cmd "$host" "pkill -f 'predictor/api_server' 2>/dev/null || true"
+    done
+    sleep 3
+}
+
+# ============================================================================
+# Stop just scheduler (for restart with different metric type)
+# ============================================================================
+stop_scheduler() {
+    log "Stopping scheduler only..."
+    ssh_cmd "$NODE0_HOST" "pkill -f 'global_scheduler/api_server' 2>/dev/null || true"
+    sleep 3
 }
 
 # ============================================================================
@@ -240,7 +296,7 @@ deploy_scheduler() {
         nohup python block/global_scheduler/api_server.py \
             --config_path $BLOCK_HOST_CONFIG \
             --metrics_type $METRICS_TYPE \
-            --num_query_predictor $NUM_INSTANCES \
+            --num_query_predictor $NUM_QUERY_PREDICTOR \
             --num_required_predictor 1 \
             --workers 1 \
             --num_predictor_ports $NUM_PREDICTORS_PER_INSTANCE \
@@ -298,20 +354,40 @@ main() {
 
     case $action in
         start)
-            log "Starting Block deployment..."
+            log "Starting Block deployment (full)..."
             stop_block
             deploy_vllm
             deploy_predictors
             deploy_scheduler
-            log ""
             log "Block deployment complete!"
             log "Global Scheduler endpoint: http://${NODE0_INTERNAL_IP}:8200"
             log "Scheduling policy: $METRICS_TYPE"
-            log ""
             check_status
+            ;;
+        start_vllm)
+            log "Deploying vLLM only..."
+            deploy_vllm
+            ;;
+        start_predictors)
+            log "Deploying predictors only (assumes vLLM already running)..."
+            stop_predictors
+            stop_scheduler
+            deploy_predictors
+            ;;
+        start_scheduler)
+            log "Deploying scheduler only..."
+            stop_scheduler
+            deploy_scheduler
+            log "Scheduler deployed with metric: $METRICS_TYPE"
             ;;
         stop)
             stop_block
+            ;;
+        stop_predictors)
+            stop_predictors
+            ;;
+        stop_scheduler)
+            stop_scheduler
             ;;
         status)
             check_status

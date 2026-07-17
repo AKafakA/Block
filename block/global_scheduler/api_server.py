@@ -144,6 +144,14 @@ async def generate_benchmark(request: Request) -> Response:
         single_metric['mean_simulation_time_ms'] = float(np.mean(sim_times)) if sim_times else 0
         single_metric['max_backend_query_ms'] = max(query_times) if query_times else 0
         single_metric['max_predict_time_ms'] = max(predict_times) if predict_times else 0
+        cpu_percents = [r.get('cpu_percent', 0) for r in predict_results if 'cpu_percent' in r]
+        memory_rss = [r.get('memory_rss_mb', 0) for r in predict_results if 'memory_rss_mb' in r]
+        cpu_cores_vals = [r.get('cpu_cores', 0) for r in predict_results if 'cpu_cores' in r]
+        single_metric['mean_cpu_percent'] = float(np.mean(cpu_percents)) if cpu_percents else 0
+        single_metric['max_cpu_percent'] = float(max(cpu_percents)) if cpu_percents else 0
+        single_metric['mean_memory_rss_mb'] = float(np.mean(memory_rss)) if memory_rss else 0
+        single_metric['max_memory_rss_mb'] = float(max(memory_rss)) if memory_rss else 0
+        single_metric['cpu_cores'] = int(cpu_cores_vals[0]) if cpu_cores_vals else 0
 
     if len(predict_results) == 0:
         selected_index = random.randint(0, len(instances) - 1)

@@ -1,7 +1,7 @@
 #!/bin/bash
 # CPU Tracking Experiment Script
 # Runs Block scheduler with CPU tracking enabled at QPS 20, 28, 36
-# Collects results to SoCC_revision/cpu_tracker
+# Collects results to revision/cpu_tracker
 
 START_INDEX=0
 BATCH_CAP=48
@@ -47,7 +47,7 @@ ENABLE_CPU_TRACKING="true"
 
 # Target host for SCP
 TARGET_HOST="asdwb@d7525-10s10309.wisc.cloudlab.us"
-LOCAL_OUTPUT_DIR="SoCC_revision/cpu_tracker"
+LOCAL_OUTPUT_DIR="revision/cpu_tracker"
 
 for model in $MODEL; do
   if [ "$WARMUP" = "true" ] && [ "$RESTART_VLLM" = "true" ]; then

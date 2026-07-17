@@ -1,19 +1,50 @@
 experiment_results_a30/
+experiment_results_a30_final_sync/
+experiment_results_a30_backup/
 experiment_results_a100/
-block/cl_manifest_*.xml
+experiment_results_a100_backup/
+block/cl_manifest*.xml
+block/a30_cl_manifest*.xml
 block/config/hosts
 block/config/hosts_backup
+block/config/hosts.bak.*
 block/config/a100_hosts
+block/config/a100_*host_configs*.json
+block/config/host_configs.json
+block/config/ampere_hosts
+block/config/ampere_hosts.bak*
+block/config/pascal_hosts
+block/config/pascal_hosts.bak*
+block/config/volta_hosts
+block/config/volta_hosts.bak*
+block/config/p100_smoke/
+block/config/p100_smoketest_hosts
 cloudlab_reservation_request.md
 sync_a30_data.sh
 /tmp/
 *.log
 
-# Large data/results — not committed (migrated from Block repo)
+# Local IDE / agent state
+.claude/
+
+# Separate paper draft repos
 Block_paper/
-SoCC_revision/
+Block-Pow2/
+
+# Large data/results — not committed (migrated from Block repo)
+revision/
 data/trace_data/
 data/profiling/
 data/length_estimation/
 __pycache__/
 *.pyc
+
+# Generated plots / local analysis state
+docs/figures/
+docs/.phase11_compare_state.json
+
+# Quarantined scripts with known broken wiring (do not use — kept for history only)
+block/exp/end_to_end_exp_scripts/ablation/*_fixed.sh
+block/exp/end_to_end_exp_scripts/ablation/*_fanout_est_exp.sh
+paper_results/
+output/

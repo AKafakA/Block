@@ -63,7 +63,8 @@ def plot_linear_for_multiple_qps(axes, data, metric_name, sigma=-1,
                                  x_label_coords=(-0.285, -0.105),
                                  enable_title_labels=False,
                                  max_num_samples=-1,
-                                 use_scientific_notation=False):
+                                 use_scientific_notation=False,
+                                 ylim=None):
     i = 0
     enable_label = True
     for qps in data.keys():
@@ -84,6 +85,9 @@ def plot_linear_for_multiple_qps(axes, data, metric_name, sigma=-1,
                 ax.plot(value, label=key, color=scheduler_to_color[key])
             else:
                 ax.plot(value, label=key)
+
+        if ylim is not None:
+            ax.set_ylim(*ylim)
 
         if enable_x_label_at_middle and i == len(axes.keys()) // 2:
             assert enable_x_label_at_left_corner is False, "Cannot enable both x_label at middle and left corner"

@@ -204,4 +204,4 @@ if [ "$RUN_BASELINE" = "true" ]; then
 fi
 echo ""
 echo "To generate heatmap plots, run:"
-echo "  cd SoCC_revision/prediction_error && python plot_heatmap.py"
+echo "  cd revision/prediction_error && python plot_heatmap.py"

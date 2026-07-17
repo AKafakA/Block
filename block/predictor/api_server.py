@@ -19,6 +19,7 @@ import resource
 # Track CPU usage for overhead analysis
 enable_cpu_tracking = False
 process = None
+cpu_cores = 0
 
 TIMEOUT_KEEP_ALIVE = 5  # seconds.
 app = FastAPI()
@@ -36,7 +37,7 @@ async def health() -> Response:
 async def predict(request: Request) -> Response:
     """Predict completion for the request. """
     assert predictor is not None
-    global enable_cpu_tracking, process
+    global enable_cpu_tracking, process, cpu_cores
 
     start_time = time.time()
 
@@ -54,6 +55,7 @@ async def predict(request: Request) -> Response:
     if enable_cpu_tracking and process is not None:
         cpu_percent = process.cpu_percent()
         metric["cpu_percent"] = cpu_percent
+        metric["cpu_cores"] = cpu_cores
         # Also capture memory info
         memory_info = process.memory_info()
         metric["memory_rss_mb"] = memory_info.rss / (1024 * 1024)
@@ -75,7 +77,7 @@ async def init_app(
 ) -> FastAPI:
     app = build_app(args)
     instance_port = args.instance_port
-    global predictor, enable_cpu_tracking, process
+    global predictor, enable_cpu_tracking, process, cpu_cores
     config_path = args.config_path
     config_dict = json.load(open(config_path))
     config: PredictorConfig = PredictorConfig.create_from_dict(config_dict, args.enable_chunked_prefill)
@@ -92,7 +94,8 @@ async def init_app(
     enable_cpu_tracking = getattr(args, 'enable_cpu_tracking', False)
     if enable_cpu_tracking:
         process = psutil.Process()
-        logging.info("CPU tracking enabled for predictor")
+        cpu_cores = psutil.cpu_count()
+        logging.info("CPU tracking enabled for predictor (%d logical cores)", cpu_cores)
 
     return app
 

@@ -48,6 +48,9 @@ AVAILABLE_INSTANCE=${33}
 MAX_SLO=${34}
 ENABLE_PREEMPTIVE_AUTO_PROVISIONING=${35}
 
+# CPU tracking: default ON. Set to "false" to disable and append _cpu_off to OUTPUT_DIR
+ENABLE_CPU_TRACKING=${36:-true}
+
 
 if [ "$ENABLE_CHUNKED_PREFILL" = "true" ]; then
   MAX_NUM_BATCHED_TOKEN=$CHUNK_SIZE
@@ -81,19 +84,18 @@ if [ "$RESTART_VLLM" = "true" ]; then
   nohup sh block/exp/run_exp_vllm.sh $BATCH_CAP $MODEL $UPDATE_VLLM_CODE $VLLM_VERSION $MAX_MODEL_LENGTH $ENABLE_CHUNKED_PREFILL $BACKEND_WORKERS $MAX_NUM_BATCHED_TOKEN > /dev/null 2>&1 &
   sleep 60
   script_base="block/exp/run_exp_predictor"
+  # CPU tracking: controlled by ENABLE_CPU_TRACKING (default true, 10th arg to run_exp_predictor_N.sh)
   if [ "$PREDICTOR_WORKERS" -eq 1 ]; then
-    nohup sh "${script_base}_1.sh" $PREDICTOR_CONFIG_PATH $SCHEDULER_METRIC_TYPE $ENABLE_TIME_ESTIMATION $BATCH_CAP $ENABLE_CHUNKED_PREFILL $PREDICTOR_WORKERS $BRANCH_NAME $BATCH_SIZE_THRESHOLD_FOR_TIME_ESTIMATION $PREDICTOR_TIMEOUT_IN_SECONDS > /dev/null 2>&1 &
+    nohup sh "${script_base}_1.sh" $PREDICTOR_CONFIG_PATH $SCHEDULER_METRIC_TYPE $ENABLE_TIME_ESTIMATION $BATCH_CAP $ENABLE_CHUNKED_PREFILL $PREDICTOR_WORKERS $BRANCH_NAME $BATCH_SIZE_THRESHOLD_FOR_TIME_ESTIMATION $PREDICTOR_TIMEOUT_IN_SECONDS "$ENABLE_CPU_TRACKING" > /dev/null 2>&1 &
+    sleep 30
   else
-    suffix_range=$(seq 1 7)
+    # Sequential deploy to avoid concurrent-startup race (confirmed ~8% per-node failure rate otherwise).
+    suffix_range=$(seq 1 $PREDICTOR_WORKERS)
     for suffix in $suffix_range; do
-      nohup sh "${script_base}_${suffix}.sh" $PREDICTOR_CONFIG_PATH $SCHEDULER_METRIC_TYPE $ENABLE_TIME_ESTIMATION $BATCH_CAP $ENABLE_CHUNKED_PREFILL $PREDICTOR_WORKERS $BRANCH_NAME $BATCH_SIZE_THRESHOLD_FOR_TIME_ESTIMATION $PREDICTOR_TIMEOUT_IN_SECONDS > /dev/null 2>&1 &
+      sh "${script_base}_${suffix}.sh" $PREDICTOR_CONFIG_PATH $SCHEDULER_METRIC_TYPE $ENABLE_TIME_ESTIMATION $BATCH_CAP $ENABLE_CHUNKED_PREFILL $PREDICTOR_WORKERS $BRANCH_NAME $BATCH_SIZE_THRESHOLD_FOR_TIME_ESTIMATION $PREDICTOR_TIMEOUT_IN_SECONDS "$ENABLE_CPU_TRACKING" > /dev/null 2>&1
+      sleep 2
     done
-    sleep 10
-    suffix_range=$(seq 8 $PREDICTOR_WORKERS)
-    for suffix in $suffix_range; do
-      nohup sh "${script_base}_${suffix}.sh" $PREDICTOR_CONFIG_PATH $SCHEDULER_METRIC_TYPE $ENABLE_TIME_ESTIMATION $BATCH_CAP $ENABLE_CHUNKED_PREFILL $PREDICTOR_WORKERS $BRANCH_NAME $BATCH_SIZE_THRESHOLD_FOR_TIME_ESTIMATION $PREDICTOR_TIMEOUT_IN_SECONDS > /dev/null 2>&1 &
-    done
-    sleep 60
+    sleep 30
   fi
 fi
 
@@ -122,6 +124,10 @@ if [ "$RUN_EXP" = "true" ]; then
                   nohup sh block/exp/run_exp_global_scheduler.sh $TARGET_HOST $n $n $metric_type $HOST_CONFIG_PATH $GLOBAL_SCHEDULER_WORKERS $PREDICTOR_WORKERS $PROFILING_SAMPLE_RATE $TIMEOUT_IN_SECONDS $PREDICTOR_TIMEOUT_IN_SECONDS $AVAILABLE_INSTANCE $MAX_SLO $ENABLE_PREEMPTIVE_AUTO_PROVISIONING > /dev/null 2>&1 &
                   LOG_FILENAME="benchmark.log"
                   OUTPUT_DIR="${OUTPUT_DIR_PREFIX}/${DATASET_TYPE}/${metric_type}/qps_${qps}_num_queries_${num_queries}_n_${n}_chunked_${ENABLE_CHUNKED_PREFILL}_predictor_${PREDICTOR_WORKERS}_global_${GLOBAL_SCHEDULER_WORKERS}_len_estimated_${use_estimation_len}_max_slo_${MAX_SLO}_enable_preemptive_auto_provisioning_${ENABLE_PREEMPTIVE_AUTO_PROVISIONING}_batch_${BATCH_CAP}_chunk_${CHUNK_SIZE}"
+                  # CPU tracking suffix: append _cpu_off only when disabled (default ON leaves path unchanged)
+                  if [ "$ENABLE_CPU_TRACKING" = "false" ]; then
+                    OUTPUT_DIR="${OUTPUT_DIR}_cpu_off"
+                  fi
                   sleep 10
                   if [ "$use_estimation_len" = "true" ]; then
                     parallel-ssh -i -t 0 --host $TARGET_HOST "cd Block && export PYTHONPATH=. && export HF_TOKEN= && export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/lib/python3.10/dist-packages/nvidia/cudnn/lib:/usr/local/lib/python3.10/dist-packages/nvidia/nccl/lib:/usr/local/lib/python3.10/dist-packages/cusparselt/lib && python block/benchmark/benchmark_serving.py --ip_ports 127.0.0.1:8200 --tokenizer $MODEL --num_sampled_requests $num_queries --dataset_type $DATASET_TYPE --dataset_path $DATASET_PATH --qps $qps --backend block --log_filename $LOG_FILENAME --output_dir $OUTPUT_DIR  --data_start_index $START_INDEX --trust_remote_code --max_request_len $MAX_MODEL_LENGTH --timeout_in_seconds $TIMEOUT_IN_SECONDS --use_estimated_response_lens"

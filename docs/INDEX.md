@@ -6,9 +6,7 @@
 - **[EXPERIMENT_GUIDE.md](EXPERIMENT_GUIDE.md)** — All experiment scripts, parameters, expected runtimes
 
 ## Paper & Results
-- **[SOCC_REVISION.md](SOCC_REVISION.md)** — SoCC revision status, added sections, remaining items
 - **`../Block_paper/`** (gitignored) — LaTeX source, figures, revision notes
-- **`../SoCC_revision/`** (gitignored) — All SoCC revision experiment output (227M)
 
 ## Reference
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** — System architecture: predictor, scheduler, vLLM backend, Vidur simulator

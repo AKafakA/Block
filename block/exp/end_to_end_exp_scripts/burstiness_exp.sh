@@ -27,10 +27,10 @@ RESTART_VLLM=true
 ENABLE_CHUNKED_PREFILL="true"
 MODEL="meta-llama/Llama-2-7b-hf"
 DATASET_NAMES="sharegpt"
-# Compare Block vs Llumnix- under bursty conditions
-SCHEDULER_NAME="min_new_request_latency"
-# Test at moderate QPS levels where burstiness matters
-QPS="30"
+# Compare Block vs Llumnix- under bursty conditions (Po2-est first, then Llumnix-- with redeploy)
+SCHEDULER_NAME="min_new_request_latency min_lunmnix_load"
+# Test at QPS=32: at/near capacity where predictor-aware scheduling dominates Llumnix
+QPS="32"
 PROFILING_SAMPLE_RATE=0.000
 USE_FOR_PROFILING_ONLY=false
 NUM_REQUEST=10000
@@ -38,8 +38,8 @@ KEEP_ALL_METRICS=false
 N_SELECTED="2"
 OUTPUT_DIR_PREFIX="burstiness_po2"
 
-# Burstiness levels: lower = more bursty (gamma distribution shape parameter)
-BURSTINESS_LEVELS="0.25 0.5 1.0 2.0"
+# Burstiness levels: skip 1.0 (Poisson baseline) — already covered by Phase 1.1/1.2 main sweep at QPS=32
+BURSTINESS_LEVELS="0.25 0.5 2.0"
 
 AVAILABLE_INSTANCE="12"
 ENABLE_PREEMPTIVE_AUTO_PROVISIONING="false"
@@ -48,7 +48,7 @@ MAX_SLO="0"
 # Note: Need to modify experiment.sh to pass burstiness to benchmark_serving.py
 # For now, we'll call benchmark directly with burstiness parameter
 
-TARGET_HOST=""
+TARGET_HOST="$(head -1 block/config/hosts)"
 
 for model in $MODEL; do
   # Warmup skipped — vLLM and predictors already deployed
@@ -68,8 +68,10 @@ for model in $MODEL; do
     for scheduler in $SCHEDULER_NAME; do
       if [ "$scheduler" = "min_new_request_latency" ]; then
         USE_LENGTH_ESTIMATION="true"
+        N_THIS_RUN="$N_SELECTED"   # Po2 = 2
       else
         USE_LENGTH_ESTIMATION="false"
+        N_THIS_RUN="12"   # Llumnix uses full broadcast (Fanout-style), not Po2
       fi
 
       for burstiness in $BURSTINESS_LEVELS; do
@@ -91,10 +93,13 @@ for model in $MODEL; do
             done
             sleep 60
             RESTART_VLLM=false
+            # NOTE (Apr 21): Burstiness uses deploy-per-scheduler. Fresh-deploy-per-cell
+            # would be more rigorous but adds ~3 min × 4 cells per scheduler. Heatmap fixed,
+            # burstiness left as-is to match what was actually run for the paper.
           fi
 
           # Start global scheduler
-          nohup sh block/exp/run_exp_global_scheduler.sh $TARGET_HOST $N_SELECTED $N_SELECTED $scheduler $HOST_CONFIG_PATH $GLOBAL_SCHEDULER_WORKERS $PREDICTOR_WORKERS $PROFILING_SAMPLE_RATE $TIMEOUT_IN_SECONDS $PREDICTOR_TIMEOUT_IN_SECONDS $AVAILABLE_INSTANCE $MAX_SLO false > /dev/null 2>&1 &
+          nohup sh block/exp/run_exp_global_scheduler.sh $TARGET_HOST $N_THIS_RUN $N_THIS_RUN $scheduler $HOST_CONFIG_PATH $GLOBAL_SCHEDULER_WORKERS $PREDICTOR_WORKERS $PROFILING_SAMPLE_RATE $TIMEOUT_IN_SECONDS $PREDICTOR_TIMEOUT_IN_SECONDS $AVAILABLE_INSTANCE $MAX_SLO false > /dev/null 2>&1 &
           sleep 10
 
           # Run benchmark with burstiness parameter
