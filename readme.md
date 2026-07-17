@@ -1,15 +1,21 @@
 # Block
 
-**Block: Balance Loader of LLM Serving with Context ,Knowledge and Predictive Scheduling** ([paper link](https://arxiv.org/abs/2508.03611))
+**Block: Balancing Load in LLM Serving with Randomized Predictive Scheduling**
+
+> 🎉 **Accepted at SYSTOR '26** (ACM International Systems and Storage Conference). An extended early version is on arXiv: [2508.03611](https://arxiv.org/abs/2508.03611).
+>
+> 📦 **Paper artifact:** the exact code, experiment scripts, and figure pipeline used for the SYSTOR '26 paper live on the [`systor-ae`](../../tree/systor-ae) branch — see its [`AE.md`](../../blob/systor-ae/AE.md) for a figure-by-figure/table-by-table reproduction guide.
 
 Block is a research prototype that explores *predictive, performance-aware scheduling* for distributed large-language-model (LLM) inference.
 It builds on top of Microsoft’s [Vidur](https://github.com/microsoft/vidur) simulator, which initially developed for offline evaluation and optimal configuration searching and adds
 
 * a side-car *Predictor* service that forecasts per–instance leading metrics with Vidur at run time,
-* a *Global Scheduler* that uses these predictions (or live metrics) to route requests, and
+* a *Global Scheduler* whose default policy is **randomized power-of-two-choices (Po2) predictive dispatch**: for each request it samples two random instances, queries their Predictors in parallel, and routes to the lower-predicted-latency one (sampling `k` is tunable; `k = N` recovers full fanout), and
 * tooling for training a light-weight length-estimator model so the scheduler can reason about prompts it has never seen before.
 
-Everything needed to reproduce the paper’s results—source code, datasets, experiment scripts—lives in this repository and is anonymised for the reviewing process.
+The randomized Po2 policy keeps the per-request probing cost constant, cuts per-predictor CPU by ~2.8× vs full fanout, and breaks *scheduler herding* under bursty arrivals — while matching full-fanout and load-aware-baseline serving capacity (see the SYSTOR '26 paper).
+
+Everything needed to reproduce the paper's results — source code, datasets, experiment scripts — lives in this repository; the camera-ready artifact snapshot is on the [`systor-ae`](../../tree/systor-ae) branch.
 
 ---
 
@@ -21,7 +27,7 @@ Everything needed to reproduce the paper’s results—source code, datasets, ex
  Co-locates with every inference node. Collects live stats, or spins up a Vidur simulation on-demand, and answers *“What if I got one more request?”*
 
 • **Global Scheduler** (`block/global_scheduler`)
- Receives requests, queries Predictors, and applies the scheduling policy (default: Block; alternatives: LLumnix, round-robin, …).
+ Receives requests and applies the scheduling policy. Default: **Block's randomized Po2 predictive dispatch** — sample k=2 instances (`--num_query_predictor`), probe their Predictors, and route to the minimum predicted latency; k=N gives deterministic full fanout. Alternatives: Llumnix-style heuristic, INFaaS++, round-robin, random, min-QPM.
 
 • **Query Length Tagger** (`block/length_estimation`)
  A RoBERTa-based regressor that predicts the response-token count for unseen (model, prompt) pairs, feeding the scheduler with input-aware cost estimates. Currently, we just run this model offline to tag the ShareGPT dataset with predicted response length in `data/trace_data/sharegpt/generate` but it should be easy to adapt to any runtime model service as tf-serving or TorchServe.
@@ -171,7 +177,6 @@ See `docs/` for comprehensive guides:
 - **[docs/EXPERIMENT_GUIDE.md](docs/EXPERIMENT_GUIDE.md)** — All experiment scripts, parameters, expected runtimes
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — System architecture and data flow
 - **[docs/RESULTS_SUMMARY.md](docs/RESULTS_SUMMARY.md)** — Key numbers: capacity, latency, robustness
-- **[docs/SOCC_REVISION.md](docs/SOCC_REVISION.md)** — SoCC revision status and added sections
 - **[docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md)** — Critical fixes and operational lessons
 
 ---
@@ -192,7 +197,15 @@ Plase checking requirments.txt and `block/exp/setup.sh`
 
 ## 9. Citation
 
-If you find Block useful, please cite our paper:
+If you find Block useful, please cite the SYSTOR '26 paper (BibTeX will be updated once the ACM proceedings entry is live):
+
+```
+Wei Da and Evangelia Kalyvianaki. Block: Balancing Load in LLM Serving with
+Randomized Predictive Scheduling. In Proceedings of the 19th ACM International
+Systems and Storage Conference (SYSTOR '26), September 2026.
+```
+
+or the extended arXiv version:
 
 ```
 @misc{da2025blockbalancingloadllm,
