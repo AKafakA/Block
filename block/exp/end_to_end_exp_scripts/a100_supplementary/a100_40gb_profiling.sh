@@ -36,7 +36,7 @@ mkdir -p ${OUTPUT_BASE}/network/${NETWORK_DEVICE}
 
 # Phase 1: MLP Profiling
 echo "=== Phase 1: MLP Kernel Profiling ==="
-cd /auto/homes/wd312/Code/llm/Block
+cd "$HOME/Block"
 export PYTHONPATH=.
 
 python vidur/profiling/mlp/main.py \

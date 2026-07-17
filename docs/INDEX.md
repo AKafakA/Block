@@ -10,7 +10,6 @@
 
 ## Reference
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** — System architecture: predictor, scheduler, vLLM backend, Vidur simulator
-- **[RESULTS_SUMMARY.md](RESULTS_SUMMARY.md)** — Key numbers: capacity, latency, robustness, A100 comparison
 - **[KNOWN_ISSUES.md](KNOWN_ISSUES.md)** — Installation order, critical fixes, operational lessons
 
 ## Data & Profiling

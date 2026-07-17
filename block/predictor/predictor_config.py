@@ -9,7 +9,7 @@ from vidur.config import ReplicaConfig, BaseExecutionTimePredictorConfig, \
 @dataclass
 class PredictorConfig(ABC):
     # Configuration for to define a single predictor to predict the completion time of the request.
-    # TODO(wd312): use the dynamic vllm memory planner instead to get the max batch size.
+    # TODO: use the dynamic vllm memory planner instead to get the max batch size.
     #  also consider to export other meta information from block manager to increase the accuracy.
     replica_config: ReplicaConfig = field(
         default_factory=ReplicaConfig,
