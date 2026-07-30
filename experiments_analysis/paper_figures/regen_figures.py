@@ -103,21 +103,21 @@ ZORDER = {
 # the "-Po2-est" suffix in most figures and only surface variant
 # qualifiers where the figure compares across variants.
 # ------------------------------------------------------------------
-DISPLAY_FIG6 = {'Astrolabe-Po2-est': 'Block'}   # Fig 6 request metrics
+DISPLAY_FIG6 = {'Astrolabe-Po2-est': 'Astrolabe'}   # Fig 6 request metrics
 DISPLAY_FIG7 = DISPLAY_FIG6                           # Fig 7 GPU memory
 DISPLAY_FIG9 = {                                      # Fig 9 N-tuning
-    'Astrolabe-Po2-est':    'Po2 (Block)',
+    'Astrolabe-Po2-est':    'Po2 (Astrolabe)',
     'Po4-est':              'Po4',
     'Po8-est':              'Po8',
     'Astrolabe-Fanout-est': 'Fanout',
 }
 DISPLAY_FIG10 = {                                     # Fig 10 oracle
-    'Astrolabe-Po2-est':       'Block',
-    'Astrolabe-Po2-oracle':    'Block-oracle',
-    'Astrolabe-Fanout-est':    'Block-fanout',
-    'Astrolabe-Fanout-oracle': 'Block-fanout-oracle',
+    'Astrolabe-Po2-est':       'Astrolabe',
+    'Astrolabe-Po2-oracle':    'Astrolabe-oracle',
+    'Astrolabe-Fanout-est':    'Astrolabe-fanout',
+    'Astrolabe-Fanout-oracle': 'Astrolabe-fanout-oracle',
 }
-DISPLAY_FIG11 = {'Astrolabe-Po2-est': 'Block'}   # Fig 11 burstiness
+DISPLAY_FIG11 = {'Astrolabe-Po2-est': 'Astrolabe'}   # Fig 11 burstiness
 
 def _disp(key, table):
     return table.get(key, key)
@@ -574,7 +574,7 @@ def fig_cpu_overhead():
     fan_color = COLORS['Astrolabe-Fanout-oracle']
 
     # Panel 1 — CPU utilization per predictor
-    axes[0].bar(x-w/2, [po2[q]['cpu'] for q in qps], w, color=po2_color, label='Block (N=2)')
+    axes[0].bar(x-w/2, [po2[q]['cpu'] for q in qps], w, color=po2_color, label='Astrolabe (N=2)')
     axes[0].bar(x+w/2, [fanout[q]['cpu'] for q in qps], w, color=fan_color, label='Fanout (N=12)')
     axes[0].set_xticks(x); axes[0].set_xticklabels([str(q) for q in qps])
     axes[0].set_xlabel('QPS'); axes[0].set_ylabel('Mean CPU utilization per predictor (%)')
@@ -688,7 +688,7 @@ def fig_heatmap():
                          ha='left', fontsize=8, color='#1f4e79',
                          bbox=dict(boxstyle='round,pad=0.18', fc='white', ec='#1f4e79', lw=0.7, alpha=0.9))
 
-    fig.suptitle('Block E2E degradation vs noise-free baseline (QPS=32, SLO=10s)', fontsize=11, y=1.02)
+    fig.suptitle('Astrolabe E2E degradation vs noise-free baseline (QPS=32, SLO=10s)', fontsize=11, y=1.02)
     plt.tight_layout()
     out = FIG/"prediction_error_heatmap.png"
     plt.savefig(out, dpi=150, bbox_inches='tight'); plt.close()

@@ -116,11 +116,11 @@ def main():
 
     if args.default == "fanout":
         cp_cfg, nocp_cfg = "fanout_cp", "fanout_nocp"
-        cp_label, nocp_label = "Block-Fanout (CP)", "Block-Fanout (no CP)"
+        cp_label, nocp_label = "Astrolabe-Fanout (CP)", "Astrolabe-Fanout (no CP)"
         out = args.out or "figures_output/llumnix_comparison_v1_fanout"
     else:
         cp_cfg, nocp_cfg = "po2_cp", "po2_nocp"
-        cp_label, nocp_label = "Block (CP)", "Block (no CP)"
+        cp_label, nocp_label = "Astrolabe (CP)", "Astrolabe (no CP)"
         out = args.out or "figures_output/llumnix_comparison_v2_po2"
 
     block_cp = load_block_series(cp_cfg)

@@ -2,8 +2,13 @@
 
 This branch (`systor-ae`) is the artifact for:
 
-> **Block: Balancing Load in LLM Serving with Randomized Predictive Scheduling.**
-> Wei Da and Evangelia Kalyvianaki. *SYSTOR '26.* (extended arXiv version: [2508.03611](https://arxiv.org/abs/2508.03611))
+> **Astrolabe: Balancing Load in LLM Serving with Randomized Prediction-Guided Scheduling.**
+> Wei Da and Evangelia Kalyvianaki. *SYSTOR '26.*
+>
+> The SYSTOR paper presents the system as **Astrolabe**; this repository and the extended arXiv version
+> ([2508.03611](https://arxiv.org/abs/2508.03611)) call it **Block**. They are the same system — figure legends
+> produced by this artifact are labelled *Astrolabe* to match the paper.
+> <!-- ACM DL link to be added once the DOI is issued -->
 
 It contains the exact scheduler/predictor source, experiment drivers, and plotters used for the paper, plus a numbered, idempotent script suite (`block/exp/end_to_end_exp_scripts/artifact_evaluation/`, scripts `00`–`16`) that reproduces **every experimental figure and table** end to end. Detailed per-script docs live in [`artifact_evaluation/README.md`](block/exp/end_to_end_exp_scripts/artifact_evaluation/README.md); a fully manual walkthrough is in [`docs/REPRODUCE_FROM_SCRATCH.md`](docs/REPRODUCE_FROM_SCRATCH.md).
 
