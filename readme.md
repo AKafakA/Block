@@ -1,8 +1,11 @@
 # Block
 
-**Block: Balancing Load in LLM Serving with Randomized Predictive Scheduling**
+**Block: Balancing Load in LLM Serving with Context, Knowledge and Predictive Scheduling** ([arXiv:2508.03611](https://arxiv.org/abs/2508.03611))
 
-> 🎉 **Accepted at SYSTOR '26** (ACM International Systems and Storage Conference). An extended early version is on arXiv: [2508.03611](https://arxiv.org/abs/2508.03611).
+> 🎉 **Accepted at SYSTOR 2026.** The conference version appears under the title *"Astrolabe: Balancing Load in LLM Serving with Randomized Prediction-Guided Scheduling."*
+>
+> **Block** (this repository and the arXiv version above) and **Astrolabe** (the SYSTOR paper) are the same system — the conference version uses the Astrolabe name, and figures produced by the artifact are labelled accordingly.
+> <!-- ACM DL link to be added once the DOI is issued: [ACM Digital Library](https://doi.org/TODO) -->
 >
 > 📦 **Paper artifact:** the exact code, experiment scripts, and figure pipeline used for the SYSTOR '26 paper live on the [`systor-ae`](../../tree/systor-ae) branch — see its [`AE.md`](../../blob/systor-ae/AE.md) for a figure-by-figure/table-by-table reproduction guide.
 
@@ -200,8 +203,8 @@ Plase checking requirments.txt and `block/exp/setup.sh`
 If you find Block useful, please cite the SYSTOR '26 paper (BibTeX will be updated once the ACM proceedings entry is live):
 
 ```
-Wei Da and Evangelia Kalyvianaki. Block: Balancing Load in LLM Serving with
-Randomized Predictive Scheduling. In Proceedings of the 19th ACM International
+Wei Da and Evangelia Kalyvianaki. Astrolabe: Balancing Load in LLM Serving with
+Randomized Prediction-Guided Scheduling. In Proceedings of the ACM International
 Systems and Storage Conference (SYSTOR '26), September 2026.
 ```
 
