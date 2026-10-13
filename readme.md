@@ -200,7 +200,7 @@ Plase checking requirments.txt and `block/exp/setup.sh`
 
 ## 9. Citation
 
-If you find Block useful, please cite the SYSTOR '26 paper (BibTeX will be updated once the ACM proceedings entry is live):
+If you find Block useful, please cite the SYSTOR '26 paper:
 
 ```
 Wei Da and Evangelia Kalyvianaki. Astrolabe: Balancing Load in LLM Serving with
@@ -211,15 +211,16 @@ Systems and Storage Conference (SYSTOR '26), September 2026.
 or the extended arXiv version:
 
 ```
-@misc{da2025blockbalancingloadllm,
-      title={Block: Balancing Load in LLM Serving with Context, Knowledge and Predictive Scheduling}, 
-      author={Wei Da and Evangelia Kalyvianaki},
-      year={2025},
-      eprint={2508.03611},
-      archivePrefix={arXiv},
-      primaryClass={cs.DC},
-      url={https://arxiv.org/abs/2508.03611}, 
-}
+@inproceedings{Da_2026, series={SYSTOR ’26},
+   title={Astrolabe: Balancing Load in LLM Serving with Randomized Prediction-Guided Scheduling},
+   url={http://dx.doi.org/10.1145/3793230.3837768},
+   DOI={10.1145/3793230.3837768},
+   booktitle={Proceedings of the 19th ACM International Systems and Storage Conference},
+   publisher={ACM},
+   author={Da, Wei and Kalyvianaki, Evangelia},
+   year={2026},
+   month=Sept, pages={36–51},
+   collection={SYSTOR ’26} }
 ```
 
 ---
